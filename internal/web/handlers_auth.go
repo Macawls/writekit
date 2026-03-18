@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -37,10 +38,47 @@ func (h *Handler) renderOAuthLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) OAuthStart(w http.ResponseWriter, r *http.Request) {
+	providerName := chi.URLParam(r, "provider")
+	provider := h.getProvider(providerName)
+	if provider == nil {
+		http.Error(w, "unknown provider", http.StatusBadRequest)
+		return
+	}
+
+	nonce := getOAuthState(r)
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    nonce,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   !h.Config.Dev,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   600,
+	})
+
+	state := nonce
+	if r.URL.Query().Get("oauth") == "1" {
+		q := r.URL.Query()
+		q.Del("oauth")
+		state = nonce + "|" + q.Encode()
+	}
+
+	http.Redirect(w, r, provider.Config.AuthCodeURL(state), http.StatusFound)
+}
+
 func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 	providerName := chi.URLParam(r, "provider")
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
+
+	stateCookie, err := r.Cookie("oauth_state")
+	if err != nil || !strings.HasPrefix(state, stateCookie.Value) {
+		http.Error(w, "invalid state", http.StatusBadRequest)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: "oauth_state", MaxAge: -1, Path: "/"})
 
 	var provider *auth.OAuthProvider
 	switch providerName {
@@ -112,8 +150,8 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		Expires:  sess.ExpiresAt,
 	})
 
-	if state != "" {
-		http.Redirect(w, r, "/oauth/authorize?"+state, http.StatusSeeOther)
+	if parts := strings.SplitN(state, "|", 2); len(parts) == 2 {
+		http.Redirect(w, r, "/oauth/authorize?"+parts[1], http.StatusSeeOther)
 		return
 	}
 
