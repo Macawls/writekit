@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS posts (
     updated_at DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS posts_fts USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
     title,
     content,
     tags,
