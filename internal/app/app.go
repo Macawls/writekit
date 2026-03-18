@@ -42,7 +42,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 	webEngine := render.New(webTemplatesFS, cfg.Dev)
 	blogEngine := render.New(blogTemplatesFS, cfg.Dev)
 
-	var google, github *auth.OAuthProvider
+	var google, github, discord *auth.OAuthProvider
 	if cfg.GoogleClientID != "" {
 		google = auth.NewGoogleProvider(cfg.GoogleClientID, cfg.GoogleClientSecret,
 			cfg.BaseURL+"/auth/callback/google")
@@ -50,6 +50,10 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 	if cfg.GithubClientID != "" {
 		github = auth.NewGithubProvider(cfg.GithubClientID, cfg.GithubClientSecret,
 			cfg.BaseURL+"/auth/callback/github")
+	}
+	if cfg.DiscordClientID != "" {
+		discord = auth.NewDiscordProvider(cfg.DiscordClientID, cfg.DiscordClientSecret,
+			cfg.BaseURL+"/auth/callback/discord")
 	}
 
 	mcpAuth := &auth.MCPAuth{DB: platformDB, BaseURL: cfg.BaseURL}
@@ -67,6 +71,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Engine:  webEngine,
 		Google:  google,
 		Github:  github,
+		Discord: discord,
 		MCPAuth: mcpAuth,
 		Email:   emailSender,
 	}
@@ -110,7 +115,7 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, blogHandler *blog.
 			host = host[:i]
 		}
 
-		if host == cfg.AppHost || host == cfg.Host || (cfg.Dev && (host == "localhost" || host == "127.0.0.1")) {
+		if host == cfg.Host || (cfg.Dev && (host == "localhost" || host == "127.0.0.1")) {
 			appR.ServeHTTP(w, r)
 		} else if strings.HasSuffix(host, "."+cfg.Host) {
 			blogR.ServeHTTP(w, r)

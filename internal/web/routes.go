@@ -17,6 +17,7 @@ type Handler struct {
 	Engine   *render.Engine
 	Google   *auth.OAuthProvider
 	Github   *auth.OAuthProvider
+	Discord  *auth.OAuthProvider
 	MCPAuth  *auth.MCPAuth
 	Email    *email.Sender
 }

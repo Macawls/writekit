@@ -21,17 +21,19 @@ func (h *Handler) LoginPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.Engine.Render(w, "login.html", map[string]any{
-		"GoogleEnabled": h.Config.GoogleClientID != "",
-		"GithubEnabled": h.Config.GithubClientID != "",
+		"GoogleEnabled":  h.Config.GoogleClientID != "",
+		"GithubEnabled":  h.Config.GithubClientID != "",
+		"DiscordEnabled": h.Config.DiscordClientID != "",
 	})
 }
 
 func (h *Handler) renderOAuthLogin(w http.ResponseWriter, r *http.Request) {
 	h.Engine.Render(w, "login.html", map[string]any{
-		"GoogleEnabled": h.Config.GoogleClientID != "",
-		"GithubEnabled": h.Config.GithubClientID != "",
-		"OAuth":         true,
-		"OAuthParams":   r.URL.Query().Encode(),
+		"GoogleEnabled":  h.Config.GoogleClientID != "",
+		"GithubEnabled":  h.Config.GithubClientID != "",
+		"DiscordEnabled": h.Config.DiscordClientID != "",
+		"OAuth":          true,
+		"OAuthParams":    r.URL.Query().Encode(),
 	})
 }
 
@@ -46,6 +48,8 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		provider = h.Google
 	case "github":
 		provider = h.Github
+	case "discord":
+		provider = h.Discord
 	default:
 		http.Error(w, "unknown provider", http.StatusBadRequest)
 		return
@@ -294,6 +298,8 @@ func (h *Handler) getProvider(name string) *auth.OAuthProvider {
 		return h.Google
 	case "github":
 		return h.Github
+	case "discord":
+		return h.Discord
 	}
 	return nil
 }

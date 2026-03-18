@@ -58,7 +58,7 @@ Your account is ready. WriteKit is an MCP-first blogging platform &mdash; you ma
 <pre style="margin:0;font-family:'SF Mono','Fira Code',monospace;font-size:13px;line-height:1.6;color:#111;white-space:pre-wrap;">{
   "mcpServers": {
     "writekit": {
-      "url": "https://app.writekit.dev/mcp"
+      "url": "https://writekit.dev/mcp"
     }
   }
 }</pre>

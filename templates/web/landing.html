@@ -163,7 +163,7 @@
             <div class="term-dots"><i></i><i></i><i></i></div>
             <button class="term-cp" id="cp" onclick="cc()">Copy</button>
         </div>
-        <div class="term-body"><span class="p">$</span> claude mcp add <span class="f">--transport</span> http writekit <span class="u">https://app.writekit.dev/mcp</span></div>
+        <div class="term-body"><span class="p">$</span> claude mcp add <span class="f">--transport</span> http writekit <span class="u">https://writekit.dev/mcp</span></div>
     </div>
     <p class="cta-below">OAuth signs you in on first connect. <a href="/docs">Read the docs &rarr;</a></p>
 </div>
@@ -192,7 +192,7 @@
 
 <script>
 function cc(){
-    navigator.clipboard.writeText('claude mcp add --transport http writekit https://app.writekit.dev/mcp').then(()=>{
+    navigator.clipboard.writeText('claude mcp add --transport http writekit https://writekit.dev/mcp').then(()=>{
         const b=document.getElementById('cp');
         b.textContent='Copied';b.classList.add('ok');
         setTimeout(()=>{b.textContent='Copy';b.classList.remove('ok')},2e3)

@@ -5,14 +5,14 @@
 ## Quick start
 
 ```
-claude mcp add --transport http writekit https://app.writekit.dev/mcp
+claude mcp add --transport http writekit https://writekit.dev/mcp
 ```
 
-Authentication happens automatically via OAuth (GitHub or Google) on first connect.
+Authentication happens automatically via OAuth (GitHub, Google, or Discord) on first connect.
 
 ## MCP Server URL
 
-https://app.writekit.dev/mcp
+https://writekit.dev/mcp
 
 ## Tools
 

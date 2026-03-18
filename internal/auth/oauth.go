@@ -43,6 +43,22 @@ func NewGithubProvider(clientID, clientSecret, redirectURL string) *OAuthProvide
 	}
 }
 
+func NewDiscordProvider(clientID, clientSecret, redirectURL string) *OAuthProvider {
+	return &OAuthProvider{
+		Name: "discord",
+		Config: &oauth2.Config{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURL:  redirectURL,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "https://discord.com/api/oauth2/authorize",
+				TokenURL: "https://discord.com/api/oauth2/token",
+			},
+			Scopes: []string{"identify", "email"},
+		},
+	}
+}
+
 type OAuthUserInfo struct {
 	Email     string
 	Name      string
@@ -62,6 +78,8 @@ func (p *OAuthProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (*
 		return getGoogleUserInfo(client)
 	case "github":
 		return getGithubUserInfo(client)
+	case "discord":
+		return getDiscordUserInfo(client)
 	default:
 		return nil, fmt.Errorf("unknown provider: %s", p.Name)
 	}
@@ -153,4 +171,41 @@ func getGithubPrimaryEmail(client *http.Client) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no verified primary email")
+}
+
+func getDiscordUserInfo(client *http.Client) (*OAuthUserInfo, error) {
+	resp, err := client.Get("https://discord.com/api/users/@me")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var data struct {
+		ID            string `json:"id"`
+		Username      string `json:"username"`
+		GlobalName    string `json:"global_name"`
+		Email         string `json:"email"`
+		Avatar        string `json:"avatar"`
+	}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, err
+	}
+
+	name := data.GlobalName
+	if name == "" {
+		name = data.Username
+	}
+
+	var avatarURL string
+	if data.Avatar != "" {
+		avatarURL = fmt.Sprintf("https://cdn.discordapp.com/avatars/%s/%s.png", data.ID, data.Avatar)
+	}
+
+	return &OAuthUserInfo{
+		Email:     data.Email,
+		Name:      name,
+		AvatarURL: avatarURL,
+		ID:        data.ID,
+	}, nil
 }

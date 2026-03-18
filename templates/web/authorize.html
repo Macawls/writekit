@@ -3,20 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Authorize - WriteKit</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <title>Authorize — WriteKit</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --bg:#fafafa;--white:#fff;--fg:#0f0f0f;--fg2:#3f3f46;
+            --muted:#71717a;--faint:#a1a1aa;--border:#e4e4e7;--border2:#d4d4d8;
+            --accent:#2563eb;--surface:#18181b;
+            --sans:'Instrument Sans',system-ui,sans-serif;
+            --mono:'JetBrains Mono',ui-monospace,monospace;
+        }
+        body{
+            font-family:var(--sans);background:var(--bg);color:var(--fg);
+            -webkit-font-smoothing:antialiased;line-height:1.6;
+            min-height:100vh;display:flex;flex-direction:column;
+            align-items:center;justify-content:center;padding:2rem;
+        }
+        body::before{
+            content:'';position:fixed;inset:0;z-index:0;
+            background-image:radial-gradient(circle,var(--border2) .5px,transparent .5px);
+            background-size:24px 24px;opacity:.5;
+        }
+
+        .auth-container{
+            position:relative;z-index:1;
+            width:100%;max-width:400px;
+        }
+
+        .brand{
+            text-align:center;margin-bottom:2.5rem;
+            animation:fadeUp .5s cubic-bezier(.19,1,.22,1) both;
+        }
+        .brand-mark{
+            font-family:var(--mono);font-weight:500;font-size:1.1rem;
+            letter-spacing:-.04em;color:var(--fg);
+        }
+
+        .card{
+            background:var(--white);border:1px solid var(--border);
+            border-radius:16px;padding:2rem;
+            box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);
+            animation:fadeUp .5s cubic-bezier(.19,1,.22,1) .08s both;
+        }
+
+        .card-title{
+            font-size:.95rem;font-weight:600;color:var(--fg);
+            text-align:center;margin-bottom:.5rem;letter-spacing:-.01em;
+        }
+        .card-desc{
+            text-align:center;font-size:.8rem;color:var(--muted);
+            margin-bottom:1.5rem;
+        }
+
+        .user-info{
+            background:var(--bg);border:1px solid var(--border);
+            border-radius:10px;padding:.85rem 1rem;margin-bottom:1.5rem;
+        }
+        .user-email{
+            font-size:.85rem;font-weight:500;color:var(--fg);
+        }
+        .user-scope{
+            margin-top:.3rem;font-size:.75rem;color:var(--muted);line-height:1.5;
+        }
+
+        .actions{display:flex;gap:.65rem}
+        .btn{
+            flex:1;padding:.65rem 1rem;border-radius:10px;
+            font-family:var(--sans);font-size:.85rem;font-weight:600;
+            cursor:pointer;border:none;transition:all .2s cubic-bezier(.19,1,.22,1);
+        }
+        .btn-approve{
+            background:var(--surface);color:var(--white);
+        }
+        .btn-approve:hover{
+            background:#27272a;transform:translateY(-1px);
+            box-shadow:0 2px 8px rgba(0,0,0,.15);
+        }
+        .btn-deny{
+            background:var(--white);color:var(--muted);
+            border:1.5px solid var(--border);
+        }
+        .btn-deny:hover{
+            border-color:var(--border2);color:var(--fg);
+            transform:translateY(-1px);
+        }
+        .btn:active{transform:translateY(0);box-shadow:none}
+
+        @keyframes fadeUp{
+            from{opacity:0;transform:translateY(12px)}
+            to{opacity:1;transform:translateY(0)}
+        }
+
+        @media(max-width:480px){
+            body{padding:1.25rem}
+            .card{padding:1.5rem;border-radius:14px}
+        }
+    </style>
 </head>
 <body>
-    <div class="auth-page">
-        <h1>Authorize Access</h1>
-        <p style="margin-bottom: 1.5rem;">An application wants to access your WriteKit account.</p>
 
-        <div class="card" style="text-align: left;">
-            <p>Signed in as <strong>{{.User.Email}}</strong></p>
-            <p style="margin-top: 0.5rem; color: var(--muted);">This will allow the application to manage your blog posts, comments, and settings.</p>
+<div class="auth-container">
+    <div class="brand">
+        <div class="brand-mark">writekit</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Authorize access</div>
+        <div class="card-desc">An application wants to access your WriteKit account.</div>
+
+        <div class="user-info">
+            <div class="user-email">{{.User.Email}}</div>
+            <div class="user-scope">This will allow the application to manage your blog posts, comments, and settings.</div>
         </div>
 
-        <form method="POST" action="/oauth/authorize" style="margin-top: 1.5rem;">
+        <form method="POST" action="/oauth/authorize">
             <input type="hidden" name="client_id" value="{{.AuthReq.ClientID}}">
             <input type="hidden" name="redirect_uri" value="{{.AuthReq.RedirectURI}}">
             <input type="hidden" name="state" value="{{.AuthReq.State}}">
@@ -24,11 +127,13 @@
             <input type="hidden" name="code_challenge" value="{{.AuthReq.CodeChallenge}}">
             <input type="hidden" name="code_challenge_method" value="{{.AuthReq.CodeMethod}}">
 
-            <div style="display: flex; gap: 0.75rem; justify-content: center;">
-                <button type="submit" name="action" value="approve" class="btn">Approve</button>
-                <button type="submit" name="action" value="deny" class="btn btn-outline">Deny</button>
+            <div class="actions">
+                <button type="submit" name="action" value="approve" class="btn btn-approve">Approve</button>
+                <button type="submit" name="action" value="deny" class="btn btn-deny">Deny</button>
             </div>
         </form>
     </div>
+</div>
+
 </body>
 </html>

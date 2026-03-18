@@ -7,11 +7,10 @@ import (
 )
 
 type Config struct {
-	Port     int
-	Host     string
-	AppHost  string
-	BaseURL  string
-	Dev      bool
+	Port    int
+	Host    string
+	BaseURL string
+	Dev     bool
 
 	DatabaseURL string
 	DataDir     string
@@ -20,6 +19,8 @@ type Config struct {
 	GoogleClientSecret string
 	GithubClientID     string
 	GithubClientSecret string
+	DiscordClientID     string
+	DiscordClientSecret string
 
 	SessionSecret string
 
@@ -38,7 +39,6 @@ func Load() (*Config, error) {
 	maxPool, _ := strconv.Atoi(getenv("MAX_POOL_SIZE", "50"))
 
 	host := getenv("HOST", "writekit.dev")
-	appHost := getenv("APP_HOST", "app."+host)
 
 	scheme := "https"
 	dev := getenv("DEV", "") == "true"
@@ -46,11 +46,15 @@ func Load() (*Config, error) {
 		scheme = "http"
 	}
 
+	baseURL := fmt.Sprintf("%s://%s", scheme, host)
+	if dev {
+		baseURL = fmt.Sprintf("http://localhost:%d", port)
+	}
+
 	cfg := &Config{
 		Port:    port,
 		Host:    host,
-		AppHost: appHost,
-		BaseURL: fmt.Sprintf("%s://%s", scheme, appHost),
+		BaseURL: baseURL,
 		Dev:     dev,
 
 		DatabaseURL: getenv("DATABASE_URL", ""),
@@ -60,6 +64,8 @@ func Load() (*Config, error) {
 		GoogleClientSecret: getenv("GOOGLE_CLIENT_SECRET", ""),
 		GithubClientID:     getenv("GITHUB_CLIENT_ID", ""),
 		GithubClientSecret: getenv("GITHUB_CLIENT_SECRET", ""),
+		DiscordClientID:     getenv("DISCORD_CLIENT_ID", ""),
+		DiscordClientSecret: getenv("DISCORD_CLIENT_SECRET", ""),
 
 		SessionSecret: getenv("SESSION_SECRET", ""),
 
