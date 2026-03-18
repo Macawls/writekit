@@ -110,7 +110,7 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, blogHandler *blog.
 			host = host[:i]
 		}
 
-		if host == cfg.AppHost || (cfg.Dev && (host == "localhost" || host == "127.0.0.1")) {
+		if host == cfg.AppHost || host == cfg.Host || (cfg.Dev && (host == "localhost" || host == "127.0.0.1")) {
 			appR.ServeHTTP(w, r)
 		} else if strings.HasSuffix(host, "."+cfg.Host) {
 			blogR.ServeHTTP(w, r)
