@@ -22,7 +22,7 @@ type MCPAuth struct {
 func (m *MCPAuth) ProtectedResource(w http.ResponseWriter, r *http.Request) {
 	metadata := map[string]any{
 		"resource":              m.BaseURL + "/mcp",
-		"authorization_servers": []string{m.BaseURL + "/.well-known/oauth-authorization-server"},
+		"authorization_servers": []string{m.BaseURL},
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(metadata)
