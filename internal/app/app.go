@@ -45,15 +45,15 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 	var google, github, discord *auth.OAuthProvider
 	if cfg.GoogleClientID != "" {
 		google = auth.NewGoogleProvider(cfg.GoogleClientID, cfg.GoogleClientSecret,
-			cfg.BaseURL+"/auth/callback/google")
+			cfg.BaseURL+"/auth/callback")
 	}
 	if cfg.GithubClientID != "" {
 		github = auth.NewGithubProvider(cfg.GithubClientID, cfg.GithubClientSecret,
-			cfg.BaseURL+"/auth/callback/github")
+			cfg.BaseURL+"/auth/callback")
 	}
 	if cfg.DiscordClientID != "" {
 		discord = auth.NewDiscordProvider(cfg.DiscordClientID, cfg.DiscordClientSecret,
-			cfg.BaseURL+"/auth/callback/discord")
+			cfg.BaseURL+"/auth/callback")
 	}
 
 	mcpAuth := &auth.MCPAuth{DB: platformDB, BaseURL: cfg.BaseURL}

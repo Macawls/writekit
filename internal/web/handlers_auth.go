@@ -50,7 +50,7 @@ func (h *Handler) OAuthStart(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_state",
-		Value:    nonce,
+		Value:    providerName + ":" + nonce,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   !h.Config.Dev,
@@ -69,16 +69,22 @@ func (h *Handler) OAuthStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
-	providerName := chi.URLParam(r, "provider")
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
 
 	stateCookie, err := r.Cookie("oauth_state")
-	if err != nil || !strings.HasPrefix(state, stateCookie.Value) {
+	if err != nil {
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: "oauth_state", MaxAge: -1, Path: "/"})
+
+	cookieParts := strings.SplitN(stateCookie.Value, ":", 2)
+	if len(cookieParts) != 2 || !strings.HasPrefix(state, cookieParts[1]) {
+		http.Error(w, "invalid state", http.StatusBadRequest)
+		return
+	}
+	providerName := cookieParts[0]
 
 	var provider *auth.OAuthProvider
 	switch providerName {
