@@ -1,5 +1,5 @@
-writekit
-writekit.exe
+/writekit
+/writekit.exe
 data/
 .env
 .env.*
