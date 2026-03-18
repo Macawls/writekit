@@ -1,0 +1,21 @@
+{{template "partials/header.html" .}}
+
+<h2>Posts tagged "{{.Tag}}"</h2>
+
+{{if .Posts}}
+<ul class="post-list">
+    {{range .Posts}}
+    <li class="post-item">
+        <h2><a href="/posts/{{.Slug}}">{{.Title}}</a></h2>
+        <div class="post-meta">
+            {{if .PublishedAt}}{{.PublishedAt.Format "January 2, 2006"}}{{end}}
+        </div>
+        {{if .Excerpt}}<p class="post-excerpt">{{.Excerpt}}</p>{{end}}
+    </li>
+    {{end}}
+</ul>
+{{else}}
+<p style="color: var(--muted);">No posts with this tag.</p>
+{{end}}
+
+{{template "partials/footer.html" .}}

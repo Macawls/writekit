@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in - WriteKit</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="auth-page">
+        <h1>WriteKit</h1>
+        <p>Sign in to manage your blog</p>
+        <div class="auth-buttons" style="margin-top: 1.5rem;">
+            {{if .GoogleEnabled}}
+            <a href="/auth/callback/google{{if .OAuth}}?state={{.OAuthParams}}{{end}}" class="auth-btn">
+                Sign in with Google
+            </a>
+            {{end}}
+            {{if .GithubEnabled}}
+            <a href="/auth/callback/github{{if .OAuth}}?state={{.OAuthParams}}{{end}}" class="auth-btn">
+                Sign in with GitHub
+            </a>
+            {{end}}
+        </div>
+    </div>
+</body>
+</html>

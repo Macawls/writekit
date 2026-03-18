@@ -1,0 +1,86 @@
+package render
+
+import (
+	"fmt"
+	"html/template"
+	"io"
+	"io/fs"
+	"sync"
+)
+
+type Engine struct {
+	mu        sync.RWMutex
+	templates map[string]*template.Template
+	funcMap   template.FuncMap
+	dev       bool
+	fsys      fs.FS
+}
+
+func New(fsys fs.FS, dev bool) *Engine {
+	return &Engine{
+		templates: make(map[string]*template.Template),
+		funcMap: template.FuncMap{
+			"safe": func(s string) template.HTML { return template.HTML(s) },
+		},
+		dev:  dev,
+		fsys: fsys,
+	}
+}
+
+func (e *Engine) Render(w io.Writer, name string, data any) error {
+	tmpl, err := e.get(name)
+	if err != nil {
+		return err
+	}
+	return tmpl.Execute(w, data)
+}
+
+func (e *Engine) get(name string) (*template.Template, error) {
+	if !e.dev {
+		e.mu.RLock()
+		if t, ok := e.templates[name]; ok {
+			e.mu.RUnlock()
+			return t, nil
+		}
+		e.mu.RUnlock()
+	}
+
+	t, err := e.parse(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !e.dev {
+		e.mu.Lock()
+		e.templates[name] = t
+		e.mu.Unlock()
+	}
+
+	return t, nil
+}
+
+func (e *Engine) parse(name string) (*template.Template, error) {
+	t := template.New(name).Funcs(e.funcMap)
+
+	partials, _ := fs.Glob(e.fsys, "partials/*.html")
+	for _, p := range partials {
+		content, err := fs.ReadFile(e.fsys, p)
+		if err != nil {
+			return nil, fmt.Errorf("read partial %s: %w", p, err)
+		}
+		if _, err := t.New(p).Parse(string(content)); err != nil {
+			return nil, fmt.Errorf("parse partial %s: %w", p, err)
+		}
+	}
+
+	content, err := fs.ReadFile(e.fsys, name)
+	if err != nil {
+		return nil, fmt.Errorf("read template %s: %w", name, err)
+	}
+
+	if _, err := t.Parse(string(content)); err != nil {
+		return nil, fmt.Errorf("parse template %s: %w", name, err)
+	}
+
+	return t, nil
+}

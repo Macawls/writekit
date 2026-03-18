@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docs — WriteKit</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --bg:#fafafa;--white:#fff;--fg:#0f0f0f;--fg2:#3f3f46;--muted:#71717a;
+            --faint:#a1a1aa;--border:#e4e4e7;--border2:#d4d4d8;--accent:#2563eb;
+            --surface:#18181b;--green:#22c55e;--blue:#3b82f6;--amber:#f59e0b;
+            --sans:'Instrument Sans',system-ui,sans-serif;
+            --mono:'JetBrains Mono',ui-monospace,monospace;
+        }
+        body{font-family:var(--sans);background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;line-height:1.7}
+        a{color:var(--accent);text-decoration:none}
+        a:hover{text-decoration:underline}
+
+        nav{
+            max-width:720px;margin:0 auto;padding:1.25rem 2rem;
+            display:flex;justify-content:space-between;align-items:center;
+        }
+        .logo{font-family:var(--mono);font-weight:500;font-size:.9rem;color:var(--fg);letter-spacing:-.04em;text-decoration:none}
+        .logo:hover{text-decoration:none}
+        .nav-r{display:flex;gap:1.5rem;align-items:center;font-size:.85rem}
+        .nav-r a{color:var(--muted);font-weight:500}
+        .nav-r a:hover{color:var(--fg);text-decoration:none}
+
+        .doc{max-width:720px;margin:0 auto;padding:3rem 2rem 5rem}
+
+        h1{font-size:2rem;font-weight:700;letter-spacing:-.04em;line-height:1.1;margin-bottom:1.5rem}
+        h2{font-size:1.25rem;font-weight:700;letter-spacing:-.02em;margin-top:3rem;margin-bottom:.75rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+        h3{font-size:1rem;font-weight:600;margin-top:1.5rem;margin-bottom:.5rem}
+        p{margin-bottom:1rem;color:var(--fg2);font-size:.95rem}
+        ul,ol{margin-bottom:1rem;padding-left:1.25rem;color:var(--fg2);font-size:.95rem}
+        li{margin-bottom:.35rem}
+        strong{color:var(--fg);font-weight:600}
+
+        code{
+            font-family:var(--mono);font-size:.8rem;
+            background:var(--white);border:1px solid var(--border);
+            padding:.1rem .35rem;border-radius:4px;color:var(--fg);
+        }
+        pre{
+            background:var(--surface);color:#e4e4e7;border-radius:10px;
+            padding:1rem 1.25rem;margin-bottom:1.25rem;overflow-x:auto;
+            font-family:var(--mono);font-size:.8rem;line-height:1.7;
+        }
+        pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
+
+        .prompt-card{
+            background:var(--white);border:1px solid var(--border);border-radius:10px;
+            padding:1rem 1.25rem;margin-bottom:.75rem;
+        }
+        .prompt-card .say{
+            font-size:.85rem;color:var(--fg);font-weight:500;margin-bottom:.25rem;
+        }
+        .prompt-card .does{font-size:.8rem;color:var(--muted)}
+
+        .badge{
+            display:inline-block;font-family:var(--mono);font-size:.65rem;font-weight:500;
+            color:var(--accent);background:rgba(37,99,235,.08);
+            padding:.15rem .5rem;border-radius:100px;margin-right:.35rem;
+        }
+
+        table{
+            width:100%;border-collapse:collapse;margin-bottom:1.25rem;font-size:.85rem;
+        }
+        th{text-align:left;font-weight:600;color:var(--fg);padding:.5rem .75rem;border-bottom:2px solid var(--border)}
+        td{padding:.5rem .75rem;border-bottom:1px solid var(--border);color:var(--fg2)}
+        td code{font-size:.75rem}
+
+        footer{
+            max-width:720px;margin:0 auto;padding:2rem;
+            border-top:1px solid var(--border);font-size:.75rem;color:var(--faint);
+            display:flex;justify-content:space-between;
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="/" class="logo">writekit</a>
+    <div class="nav-r">
+        <a href="/docs">Docs</a>
+        <a href="https://discord.gg/writekit">Discord</a>
+        <a href="https://github.com/writekit">GitHub</a>
+    </div>
+</nav>
+
+<div class="doc">
+
+<h1>Documentation</h1>
+
+<p>WriteKit is an MCP-native blogging platform. You manage your blog entirely through an AI assistant — no editor, no dashboard. Connect, write, publish.</p>
+
+<h2>Get started</h2>
+
+<h3>1. Add the MCP server</h3>
+<pre><code>$ claude mcp add --transport http writekit https://app.writekit.dev/mcp</code></pre>
+<p>This registers WriteKit as a remote MCP server in Claude Code. Works with any MCP-compatible client.</p>
+
+<h3>2. Authenticate</h3>
+<p>On first use, an OAuth popup opens in your browser. Sign in with <strong>GitHub</strong> or <strong>Google</strong>. This only happens once — your session persists.</p>
+
+<h3>3. Create your blog</h3>
+<p>After signing in, visit <a href="/dashboard">your dashboard</a> to pick a subdomain. Your blog lives at <code>yourname.writekit.dev</code>.</p>
+
+<h3>4. Start writing</h3>
+<p>Tell your AI assistant what to write. It handles drafting, formatting, and publishing through MCP tools.</p>
+
+<h2>Example prompts</h2>
+
+<p>Copy these directly into Claude. They work as-is once you're connected.</p>
+
+<div class="prompt-card">
+    <div class="say">"Write a blog post about Go concurrency patterns"</div>
+    <div class="does">Creates a draft with markdown content, returns a preview URL.</div>
+</div>
+
+<div class="prompt-card">
+    <div class="say">"Show me all my draft posts"</div>
+    <div class="does">Lists all drafts with titles, IDs, and dates.</div>
+</div>
+
+<div class="prompt-card">
+    <div class="say">"Publish my post about Go concurrency"</div>
+    <div class="does">Sets the post to published, returns the live URL.</div>
+</div>
+
+<div class="prompt-card">
+    <div class="say">"Update my latest post — add a section about error handling"</div>
+    <div class="does">Fetches the post, appends content, regenerates HTML.</div>
+</div>
+
+<div class="prompt-card">
+    <div class="say">"Are there any new comments?"</div>
+    <div class="does">Lists recent comments across all your posts.</div>
+</div>
+
+<div class="prompt-card">
+    <div class="say">"Delete the spam comment from user123"</div>
+    <div class="does">Removes the comment by ID.</div>
+</div>
+
+<div class="prompt-card">
+    <div class="say">"Change my blog title to 'Ship Fast, Write Often'"</div>
+    <div class="does">Updates the blog title in settings.</div>
+</div>
+
+<div class="prompt-card">
+    <div class="say">"Search my posts for anything about databases"</div>
+    <div class="does">Full-text search across titles and content.</div>
+</div>
+
+<h2>MCP tools</h2>
+
+<p>These tools are available to your AI assistant when connected to WriteKit.</p>
+
+<table>
+    <tr><th>Tool</th><th>Description</th></tr>
+    <tr><td><code>create_post</code></td><td>Create a new draft post with markdown content</td></tr>
+    <tr><td><code>update_post</code></td><td>Update any field of an existing post (partial updates)</td></tr>
+    <tr><td><code>delete_post</code></td><td>Permanently delete a post</td></tr>
+    <tr><td><code>publish_post</code></td><td>Publish a draft — returns the live URL</td></tr>
+    <tr><td><code>unpublish_post</code></td><td>Revert a published post to draft</td></tr>
+    <tr><td><code>list_posts</code></td><td>List posts, filter by status or tag</td></tr>
+    <tr><td><code>get_post</code></td><td>Get full post content by ID or slug</td></tr>
+    <tr><td><code>search_posts</code></td><td>Full-text search across all posts</td></tr>
+    <tr><td><code>list_comments</code></td><td>List comments on a post</td></tr>
+    <tr><td><code>delete_comment</code></td><td>Delete a comment by ID</td></tr>
+    <tr><td><code>get_settings</code></td><td>Get current blog settings</td></tr>
+    <tr><td><code>update_settings</code></td><td>Update blog title, description</td></tr>
+</table>
+
+<h2>MCP resources</h2>
+
+<p>Resources provide read-only context your AI can access at any time.</p>
+
+<table>
+    <tr><th>URI</th><th>Description</th></tr>
+    <tr><td><code>writekit://blog/stats</code></td><td>Post counts, comment counts</td></tr>
+    <tr><td><code>writekit://blog/settings</code></td><td>Current blog settings</td></tr>
+    <tr><td><code>writekit://blog/recent-posts</code></td><td>Last 10 published posts</td></tr>
+    <tr><td><code>writekit://blog/drafts</code></td><td>All draft posts</td></tr>
+    <tr><td><code>writekit://blog/recent-comments</code></td><td>Recent comments</td></tr>
+</table>
+
+<h2>Markdown</h2>
+
+<p>Posts are written in markdown and rendered with <a href="https://github.com/yuin/goldmark">Goldmark</a>. Supported extensions:</p>
+
+<ul>
+    <li>GitHub Flavored Markdown (tables, strikethrough, autolinks, task lists)</li>
+    <li>Footnotes</li>
+    <li>Auto heading IDs</li>
+    <li>Syntax highlighting for code blocks (use language tags: <code>```go</code>, <code>```python</code>, etc.)</li>
+    <li>Raw HTML</li>
+</ul>
+
+<h2>Blog features</h2>
+
+<p>Every blog at <code>yourname.writekit.dev</code> includes:</p>
+
+<ul>
+    <li><strong>Index page</strong> — latest published posts</li>
+    <li><strong>Post pages</strong> — <code>/posts/{slug}</code></li>
+    <li><strong>Tag pages</strong> — <code>/tags/{tag}</code></li>
+    <li><strong>Search</strong> — <code>/search?q=query</code></li>
+    <li><strong>RSS feed</strong> — <code>/feed.xml</code></li>
+    <li><strong>Comments</strong> — built-in form on every post</li>
+    <li><strong>Preview URLs</strong> — shareable expiring links for drafts</li>
+</ul>
+
+<h2>Architecture</h2>
+
+<ul>
+    <li><strong>Per-tenant SQLite</strong> — each blog has its own database file (WAL mode)</li>
+    <li><strong>PostgreSQL</strong> — platform data (users, sessions, OAuth, billing)</li>
+    <li><strong>No Redis, no workers</strong> — single binary, in-process event bus</li>
+    <li><strong>MCP transport</strong> — Streamable HTTP with OAuth 2.0 + PKCE</li>
+</ul>
+
+</div>
+
+<footer>
+    <span>&copy; 2025 WriteKit</span>
+    <a href="/">Home</a>
+</footer>
+
+</body>
+</html>

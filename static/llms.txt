@@ -1,0 +1,123 @@
+# WriteKit — MCP-native blogging platform
+
+> WriteKit lets developers manage a blog entirely through an AI assistant using the Model Context Protocol. No editor, no dashboard.
+
+## Quick start
+
+```
+claude mcp add --transport http writekit https://app.writekit.dev/mcp
+```
+
+Authentication happens automatically via OAuth (GitHub or Google) on first connect.
+
+## MCP Server URL
+
+https://app.writekit.dev/mcp
+
+## Tools
+
+### create_post
+Create a new blog post (starts as draft).
+- Required: title (string), content (string, markdown)
+- Optional: excerpt (string), tags (string[]), slug (string), tenant_id (string)
+- Returns: post ID, slug, preview URL
+- Content supports: GFM, tables, footnotes, code blocks with language tags, images via URL, raw HTML
+
+### update_post
+Update an existing post. Partial updates — only send fields to change.
+- Required: id (string)
+- Optional: title, content, excerpt, tags, slug, tenant_id
+- Returns: updated post info, preview URL
+
+### delete_post
+Permanently delete a post and its comments.
+- Required: id (string)
+- Optional: tenant_id
+
+### publish_post
+Publish a draft post. Sets status=published, published_at=now.
+- Required: id (string)
+- Optional: tenant_id
+- Returns: live URL at {subdomain}.writekit.dev/posts/{slug}
+
+### unpublish_post
+Revert a published post to draft.
+- Required: id (string)
+- Optional: tenant_id
+
+### list_posts
+List posts with optional filters.
+- Optional: status (draft|published), tag (string), limit (int), tenant_id
+- Returns: titles, slugs, statuses, tags, published dates
+
+### get_post
+Get a single post with full markdown content.
+- Required: id (string) OR slug (string)
+- Optional: tenant_id
+- Returns: full post including raw markdown content
+
+### search_posts
+Full-text search across post titles and content (FTS5).
+- Required: query (string)
+- Optional: tenant_id
+
+### list_comments
+List comments on a specific post.
+- Required: post_id (string)
+- Optional: tenant_id
+
+### delete_comment
+Delete a comment.
+- Required: id (string)
+- Optional: tenant_id
+
+### get_settings
+Get all blog settings (title, description).
+- Optional: tenant_id
+
+### update_settings
+Update blog settings. Partial — only send keys to change.
+- Optional: title (string), description (string), tenant_id
+
+## Resources
+
+- writekit://blog/stats — post counts, comment counts
+- writekit://blog/settings — current blog settings as JSON
+- writekit://blog/recent-posts — last 10 published posts
+- writekit://blog/drafts — all draft posts
+- writekit://blog/recent-comments — recent comments across all posts
+
+## Tenant resolution
+
+If a user has one blog, it's selected automatically. If multiple blogs exist, pass tenant_id on each tool call.
+
+## Content format
+
+Posts use Markdown rendered with Goldmark. Supported:
+- Headings (# through ######)
+- Bold, italic, strikethrough
+- Links, images (by URL)
+- Code blocks with language tags (```go, ```python, etc.)
+- Blockquotes, ordered/unordered lists, task lists
+- Tables (GFM), horizontal rules, footnotes
+- Raw HTML
+
+## Blog URLs
+
+- Blog: https://{subdomain}.writekit.dev
+- Post: https://{subdomain}.writekit.dev/posts/{slug}
+- Tag: https://{subdomain}.writekit.dev/tags/{tag}
+- Search: https://{subdomain}.writekit.dev/search?q={query}
+- RSS: https://{subdomain}.writekit.dev/feed.xml
+- Preview: https://{subdomain}.writekit.dev/preview/{token} (expiring)
+
+## Example prompts
+
+- "Write a blog post about Go concurrency patterns"
+- "Show me all my draft posts"
+- "Publish my post about Go concurrency"
+- "Update my latest post — add a section about error handling"
+- "Are there any new comments?"
+- "Delete the spam comment from user123"
+- "Change my blog title to 'Ship Fast, Write Often'"
+- "Search my posts for anything about databases"

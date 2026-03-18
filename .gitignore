@@ -1,0 +1,10 @@
+writekit
+writekit.exe
+data/
+.env
+.env.*
+screenshots/
+*.db
+*.db-wal
+*.db-shm
+tmp/
