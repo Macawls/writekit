@@ -52,6 +52,28 @@
         }
         pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
 
+        .tabs input[type="radio"]{display:none}
+        .tab-labels{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--border);margin-bottom:0}
+        .tab-labels label{
+            padding:.5rem 1rem;font-size:.8rem;font-weight:500;color:var(--faint);
+            cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+            transition:color .15s,border-color .15s;
+        }
+        .tab-labels label:hover{color:var(--muted)}
+        .tab-panel{display:none;padding:1rem 0}
+        #tc-claude:checked ~ .tab-labels label[for="tc-claude"],
+        #tc-cursor:checked ~ .tab-labels label[for="tc-cursor"],
+        #tc-windsurf:checked ~ .tab-labels label[for="tc-windsurf"],
+        #tc-vscode:checked ~ .tab-labels label[for="tc-vscode"],
+        #tc-opencode:checked ~ .tab-labels label[for="tc-opencode"],
+        #tc-any:checked ~ .tab-labels label[for="tc-any"]{color:var(--fg);border-bottom-color:var(--accent)}
+        #tc-claude:checked ~ .tab-panels .p-claude,
+        #tc-cursor:checked ~ .tab-panels .p-cursor,
+        #tc-windsurf:checked ~ .tab-panels .p-windsurf,
+        #tc-vscode:checked ~ .tab-panels .p-vscode,
+        #tc-opencode:checked ~ .tab-panels .p-opencode,
+        #tc-any:checked ~ .tab-panels .p-any{display:block}
+
         .prompt-card{
             background:var(--white);border:1px solid var(--border);border-radius:10px;
             padding:1rem 1.25rem;margin-bottom:.75rem;
@@ -88,7 +110,6 @@
     <div class="nav-r">
         <a href="/docs">Docs</a>
         <a href="https://discord.gg/writekit">Discord</a>
-        <a href="https://github.com/writekit">GitHub</a>
     </div>
 </nav>
 
@@ -101,11 +122,71 @@
 <h2>Get started</h2>
 
 <h3>1. Add the MCP server</h3>
-<pre><code>$ claude mcp add --transport http writekit https://writekit.dev/mcp</code></pre>
-<p>This registers WriteKit as a remote MCP server in Claude Code. Works with any MCP-compatible client.</p>
+
+<div class="tabs">
+    <input type="radio" name="ct" id="tc-claude" checked>
+    <input type="radio" name="ct" id="tc-cursor">
+    <input type="radio" name="ct" id="tc-windsurf">
+    <input type="radio" name="ct" id="tc-vscode">
+    <input type="radio" name="ct" id="tc-opencode">
+    <input type="radio" name="ct" id="tc-any">
+
+    <div class="tab-labels">
+        <label for="tc-claude">Claude Code</label>
+        <label for="tc-cursor">Cursor</label>
+        <label for="tc-windsurf">Windsurf</label>
+        <label for="tc-vscode">VS Code</label>
+        <label for="tc-opencode">OpenCode</label>
+        <label for="tc-any">Any Client</label>
+    </div>
+
+    <div class="tab-panels">
+        <div class="tab-panel p-claude">
+<pre><code>claude mcp add --transport http writekit https://writekit.dev/mcp</code></pre>
+        </div>
+        <div class="tab-panel p-cursor">
+            <p>Add to <code>.cursor/mcp.json</code>:</p>
+<pre><code>{
+  "mcpServers": {
+    "writekit": {
+      "url": "https://writekit.dev/mcp"
+    }
+  }
+}</code></pre>
+        </div>
+        <div class="tab-panel p-windsurf">
+            <p>Add to your Windsurf MCP config:</p>
+<pre><code>{
+  "mcpServers": {
+    "writekit": {
+      "url": "https://writekit.dev/mcp"
+    }
+  }
+}</code></pre>
+        </div>
+        <div class="tab-panel p-vscode">
+            <p>Add to <code>.vscode/mcp.json</code>:</p>
+<pre><code>{
+  "servers": {
+    "writekit": {
+      "type": "http",
+      "url": "https://writekit.dev/mcp"
+    }
+  }
+}</code></pre>
+        </div>
+        <div class="tab-panel p-opencode">
+<pre><code>opencode mcp add --transport http writekit https://writekit.dev/mcp</code></pre>
+        </div>
+        <div class="tab-panel p-any">
+            <p>Point any Streamable HTTP MCP client at:</p>
+<pre><code>https://writekit.dev/mcp</code></pre>
+        </div>
+    </div>
+</div>
 
 <h3>2. Authenticate</h3>
-<p>On first use, an OAuth popup opens in your browser. Sign in with <strong>GitHub</strong>, <strong>Google</strong>, or <strong>Discord</strong>. This only happens once — your session persists.</p>
+<p>A browser window opens automatically on first tool use. Sign in with <strong>GitHub</strong>, <strong>Google</strong>, or <strong>Discord</strong>. This only happens once — done.</p>
 
 <h3>3. Create your blog</h3>
 <p>After signing in, visit <a href="/dashboard">your dashboard</a> to pick a subdomain. Your blog lives at <code>yourname.writekit.dev</code>.</p>
@@ -228,7 +309,7 @@
 </div>
 
 <footer>
-    <span>&copy; 2025 WriteKit</span>
+    <span>&copy; 2026 WriteKit</span>
     <a href="/">Home</a>
 </footer>
 

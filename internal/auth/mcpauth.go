@@ -19,6 +19,15 @@ type MCPAuth struct {
 	BaseURL string
 }
 
+func (m *MCPAuth) ProtectedResource(w http.ResponseWriter, r *http.Request) {
+	metadata := map[string]any{
+		"resource":              m.BaseURL + "/mcp",
+		"authorization_servers": []string{m.BaseURL + "/.well-known/oauth-authorization-server"},
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(metadata)
+}
+
 func (m *MCPAuth) WellKnown(w http.ResponseWriter, r *http.Request) {
 	metadata := map[string]any{
 		"issuer":                 m.BaseURL,

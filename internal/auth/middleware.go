@@ -55,12 +55,13 @@ func WebAuth(db *platform.DB) func(http.Handler) http.Handler {
 	}
 }
 
-func BearerAuth(db *platform.DB) func(http.Handler) http.Handler {
+func BearerAuth(db *platform.DB, baseURL string) func(http.Handler) http.Handler {
+	resourceMeta := baseURL + "/.well-known/oauth-protected-resource"
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth := r.Header.Get("Authorization")
 			if !strings.HasPrefix(auth, "Bearer ") {
-				w.Header().Set("WWW-Authenticate", `Bearer`)
+				w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+resourceMeta+`"`)
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
@@ -68,7 +69,7 @@ func BearerAuth(db *platform.DB) func(http.Handler) http.Handler {
 
 			at, err := db.GetAccessToken(r.Context(), token)
 			if err != nil {
-				w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
+				w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token", resource_metadata="`+resourceMeta+`"`)
 				http.Error(w, "invalid token", http.StatusUnauthorized)
 				return
 			}

@@ -30,6 +30,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/auth/logout", h.Logout)
 
 	r.Get("/.well-known/oauth-authorization-server", h.MCPAuth.WellKnown)
+	r.Get("/.well-known/oauth-protected-resource", h.MCPAuth.ProtectedResource)
 	r.Post("/oauth/register", h.MCPAuth.Register)
 	r.Get("/oauth/authorize", h.OAuthAuthorize)
 	r.Post("/oauth/authorize", h.OAuthAuthorizeSubmit)
