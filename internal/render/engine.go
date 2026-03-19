@@ -6,6 +6,8 @@ import (
 	"io"
 	"io/fs"
 	"sync"
+
+	"writekit/internal/markdown"
 )
 
 type Engine struct {
@@ -21,6 +23,13 @@ func New(fsys fs.FS, dev bool) *Engine {
 		templates: make(map[string]*template.Template),
 		funcMap: template.FuncMap{
 			"safe": func(s string) template.HTML { return template.HTML(s) },
+			"chromaCSS": func(theme string) template.CSS {
+				if theme == "" {
+					theme = markdown.DefaultCodeTheme
+				}
+				css, _ := markdown.GenerateChromaCSS(theme)
+				return template.CSS(css)
+			},
 		},
 		dev:  dev,
 		fsys: fsys,

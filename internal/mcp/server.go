@@ -11,6 +11,27 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+const writeKitInstructions = `You are helping the user manage their blog on WriteKit. When creating or updating blog posts, always write rich, well-structured Markdown content. Never write plain text — blog posts should look professional when rendered.
+
+Content guidelines:
+- Use headings (##, ###) to organize sections
+- Use **bold** and *italic* for emphasis
+- Use code blocks with language tags (` + "```go, ```python" + `, etc.) for any code — they render with syntax highlighting and a copy button
+- Use blockquotes (>) for callouts and quotes
+- Use bullet and numbered lists for structured information
+- Use tables for comparative data
+- Use links with descriptive text: [text](url)
+- Use images where relevant: ![alt](url)
+
+Advanced features:
+- Callout blocks: Start a blockquote with [!NOTE], [!TIP], [!WARNING], or [!DANGER] for styled alert boxes
+  Example: > [!TIP] This renders as a green tip box with an icon
+- Media embeds: Use <embed src="url" /> for YouTube, Spotify, SoundCloud, Twitter, or GitHub Gists
+- D2 diagrams: Use ` + "```d2" + ` code blocks for architecture diagrams
+- Footnotes: Use [^1] syntax for references
+
+Workflow: Create posts as drafts first, share the preview URL, then publish when ready.`
+
 type Server struct {
 	PlatformDB *platform.DB
 	Pool       *tenant.Pool
@@ -30,12 +51,15 @@ func New(platformDB *platform.DB, pool *tenant.Pool, cfg *config.Config, bus *ev
 	mcpServer := mcp.NewServer(&mcp.Implementation{
 		Name:    "WriteKit",
 		Version: "2.0.0",
-	}, nil)
+	}, &mcp.ServerOptions{
+		Instructions: writeKitInstructions,
+	})
 
 	s.registerTools(mcpServer)
 	s.registerCommentTools(mcpServer)
 	s.registerSettingsTools(mcpServer)
 	s.registerResources(mcpServer)
+	s.registerPrompts(mcpServer)
 
 	s.mcpServer = mcpServer
 	return s

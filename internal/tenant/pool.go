@@ -81,9 +81,16 @@ func (p *Pool) open(tenantID string) (*DB, error) {
 
 	db := &DB{DB: sqlDB, TenantID: tenantID}
 
-	if err := db.migrate(); err != nil {
+	migrated, err := db.migrate()
+	if err != nil {
 		sqlDB.Close()
 		return nil, fmt.Errorf("migrate sqlite %s: %w", tenantID, err)
+	}
+
+	if migrated {
+		if err := db.rerenderPosts(); err != nil {
+			slog.Warn("failed to re-render posts after migration", "tenant", tenantID, "err", err)
+		}
 	}
 
 	slog.Info("opened tenant db", "tenant", tenantID)

@@ -18,10 +18,10 @@ https://writekit.dev/mcp
 
 ### create_post
 Create a new blog post (starts as draft).
-- Required: title (string), content (string, markdown)
+- Required: title (string), content (string, rich markdown)
 - Optional: excerpt (string), tags (string[]), slug (string), tenant_id (string)
 - Returns: post ID, slug, preview URL
-- Content supports: GFM, tables, footnotes, code blocks with language tags, images via URL, raw HTML
+- Content supports: GFM, tables, footnotes, syntax-highlighted code blocks, callout blocks, media embeds, D2 diagrams, images, raw HTML
 
 ### update_post
 Update an existing post. Partial updates — only send fields to change.
@@ -72,12 +72,20 @@ Delete a comment.
 - Optional: tenant_id
 
 ### get_settings
-Get all blog settings (title, description).
+Get all blog settings (title, description, code_theme).
 - Optional: tenant_id
 
 ### update_settings
 Update blog settings. Partial — only send keys to change.
-- Optional: title (string), description (string), tenant_id
+- Optional: title (string), description (string), code_theme (string), tenant_id
+
+## Prompts
+
+### write_post
+Generate a well-structured blog post about a topic.
+- Required: topic (string) — What to write about
+- Optional: audience (string) — Target audience (e.g., beginners, senior devs)
+- Optional: style (string) — Writing style (e.g., tutorial, opinion, guide)
 
 ## Resources
 
@@ -93,14 +101,51 @@ If a user has one blog, it's selected automatically. If multiple blogs exist, pa
 
 ## Content format
 
-Posts use Markdown rendered with Goldmark. Supported:
-- Headings (# through ######)
-- Bold, italic, strikethrough
+Posts use Markdown rendered with Goldmark and Chroma syntax highlighting. Supported features:
+
+### Basic Markdown
+- Headings (# through ######) with auto-generated IDs
+- **Bold**, *italic*, ~~strikethrough~~
 - Links, images (by URL)
-- Code blocks with language tags (```go, ```python, etc.)
-- Blockquotes, ordered/unordered lists, task lists
-- Tables (GFM), horizontal rules, footnotes
+- Ordered/unordered lists, task lists
+- Tables (GFM), horizontal rules, footnotes ([^1])
 - Raw HTML
+
+### Syntax-highlighted code blocks
+Use fenced code blocks with language tags for rich rendering with language icons and copy buttons:
+```go
+func main() {
+    fmt.Println("Hello, world!")
+}
+```
+Supported languages include Go, Python, JavaScript, TypeScript, Rust, Java, Ruby, and 50+ more. Add a title with `title="filename.go"`.
+
+### Callout blocks
+Start a blockquote with a type marker for styled alert boxes:
+```
+> [!NOTE] This renders as a blue info box with an icon
+> [!TIP] Green tip box — great for best practices
+> [!WARNING] Yellow warning box — watch out!
+> [!DANGER] Red danger box — critical issues
+```
+Also supports: [!INFO], [!IMPORTANT], [!CAUTION]
+
+### Media embeds
+Use `<embed src="url" />` for rich media:
+- YouTube — renders thumbnail with play button, loads iframe on click
+- Spotify — track, album, playlist, episode, or show embeds
+- SoundCloud — player embed
+- Twitter/X — tweet embed with widgets.js
+- GitHub Gists — loaded dynamically
+
+### D2 diagrams
+Use `d2` code blocks for architecture and flow diagrams:
+```d2
+client -> server: HTTP request
+server -> db: query
+db -> server: results
+server -> client: JSON response
+```
 
 ## Blog URLs
 
@@ -113,11 +158,11 @@ Posts use Markdown rendered with Goldmark. Supported:
 
 ## Example prompts
 
-- "Write a blog post about Go concurrency patterns"
+- "Write a tutorial post about Go error handling with code examples and callout tips"
+- "Create a post comparing React and Svelte with a comparison table"
+- "Write a guide to setting up Docker with a D2 architecture diagram"
 - "Show me all my draft posts"
 - "Publish my post about Go concurrency"
-- "Update my latest post — add a section about error handling"
+- "Update my latest post — add a warning callout about common pitfalls"
 - "Are there any new comments?"
-- "Delete the spam comment from user123"
 - "Change my blog title to 'Ship Fast, Write Often'"
-- "Search my posts for anything about databases"

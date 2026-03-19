@@ -2,5 +2,58 @@
             <p>Powered by <a href="https://writekit.dev">WriteKit</a></p>
         </footer>
     </div>
+    <script>
+    (function() {
+        // YouTube: click play → replace with iframe
+        document.querySelectorAll('.embed-youtube .embed-play').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var container = btn.closest('.embed-youtube');
+                var id = container.dataset.id;
+                container.innerHTML = '<iframe src="https://www.youtube.com/embed/' + id + '?autoplay=1" style="position:absolute;top:0;left:0;width:100%;height:100%;" frameborder="0" allow="autoplay;encrypted-media" allowfullscreen></iframe>';
+            });
+        });
+
+        // Gist: load script
+        document.querySelectorAll('.embed-gist').forEach(function(el) {
+            var url = el.dataset.url;
+            if (!url) return;
+            var id = url.split('/').pop();
+            var cb = 'gist_cb_' + id.replace(/[^a-zA-Z0-9]/g, '');
+            window[cb] = function(data) {
+                el.innerHTML = data.div;
+                if (data.stylesheet && !document.querySelector('link[href="' + data.stylesheet + '"]')) {
+                    var link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = data.stylesheet;
+                    document.head.appendChild(link);
+                }
+            };
+            var s = document.createElement('script');
+            s.src = url + '.json?callback=' + cb;
+            document.body.appendChild(s);
+        });
+
+        // Twitter: load widgets.js
+        if (document.querySelector('.embed-twitter')) {
+            var s = document.createElement('script');
+            s.src = 'https://platform.twitter.com/widgets.js';
+            s.async = true;
+            document.body.appendChild(s);
+        }
+
+        // D2 zoom controls
+        document.querySelectorAll('.d2-diagram').forEach(function(diagram) {
+            var viewport = diagram.querySelector('.d2-viewport');
+            if (!viewport) return;
+            var scale = 1;
+            var zoomIn = diagram.querySelector('.d2-zoom-in');
+            var zoomOut = diagram.querySelector('.d2-zoom-out');
+            var reset = diagram.querySelector('.d2-reset');
+            if (zoomIn) zoomIn.addEventListener('click', function() { scale = Math.min(scale * 1.25, 3); viewport.style.transform = 'scale(' + scale + ')'; viewport.style.transformOrigin = 'top left'; });
+            if (zoomOut) zoomOut.addEventListener('click', function() { scale = Math.max(scale / 1.25, 0.25); viewport.style.transform = 'scale(' + scale + ')'; viewport.style.transformOrigin = 'top left'; });
+            if (reset) reset.addEventListener('click', function() { scale = 1; viewport.style.transform = ''; });
+        });
+    })();
+    </script>
 </body>
 </html>

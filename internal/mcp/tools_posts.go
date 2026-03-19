@@ -11,61 +11,33 @@ import (
 
 	"writekit/internal/auth"
 	"writekit/internal/events"
+	"writekit/internal/markdown"
 	"writekit/internal/tenant"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/oklog/ulid/v2"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/renderer/html"
 )
-
-var md goldmark.Markdown
-
-func init() {
-	md = goldmark.New(
-		goldmark.WithExtensions(
-			extension.GFM,
-			extension.Footnote,
-		),
-		goldmark.WithParserOptions(
-			parser.WithAutoHeadingID(),
-		),
-		goldmark.WithRendererOptions(
-			html.WithUnsafe(),
-		),
-	)
-}
-
-func renderMarkdown(content string) string {
-	var buf strings.Builder
-	if err := md.Convert([]byte(content), &buf); err != nil {
-		return content
-	}
-	return buf.String()
-}
 
 func (s *Server) registerTools(mcpServer *mcp.Server) {
 	mcpServer.AddTool(&mcp.Tool{
 		Name: "create_post",
 		Description: `Create a new blog post. The post starts as a draft — use publish_post to make it live.
 
-**Content format:** Write the body in Markdown. Supported syntax:
-- Headings: # through ######
-- **Bold**, *italic*, ~~strikethrough~~
+**Content format:** Write the body in rich Markdown. Supported syntax:
+- Headings (# through ######), **bold**, *italic*, ~~strikethrough~~
 - Links: [text](url), images: ![alt](url)
-- Code blocks with language hints for syntax highlighting
-- Blockquotes: > text
-- Ordered (1.) and unordered (-) lists, task lists (- [ ])
-- Tables (GFM), horizontal rules (---), footnotes ([^1])
-- HTML is allowed for advanced layouts
+- Code blocks with language tags (` + "```go, ```python" + `) — renders with syntax highlighting, language icon, and copy button
+- Callout blocks: > [!NOTE], > [!TIP], > [!WARNING], > [!DANGER] for styled alert boxes
+- Media embeds: <embed src="url" /> for YouTube, Spotify, SoundCloud, Twitter/X, GitHub Gists
+- D2 diagrams: ` + "```d2" + ` code blocks for architecture/flow diagrams
+- Tables (GFM), ordered/unordered lists, task lists, horizontal rules, footnotes ([^1])
+- Raw HTML for advanced layouts
 
 Returns: The created post with a preview URL you can share.`,
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"title":     map[string]any{"type": "string", "description": "Post title"},
-				"content":   map[string]any{"type": "string", "description": "Post body in Markdown"},
+				"content":   map[string]any{"type": "string", "description": "Post body in rich Markdown. Use headings (##), bold, code blocks with language tags (```go), lists, links, blockquotes, callout blocks (> [!NOTE]), and embeds (<embed src=\"url\" />) to create professional, well-formatted content. Never write plain unformatted text."},
 				"excerpt":   map[string]any{"type": "string", "description": "Short excerpt for listings (auto-generated if omitted)"},
 				"tags":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Tags for categorization"},
 				"slug":      map[string]any{"type": "string", "description": "URL slug (auto-generated from title if omitted)"},
@@ -85,7 +57,7 @@ After updating, a new preview URL is generated so you can verify changes.`,
 			"properties": map[string]any{
 				"id":        map[string]any{"type": "string", "description": "Post ID"},
 				"title":     map[string]any{"type": "string", "description": "New title"},
-				"content":   map[string]any{"type": "string", "description": "New content in Markdown"},
+				"content":   map[string]any{"type": "string", "description": "New content in rich Markdown. Use headings, code blocks with language tags, callout blocks (> [!NOTE]), and embeds for professional formatting."},
 				"excerpt":   map[string]any{"type": "string", "description": "New excerpt"},
 				"tags":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "New tags"},
 				"slug":      map[string]any{"type": "string", "description": "New URL slug"},
@@ -173,6 +145,7 @@ After updating, a new preview URL is generated so you can verify changes.`,
 			"required": []string{"query"},
 		},
 	}, s.searchPosts)
+
 }
 
 func (s *Server) createPost(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -217,7 +190,7 @@ func (s *Server) createPost(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		Title:       args.Title,
 		Slug:        slug,
 		Content:     args.Content,
-		ContentHTML: renderMarkdown(args.Content),
+		ContentHTML: renderContent(args.Content),
 		Excerpt:     excerpt,
 		Status:      "draft",
 		Tags:        string(tagsJSON),
@@ -234,16 +207,14 @@ func (s *Server) createPost(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 
 	s.Bus.Emit(events.Event{Type: events.PostCreated, TenantID: tenantID})
 
-	result := fmt.Sprintf(`Post created successfully!
+	result := fmt.Sprintf(`Post created as draft.
 
 **Title:** %s
 **ID:** %s
 **Slug:** %s
-**Status:** draft
+**Preview:** %s
 
-**Preview URL:** %s
-
-Use publish_post to make it live, or update_post to make changes.`,
+Tip: Open the preview URL to check formatting. Use update_post to refine before publishing.`,
 		post.Title, post.ID, post.Slug, s.buildPreviewURL(tenantID, pt.Token))
 
 	return toolResult(result), nil
@@ -282,7 +253,7 @@ func (s *Server) updatePost(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	}
 	if args.Content != nil {
 		post.Content = *args.Content
-		post.ContentHTML = renderMarkdown(*args.Content)
+		post.ContentHTML = renderContent(*args.Content)
 	}
 	if args.Excerpt != nil {
 		post.Excerpt = *args.Excerpt
@@ -556,6 +527,14 @@ func generateExcerpt(content string) string {
 		plain += "..."
 	}
 	return plain
+}
+
+func renderContent(content string) string {
+	html, err := markdown.Render(content)
+	if err != nil {
+		return content
+	}
+	return html
 }
 
 func stripMarkdown(s string) string {
