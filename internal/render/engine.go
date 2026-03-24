@@ -1,10 +1,13 @@
 package render
 
 import (
+	"bytes"
 	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
+	"log/slog"
+	"net/http"
 	"sync"
 
 	"writekit/internal/markdown"
@@ -39,9 +42,24 @@ func New(fsys fs.FS, dev bool) *Engine {
 func (e *Engine) Render(w io.Writer, name string, data any) error {
 	tmpl, err := e.get(name)
 	if err != nil {
+		slog.Error("template load failed", "template", name, "err", err)
+		if rw, ok := w.(http.ResponseWriter); ok {
+			http.Error(rw, "internal error", http.StatusInternalServerError)
+		}
 		return err
 	}
-	return tmpl.Execute(w, data)
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		slog.Error("template render failed", "template", name, "err", err)
+		if rw, ok := w.(http.ResponseWriter); ok {
+			http.Error(rw, "internal error", http.StatusInternalServerError)
+		}
+		return err
+	}
+
+	_, err = buf.WriteTo(w)
+	return err
 }
 
 func (e *Engine) get(name string) (*template.Template, error) {

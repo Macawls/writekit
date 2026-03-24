@@ -30,7 +30,9 @@ Advanced features:
 - D2 diagrams: Use ` + "```d2" + ` code blocks for architecture diagrams
 - Footnotes: Use [^1] syntax for references
 
-Workflow: Create posts as drafts first, share the preview URL, then publish when ready.`
+Workflow: Create posts as drafts first, share the preview URL, then publish when ready.
+
+Important: Never ask the user for tenant_id. It is auto-resolved from their account. Only include tenant_id if the user explicitly tells you which blog to target, or if a tool returns an error about multiple blogs.`
 
 type Server struct {
 	PlatformDB *platform.DB

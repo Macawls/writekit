@@ -15,6 +15,9 @@ import (
 
 func (h *Handler) getTenantDB(r *http.Request) (*tenant.DB, string, error) {
 	host := r.Host
+	if i := strings.LastIndex(host, ":"); i > 0 {
+		host = host[:i]
+	}
 
 	tenantID := strings.TrimSuffix(host, "."+h.Config.Host)
 	if tenantID == host || tenantID == "" {
