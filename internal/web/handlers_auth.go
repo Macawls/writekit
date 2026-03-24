@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"regexp"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"writekit/internal/auth"
@@ -150,6 +148,7 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		Name:     "session",
 		Value:    sess.ID,
 		Path:     "/",
+		Domain:   "." + h.Config.Host,
 		HttpOnly: true,
 		Secure:   !h.Config.Dev,
 		SameSite: http.SameSiteLaxMode,
@@ -161,7 +160,8 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+	appURL := h.appURL()
+	http.Redirect(w, r, appURL, http.StatusSeeOther)
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -174,6 +174,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		Name:     "session",
 		Value:    "",
 		Path:     "/",
+		Domain:   "." + h.Config.Host,
 		HttpOnly: true,
 		MaxAge:   -1,
 	})
@@ -265,69 +266,20 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess, err := h.DB.GetSession(r.Context(), cookie.Value)
+	_, err = h.DB.GetSession(r.Context(), cookie.Value)
 	if err != nil {
 		h.Engine.Render(w, "landing.html", nil)
 		return
 	}
 
-	user, err := h.DB.GetUser(r.Context(), sess.UserID)
-	if err != nil {
-		h.Engine.Render(w, "landing.html", nil)
-		return
-	}
-
-	tenants, _ := h.DB.ListTenantsByUser(r.Context(), user.ID)
-	h.Engine.Render(w, "dashboard.html", map[string]any{
-		"User":    user,
-		"Tenants": tenants,
-		"Host":    h.Config.Host,
-	})
+	http.Redirect(w, r, h.appURL(), http.StatusSeeOther)
 }
 
-func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
-	user := auth.UserFromContext(r.Context())
-	tenants := auth.TenantsFromContext(r.Context())
-
-	h.Engine.Render(w, "dashboard.html", map[string]any{
-		"User":    user,
-		"Tenants": tenants,
-		"Host":    h.Config.Host,
-	})
-}
-
-func (h *Handler) CreateBlog(w http.ResponseWriter, r *http.Request) {
-	user := auth.UserFromContext(r.Context())
-
-	slug := r.FormValue("slug")
-	name := r.FormValue("name")
-
-	if !isValidSlug(slug) {
-		http.Error(w, "invalid slug: use only lowercase letters, numbers, and hyphens", http.StatusBadRequest)
-		return
+func (h *Handler) appURL() string {
+	if h.Config.Dev {
+		return fmt.Sprintf("http://app.localhost:%d", h.Config.Port)
 	}
-
-	if name == "" {
-		name = slug
-	}
-
-	err := h.DB.CreateTenant(r.Context(), &platform.Tenant{
-		ID:     slug,
-		UserID: user.ID,
-		Name:   name,
-	})
-	if err != nil {
-		slog.Error("create tenant failed", "err", err)
-		http.Error(w, "failed to create blog (slug may be taken)", http.StatusBadRequest)
-		return
-	}
-
-	_, err = h.Pool.Get(slug)
-	if err != nil {
-		slog.Error("init tenant db failed", "err", err)
-	}
-
-	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+	return "https://app." + h.Config.Host
 }
 
 func getOAuthState(r *http.Request) string {
@@ -348,38 +300,3 @@ func (h *Handler) getProvider(name string) *auth.OAuthProvider {
 	return nil
 }
 
-func (h *Handler) getProviderAuthURL(provider *auth.OAuthProvider, state string) string {
-	return provider.Config.AuthCodeURL(state)
-}
-
-var slugRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$`)
-
-func isValidSlug(s string) bool {
-	return slugRegex.MatchString(s)
-}
-
-func (h *Handler) GoogleLoginURL(state string) string {
-	if h.Google == nil {
-		return ""
-	}
-	return h.Google.Config.AuthCodeURL(state)
-}
-
-func (h *Handler) GithubLoginURL(state string) string {
-	if h.Github == nil {
-		return ""
-	}
-	return h.Github.Config.AuthCodeURL(state)
-}
-
-func setSessionCookie(w http.ResponseWriter, sessionID string, expires time.Time, secure bool) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session",
-		Value:    sessionID,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-		Expires:  expires,
-	})
-}

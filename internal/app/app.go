@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"writekit/internal/api"
 	"writekit/internal/auth"
 	"writekit/internal/blog"
 	"writekit/internal/config"
@@ -30,7 +32,7 @@ type App struct {
 	Router     http.Handler
 }
 
-func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templatesFS, staticFS fs.FS) *App {
+func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templatesFS, staticFS, appFS fs.FS) *App {
 	bus := events.NewBus()
 
 	if cfg.StripeSecretKey != "" {
@@ -66,7 +68,6 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 
 	webHandler := &web.Handler{
 		DB:      platformDB,
-		Pool:    pool,
 		Config:  cfg,
 		Engine:  webEngine,
 		Google:  google,
@@ -86,7 +87,13 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Email:      emailSender,
 	}
 
-	router := buildRouter(cfg, webHandler, blogHandler, mcpSrv, platformDB, staticFS)
+	apiHandler := &api.Handler{
+		DB:     platformDB,
+		Pool:   pool,
+		Config: cfg,
+	}
+
+	router := buildRouter(cfg, webHandler, blogHandler, apiHandler, mcpSrv, platformDB, staticFS, appFS)
 
 	return &App{
 		Config:     cfg,
@@ -97,7 +104,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 	}
 }
 
-func buildRouter(cfg *config.Config, webHandler *web.Handler, blogHandler *blog.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB, staticFS fs.FS) http.Handler {
+func buildRouter(cfg *config.Config, webHandler *web.Handler, blogHandler *blog.Handler, apiHandler *api.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB, staticFS, appFS fs.FS) http.Handler {
 	root := chi.NewRouter()
 	root.Use(chimw.Logger)
 	root.Use(chimw.Recoverer)
@@ -106,8 +113,9 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, blogHandler *blog.
 	fileServer := http.FileServer(http.FS(staticFS))
 	root.Handle("/static/*", http.StripPrefix("/static/", fileServer))
 
-	appR := appRouter(cfg, webHandler, mcpSrv, platformDB)
+	webR := webRouter(cfg, webHandler, mcpSrv, platformDB)
 	blogR := blogRouter(blogHandler)
+	spaR := spaRouter(apiHandler, appFS)
 
 	root.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
 		host := r.Host
@@ -115,19 +123,22 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, blogHandler *blog.
 			host = host[:i]
 		}
 
-		if host == cfg.Host || (cfg.Dev && (host == "localhost" || host == "127.0.0.1")) {
-			appR.ServeHTTP(w, r)
-		} else if strings.HasSuffix(host, "."+cfg.Host) {
+		switch {
+		case host == "app."+cfg.Host || (cfg.Dev && host == "app.localhost"):
+			spaR.ServeHTTP(w, r)
+		case host == cfg.Host || (cfg.Dev && (host == "localhost" || host == "127.0.0.1")):
+			webR.ServeHTTP(w, r)
+		case strings.HasSuffix(host, "."+cfg.Host):
 			blogR.ServeHTTP(w, r)
-		} else {
-			http.Error(w, "not found", http.StatusNotFound)
+		default:
+			http.NotFound(w, r)
 		}
 	})
 
 	return root
 }
 
-func appRouter(cfg *config.Config, webHandler *web.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB) http.Handler {
+func webRouter(cfg *config.Config, webHandler *web.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB) http.Handler {
 	r := chi.NewRouter()
 
 	webHandler.Routes(r)
@@ -135,6 +146,29 @@ func appRouter(cfg *config.Config, webHandler *web.Handler, mcpSrv *mcpserver.Se
 	r.Group(func(r chi.Router) {
 		r.Use(auth.BearerAuth(platformDB, cfg.BaseURL))
 		r.Handle("/mcp", mcpSrv.Handler())
+	})
+
+	return r
+}
+
+func spaRouter(apiHandler *api.Handler, appFS fs.FS) http.Handler {
+	r := chi.NewRouter()
+
+	apiHandler.Routes(r)
+
+	distFS, _ := fs.Sub(appFS, "ui/dist")
+	fileServer := http.FileServer(http.FS(distFS))
+
+	r.Handle("/assets/*", fileServer)
+	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+		f, err := distFS.Open("index.html")
+		if err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		defer f.Close()
+		stat, _ := f.Stat()
+		http.ServeContent(w, r, "index.html", stat.ModTime(), f.(io.ReadSeeker))
 	})
 
 	return r

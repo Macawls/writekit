@@ -108,6 +108,30 @@ func (p *Pool) evict(tenantID string) {
 	slog.Info("evicted tenant db", "tenant", tenantID)
 }
 
+func (p *Pool) Rename(oldID, newID string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if entry, ok := p.dbs[oldID]; ok {
+		entry.db.Close()
+		p.lru.Remove(entry.element)
+		delete(p.dbs, oldID)
+	}
+
+	oldPath := filepath.Join(p.dataDir, oldID+".db")
+	newPath := filepath.Join(p.dataDir, newID+".db")
+
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return fmt.Errorf("rename tenant db: %w", err)
+	}
+
+	// Also rename WAL and SHM files if they exist
+	os.Rename(oldPath+"-wal", newPath+"-wal")
+	os.Rename(oldPath+"-shm", newPath+"-shm")
+
+	return nil
+}
+
 func (p *Pool) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()

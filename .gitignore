@@ -8,3 +8,8 @@ screenshots/
 *.db-wal
 *.db-shm
 tmp/
+
+# React SPA
+ui/node_modules/
+ui/dist/*
+!ui/dist/.gitkeep

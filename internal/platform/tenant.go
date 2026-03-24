@@ -56,6 +56,29 @@ func (db *DB) ListTenantsByUser(ctx context.Context, userID string) ([]Tenant, e
 	return tenants, nil
 }
 
+func (db *DB) GetTenantByUser(ctx context.Context, userID string) (*Tenant, error) {
+	row := db.Pool.QueryRow(ctx, `
+		SELECT id, user_id, name, created_at FROM tenants WHERE user_id = $1
+	`, userID)
+
+	var t Tenant
+	err := row.Scan(&t.ID, &t.UserID, &t.Name, &t.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("get tenant by user: %w", err)
+	}
+	return &t, nil
+}
+
+func (db *DB) RenameTenant(ctx context.Context, oldID, newID string) error {
+	_, err := db.Pool.Exec(ctx, `
+		UPDATE tenants SET id = $1 WHERE id = $2
+	`, newID, oldID)
+	if err != nil {
+		return fmt.Errorf("rename tenant: %w", err)
+	}
+	return nil
+}
+
 func (db *DB) DeleteTenant(ctx context.Context, id string) error {
 	_, err := db.Pool.Exec(ctx, `DELETE FROM tenants WHERE id = $1`, id)
 	return err

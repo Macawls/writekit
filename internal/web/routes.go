@@ -7,19 +7,17 @@ import (
 	"writekit/internal/email"
 	"writekit/internal/platform"
 	"writekit/internal/render"
-	"writekit/internal/tenant"
 )
 
 type Handler struct {
-	DB       *platform.DB
-	Pool     *tenant.Pool
-	Config   *config.Config
-	Engine   *render.Engine
-	Google   *auth.OAuthProvider
-	Github   *auth.OAuthProvider
-	Discord  *auth.OAuthProvider
-	MCPAuth  *auth.MCPAuth
-	Email    *email.Sender
+	DB      *platform.DB
+	Config  *config.Config
+	Engine  *render.Engine
+	Google  *auth.OAuthProvider
+	Github  *auth.OAuthProvider
+	Discord *auth.OAuthProvider
+	MCPAuth *auth.MCPAuth
+	Email   *email.Sender
 }
 
 func (h *Handler) Routes(r chi.Router) {
@@ -39,19 +37,6 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/", h.Home)
 	r.Get("/docs", h.Docs)
 	r.Get("/llms.txt", h.LLMsTxt)
-
-	r.Group(func(r chi.Router) {
-		r.Use(auth.WebAuth(h.DB))
-
-		r.Get("/dashboard", h.Dashboard)
-		r.Get("/profile", h.ProfilePage)
-		r.Post("/profile", h.ProfileUpdate)
-		r.Post("/blogs", h.CreateBlog)
-
-		r.Get("/billing", h.BillingPage)
-		r.Post("/billing/checkout", h.BillingCheckout)
-		r.Post("/billing/portal", h.BillingPortal)
-	})
 
 	r.Post("/stripe/webhook", h.StripeWebhook)
 }
