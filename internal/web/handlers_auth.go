@@ -260,19 +260,7 @@ func (h *Handler) OAuthAuthorizeSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("session")
-	if err != nil {
-		h.Engine.Render(w, "landing.html", nil)
-		return
-	}
-
-	_, err = h.DB.GetSession(r.Context(), cookie.Value)
-	if err != nil {
-		h.Engine.Render(w, "landing.html", nil)
-		return
-	}
-
-	http.Redirect(w, r, h.appURL(), http.StatusSeeOther)
+	h.Engine.Render(w, "landing.html", nil)
 }
 
 func (h *Handler) appURL() string {
