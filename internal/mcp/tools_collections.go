@@ -102,7 +102,7 @@ func (s *Server) registerCollectionTools(mcpServer *mcp.Server) {
 func (s *Server) createCollection(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -159,7 +159,7 @@ func (s *Server) createCollection(ctx context.Context, req *mcp.CallToolRequest)
 func (s *Server) updateCollection(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -207,7 +207,7 @@ func (s *Server) updateCollection(ctx context.Context, req *mcp.CallToolRequest)
 func (s *Server) deleteCollection(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -233,7 +233,7 @@ func (s *Server) deleteCollection(ctx context.Context, req *mcp.CallToolRequest)
 func (s *Server) listCollections(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -272,7 +272,7 @@ func (s *Server) listCollections(ctx context.Context, req *mcp.CallToolRequest) 
 func (s *Server) getCollection(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -321,7 +321,7 @@ func (s *Server) getCollection(ctx context.Context, req *mcp.CallToolRequest) (*
 func (s *Server) reorderPages(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {

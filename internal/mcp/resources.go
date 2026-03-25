@@ -58,7 +58,7 @@ func (s *Server) registerResources(mcpServer *mcpsdk.Server) {
 func (s *Server) resolveResourceTenant(ctx context.Context) (*tenant.DB, string, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return nil, "", fmt.Errorf("not authenticated")
+		return nil, "", fmt.Errorf("not authenticated — please sign in at the WriteKit website first")
 	}
 	return s.resolveTenant(user.ID, "")
 }

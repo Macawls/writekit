@@ -155,7 +155,7 @@ After updating, a new preview URL is generated so you can verify changes.`,
 func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -229,7 +229,7 @@ func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -310,7 +310,7 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 func (s *Server) deletePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -336,7 +336,7 @@ func (s *Server) deletePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 func (s *Server) publishPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -372,7 +372,7 @@ func (s *Server) publishPage(ctx context.Context, req *mcp.CallToolRequest) (*mc
 func (s *Server) unpublishPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -406,7 +406,7 @@ func (s *Server) unpublishPage(ctx context.Context, req *mcp.CallToolRequest) (*
 func (s *Server) listPages(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -459,7 +459,7 @@ func (s *Server) listPages(ctx context.Context, req *mcp.CallToolRequest) (*mcp.
 func (s *Server) getPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -497,7 +497,7 @@ func (s *Server) getPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Ca
 func (s *Server) searchPages(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {

@@ -42,7 +42,7 @@ func (s *Server) registerCommentTools(mcpServer *mcpsdk.Server) {
 func (s *Server) listComments(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -79,7 +79,7 @@ func (s *Server) listComments(ctx context.Context, req *mcpsdk.CallToolRequest) 
 func (s *Server) deleteComment(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {

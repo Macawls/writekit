@@ -8,7 +8,7 @@
 claude mcp add --transport http writekit https://writekit.dev/mcp
 ```
 
-Authentication happens automatically via OAuth (GitHub, Google, Discord) or magic link on first connect.
+Authentication happens automatically on first tool use — a browser window opens to sign in via OAuth (GitHub, Google, Discord) or magic link. You only authenticate once.
 
 ## MCP Server URL
 

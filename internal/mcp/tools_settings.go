@@ -41,7 +41,7 @@ func (s *Server) registerSettingsTools(mcpServer *mcpsdk.Server) {
 func (s *Server) getSettings(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args struct {
@@ -72,7 +72,7 @@ func (s *Server) getSettings(ctx context.Context, req *mcpsdk.CallToolRequest) (
 func (s *Server) updateSettings(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
-		return toolError("not authenticated"), nil
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
 	}
 
 	var args map[string]any
