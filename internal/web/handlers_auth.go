@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -132,7 +133,7 @@ user, isNew, err := h.findOrCreateUser(r, providerName, info)
 
 	if isNew {
 		go func() {
-			if err := h.Email.SendWelcome(r.Context(), user.Email, user.Name); err != nil {
+			if err := h.Email.SendWelcome(context.WithoutCancel(r.Context()), user.Email, user.Name); err != nil {
 				slog.Error("send welcome email", "err", err)
 			}
 		}()
@@ -277,7 +278,7 @@ func (h *Handler) MagicLinkRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		if err := h.Email.SendMagicLink(r.Context(), email, link); err != nil {
+		if err := h.Email.SendMagicLink(context.WithoutCancel(r.Context()), email, link); err != nil {
 			slog.Error("send magic link email", "err", err)
 		}
 	}()
@@ -323,7 +324,7 @@ func (h *Handler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
 
 	if isNew {
 		go func() {
-			if err := h.Email.SendWelcome(r.Context(), user.Email, user.Name); err != nil {
+			if err := h.Email.SendWelcome(context.WithoutCancel(r.Context()), user.Email, user.Name); err != nil {
 				slog.Error("send welcome email", "err", err)
 			}
 		}()
