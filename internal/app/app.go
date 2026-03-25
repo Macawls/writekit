@@ -12,7 +12,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"writekit/internal/api"
 	"writekit/internal/auth"
-	"writekit/internal/blog"
+	"writekit/internal/site"
 	"writekit/internal/config"
 	"writekit/internal/email"
 	"writekit/internal/events"
@@ -40,9 +40,9 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 	}
 
 	webTemplatesFS, _ := fs.Sub(templatesFS, "web")
-	blogTemplatesFS, _ := fs.Sub(templatesFS, "themes/default")
+	siteTemplatesFS, _ := fs.Sub(templatesFS, "themes/default")
 	webEngine := render.New(webTemplatesFS, cfg.Dev)
-	blogEngine := render.New(blogTemplatesFS, cfg.Dev)
+	siteEngine := render.New(siteTemplatesFS, cfg.Dev)
 
 	var google, github, discord *auth.OAuthProvider
 	if cfg.GoogleClientID != "" {
@@ -64,7 +64,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 
 	mcpSrv := mcpserver.New(platformDB, pool, cfg, bus)
 
-	cache := blog.NewCache(bus)
+	cache := site.NewCache(bus)
 
 	webHandler := &web.Handler{
 		DB:      platformDB,
@@ -78,10 +78,10 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Pool:    pool,
 	}
 
-	blogHandler := &blog.Handler{
+	siteHandler := &site.Handler{
 		Pool:       pool,
 		Config:     cfg,
-		Engine:     blogEngine,
+		Engine:     siteEngine,
 		Bus:        bus,
 		Cache:      cache,
 		PlatformDB: platformDB,
@@ -94,7 +94,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Config: cfg,
 	}
 
-	router := buildRouter(cfg, webHandler, blogHandler, apiHandler, mcpSrv, platformDB, staticFS, appFS)
+	router := buildRouter(cfg, webHandler, siteHandler, apiHandler, mcpSrv, platformDB, staticFS, appFS)
 
 	return &App{
 		Config:     cfg,
@@ -105,7 +105,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 	}
 }
 
-func buildRouter(cfg *config.Config, webHandler *web.Handler, blogHandler *blog.Handler, apiHandler *api.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB, staticFS, appFS fs.FS) http.Handler {
+func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.Handler, apiHandler *api.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB, staticFS, appFS fs.FS) http.Handler {
 	root := chi.NewRouter()
 	root.Use(chimw.Logger)
 	root.Use(chimw.Recoverer)
@@ -115,7 +115,7 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, blogHandler *blog.
 	root.Handle("/static/*", http.StripPrefix("/static/", fileServer))
 
 	webR := webRouter(cfg, webHandler, mcpSrv, platformDB)
-	blogR := blogRouter(blogHandler)
+	siteR := siteRouter(siteHandler)
 	spaR := spaRouter(apiHandler, appFS, cfg, platformDB)
 
 	root.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +130,7 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, blogHandler *blog.
 		case host == cfg.Host || (cfg.Dev && (host == "localhost" || host == "127.0.0.1")):
 			webR.ServeHTTP(w, r)
 		case strings.HasSuffix(host, "."+cfg.Host):
-			blogR.ServeHTTP(w, r)
+			siteR.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -185,9 +185,9 @@ func spaRouter(apiHandler *api.Handler, appFS fs.FS, cfg *config.Config, platfor
 	return r
 }
 
-func blogRouter(blogHandler *blog.Handler) http.Handler {
+func siteRouter(siteHandler *site.Handler) http.Handler {
 	r := chi.NewRouter()
-	blogHandler.Routes(r)
+	siteHandler.Routes(r)
 	return r
 }
 

@@ -1,4 +1,4 @@
-package blog
+package site
 
 import (
 	"github.com/go-chi/chi/v5"

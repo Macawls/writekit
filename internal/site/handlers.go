@@ -1,6 +1,7 @@
-package blog
+package site
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -224,22 +225,23 @@ func (h *Handler) submitComment(w http.ResponseWriter, r *http.Request, db *tena
 		return
 	}
 
+	ctx := context.WithoutCancel(r.Context())
 	go func() {
-		t, err := h.PlatformDB.GetTenant(r.Context(), tenantID)
+		t, err := h.PlatformDB.GetTenant(ctx, tenantID)
 		if err != nil {
 			return
 		}
-		owner, err := h.PlatformDB.GetUser(r.Context(), t.UserID)
+		owner, err := h.PlatformDB.GetUser(ctx, t.UserID)
 		if err != nil {
 			return
 		}
-		settings, _ := db.GetSettings(r.Context())
+		settings, _ := db.GetSettings(ctx)
 		siteName := settings["title"]
 		if siteName == "" {
 			siteName = tenantID
 		}
 		pageURL := fmt.Sprintf("https://%s.%s%s", tenantID, h.Config.Host, redirectPath)
-		if err := h.Email.SendCommentNotification(r.Context(), owner.Email, siteName, page.Title, author, content, pageURL); err != nil {
+		if err := h.Email.SendCommentNotification(ctx, owner.Email, siteName, page.Title, author, content, pageURL); err != nil {
 			slog.Error("send comment notification", "err", err)
 		}
 	}()

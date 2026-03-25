@@ -55,11 +55,13 @@
         #tc-cursor:checked ~ .tab-labels label[for="tc-cursor"],
         #tc-windsurf:checked ~ .tab-labels label[for="tc-windsurf"],
         #tc-vscode:checked ~ .tab-labels label[for="tc-vscode"],
+        #tc-opencode:checked ~ .tab-labels label[for="tc-opencode"],
         #tc-any:checked ~ .tab-labels label[for="tc-any"]{color:var(--fg);border-bottom-color:var(--accent)}
         #tc-claude:checked ~ .tab-panels .p-claude,
         #tc-cursor:checked ~ .tab-panels .p-cursor,
         #tc-windsurf:checked ~ .tab-panels .p-windsurf,
         #tc-vscode:checked ~ .tab-panels .p-vscode,
+        #tc-opencode:checked ~ .tab-panels .p-opencode,
         #tc-any:checked ~ .tab-panels .p-any{display:block}
 
         .prompt-card{
@@ -102,6 +104,7 @@
     <input type="radio" name="ct" id="tc-cursor">
     <input type="radio" name="ct" id="tc-windsurf">
     <input type="radio" name="ct" id="tc-vscode">
+    <input type="radio" name="ct" id="tc-opencode">
     <input type="radio" name="ct" id="tc-any">
 
     <div class="tab-labels">
@@ -109,6 +112,7 @@
         <label for="tc-cursor">Cursor</label>
         <label for="tc-windsurf">Windsurf</label>
         <label for="tc-vscode">VS Code</label>
+        <label for="tc-opencode">OpenCode</label>
         <label for="tc-any">Any Client</label>
     </div>
 
@@ -142,6 +146,17 @@
   "servers": {
     "writekit": {
       "type": "http",
+      "url": "https://writekit.dev/mcp"
+    }
+  }
+}</code></pre>
+        </div>
+        <div class="tab-panel p-opencode">
+            <p>Add to <code>opencode.json</code> (project root or <code>~/.config/opencode/opencode.json</code>):</p>
+<pre><code>{
+  "mcp": {
+    "writekit": {
+      "type": "remote",
       "url": "https://writekit.dev/mcp"
     }
   }

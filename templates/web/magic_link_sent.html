@@ -37,7 +37,7 @@
             box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);
             animation:fadeUp .5s cubic-bezier(.19,1,.22,1) .08s both;
         }
-        .icon{font-size:2.5rem;margin-bottom:1rem}
+        .icon{margin-bottom:1rem;color:var(--muted)}
         .card h2{font-size:1rem;font-weight:600;color:var(--fg);margin-bottom:.5rem}
         .card p{font-size:.85rem;color:var(--muted);line-height:1.5}
         .card p strong{color:var(--fg);font-weight:500}
@@ -47,7 +47,7 @@
             text-align:center;margin-top:1.75rem;font-size:.75rem;color:var(--faint);
             animation:fadeUp .5s cubic-bezier(.19,1,.22,1) .16s both;
         }
-        .footer-text a{color:var(--muted);text-decoration:none;transition:color .15s}
+        .footer-text a{color:var(--muted);text-decoration:none}
         .footer-text a:hover{color:var(--fg)}
         @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
     </style>
@@ -62,13 +62,13 @@
 
     {{if .Error}}
     <div class="card error-card">
-        <div class="icon">&#9888;&#65039;</div>
+        <div class="icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
         <h2>Link expired</h2>
         <p>{{.Error}}</p>
     </div>
     {{else}}
     <div class="card">
-        <div class="icon">&#9993;&#65039;</div>
+        <div class="icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></div>
         <h2>Check your email</h2>
         <p>We sent a sign-in link to <strong>{{.Email}}</strong>. Click the link in the email to continue.</p>
         <p style="margin-top:.75rem;font-size:.75rem;color:var(--faint)">The link expires in 10 minutes.</p>
