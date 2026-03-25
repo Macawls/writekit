@@ -51,19 +51,18 @@
             border-radius:10px;
             box-shadow:0 1px 2px rgba(0,0,0,.02),0 4px 16px rgba(0,0,0,.03);
             cursor:pointer;
-            transition:all .25s cubic-bezier(.19,1,.22,1);
         }
         .cmd:hover{
             box-shadow:0 1px 2px rgba(0,0,0,.02),0 8px 32px rgba(0,0,0,.06);
-            transform:translateY(-1px);
             border-color:var(--border2);
         }
-        .cmd-text{white-space:nowrap;overflow-x:auto}
+        .cmd-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        @media(min-width:601px){.cmd-text{overflow:visible}}
         .cmd-text .d{color:var(--faint);user-select:none;margin-right:.3em}
         .cmd-text .dim{color:var(--muted)}
         .cmd-cp{
             color:var(--faint);background:transparent;border:none;padding:0;
-            cursor:pointer;transition:color .15s;flex-shrink:0;display:flex;align-items:center;
+            cursor:pointer;flex-shrink:0;display:flex;align-items:center;
         }
         .cmd-cp:hover{color:var(--muted)}
         .cmd-cp.ok{color:var(--fg)}
@@ -75,10 +74,9 @@
             display:inline-flex;align-items:center;gap:.3rem;
             font-family:var(--mono);font-size:.58rem;font-weight:500;
             color:var(--faint);cursor:pointer;background:none;border:none;
-            transition:color .15s;
         }
         .json-toggle:hover{color:var(--muted)}
-        .json-toggle svg{width:6px;height:6px;transition:transform .2s}
+        .json-toggle svg{width:6px;height:6px}
         .json-toggle.open svg{transform:rotate(90deg)}
         .json-code{
             display:none;margin-top:.6rem;padding:.75rem 1rem;
@@ -91,7 +89,7 @@
         footer{
             position:relative;z-index:1;padding:0 2rem 1.75rem;text-align:center;
         }
-        footer a{font-size:.68rem;color:var(--faint);text-decoration:none;transition:color .15s}
+        footer a{font-size:.68rem;color:var(--faint);text-decoration:none}
         footer a:hover{color:var(--fg)}
 
         @media(max-width:600px){

@@ -9,26 +9,25 @@ func layout(content string) string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin:0;padding:0;background-color:#f8f8f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background-color:#f8f8f8;padding:40px 20px;">
+<body style="margin:0;padding:0;background-color:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background-color:#fafafa;padding:40px 20px;">
 <tr><td align="center">
-<table role="presentation" width="520" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;border:1px solid #e5e5e5;">
+<table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:10px;border:1px solid #e4e4e7;">
 
 <!-- Header -->
-<tr><td style="padding:32px 40px 0;">
-<span style="font-size:18px;font-weight:600;color:#111;letter-spacing:-0.02em;">WriteKit</span>
+<tr><td style="padding:28px 32px 0;">
+<span style="font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;font-size:14px;font-weight:500;color:#0f0f0f;letter-spacing:-0.04em;">writekit</span>
 </td></tr>
 
 <!-- Content -->
-<tr><td style="padding:24px 40px 32px;">
+<tr><td style="padding:20px 32px 28px;">
 %s
 </td></tr>
 
 <!-- Footer -->
-<tr><td style="padding:20px 40px;border-top:1px solid #e5e5e5;">
-<p style="margin:0;font-size:12px;color:#999;line-height:1.5;">
-WriteKit &mdash; Your blog, managed by conversation<br>
-<a href="https://writekit.dev" style="color:#999;">writekit.dev</a>
+<tr><td style="padding:16px 32px;border-top:1px solid #e4e4e7;">
+<p style="margin:0;font-size:12px;color:#a1a1aa;line-height:1.5;">
+<a href="https://writekit.dev" style="color:#a1a1aa;text-decoration:none;">writekit.dev</a>
 </p>
 </td></tr>
 
@@ -46,76 +45,52 @@ func welcomeHTML(name string) string {
 	}
 
 	return layout(fmt.Sprintf(`
-<h1 style="margin:0 0 16px;font-size:22px;font-weight:500;color:#111;line-height:1.3;">%s, welcome to WriteKit</h1>
+<p style="margin:0 0 16px;font-size:15px;color:#0f0f0f;line-height:1.5;">%s, welcome to WriteKit.</p>
 
-<p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6;">
-Your account is ready. WriteKit is an MCP-first blogging platform &mdash; you manage your blog entirely through conversation with your AI assistant.
+<p style="margin:0 0 20px;font-size:14px;color:#71717a;line-height:1.6;">
+Add the MCP server to your AI assistant to get started:
 </p>
 
-<p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#111;text-transform:uppercase;letter-spacing:0.04em;">Get started</p>
-
-<div style="background-color:#f5f5f5;border:1px solid #e5e5e5;border-radius:6px;padding:16px 20px;margin:0 0 20px;">
-<pre style="margin:0;font-family:'SF Mono','Fira Code',monospace;font-size:13px;line-height:1.6;color:#111;white-space:pre-wrap;">{
-  "mcpServers": {
-    "writekit": {
-      "url": "https://writekit.dev/mcp"
-    }
-  }
-}</pre>
+<div style="background-color:#fafafa;border:1px solid #e4e4e7;border-radius:8px;padding:14px 18px;margin:0 0 20px;">
+<code style="margin:0;font-family:'SF Mono','Fira Code',monospace;font-size:13px;line-height:1.6;color:#0f0f0f;">claude mcp add --transport http writekit https://writekit.dev/mcp</code>
 </div>
 
-<p style="margin:0 0 20px;font-size:14px;color:#555;line-height:1.6;">
-Add this to your Claude Desktop configuration, then say <strong>&ldquo;write a post about...&rdquo;</strong> to get started.
+<p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.5;">
+Or add <code style="font-family:'SF Mono','Fira Code',monospace;font-size:12px;background:#fafafa;border:1px solid #e4e4e7;padding:1px 5px;border-radius:3px;">{"mcpServers":{"writekit":{"url":"https://writekit.dev/mcp"}}}</code> to your MCP config.
 </p>
-
-<table role="presentation" cellpadding="0" cellspacing="0">
-<tr><td style="background-color:#2563eb;border-radius:6px;">
-<a href="https://writekit.dev/dashboard" style="display:inline-block;padding:10px 24px;font-size:14px;font-weight:500;color:#ffffff;text-decoration:none;">Go to Dashboard</a>
-</td></tr>
-</table>
 `, greeting))
 }
 
 func magicLinkHTML(link string) string {
 	return layout(fmt.Sprintf(`
-<h1 style="margin:0 0 16px;font-size:22px;font-weight:500;color:#111;line-height:1.3;">Sign in to WriteKit</h1>
+<p style="margin:0 0 16px;font-size:15px;color:#0f0f0f;line-height:1.5;">Sign in to WriteKit</p>
 
-<p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6;">
-Click the button below to sign in. This link expires in 10 minutes.
-</p>
-
-<table role="presentation" cellpadding="0" cellspacing="0">
-<tr><td style="background-color:#2563eb;border-radius:6px;">
-<a href="%s" style="display:inline-block;padding:10px 24px;font-size:14px;font-weight:500;color:#ffffff;text-decoration:none;">Sign in</a>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+<tr><td style="background-color:#18181b;border-radius:8px;">
+<a href="%s" style="display:inline-block;padding:10px 20px;font-size:13px;font-weight:500;color:#ffffff;text-decoration:none;">Sign in</a>
 </td></tr>
 </table>
 
-<p style="margin:20px 0 0;font-size:13px;color:#999;line-height:1.5;">
-If you didn&rsquo;t request this, you can safely ignore this email.
+<p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.5;">
+This link expires in 10 minutes. If you didn&rsquo;t request this, ignore this email.
 </p>
 `, link))
 }
 
 func commentNotificationHTML(blogName, postTitle, commentAuthor, commentContent, postURL string) string {
 	return layout(fmt.Sprintf(`
-<h1 style="margin:0 0 16px;font-size:20px;font-weight:500;color:#111;line-height:1.3;">New comment on your post</h1>
+<p style="margin:0 0 16px;font-size:15px;color:#0f0f0f;line-height:1.5;">New comment on &ldquo;%s&rdquo;</p>
 
-<p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6;">
-<strong>%s</strong> left a comment on <strong>&ldquo;%s&rdquo;</strong> on %s.
-</p>
+<p style="margin:0 0 12px;font-size:13px;color:#71717a;">%s on %s:</p>
 
-<div style="background-color:#f5f5f5;border-left:3px solid #e5e5e5;padding:16px 20px;margin:0 0 20px;border-radius:0 6px 6px 0;">
-<p style="margin:0;font-size:14px;color:#333;line-height:1.6;">%s</p>
+<div style="border-left:2px solid #e4e4e7;padding:8px 16px;margin:0 0 20px;">
+<p style="margin:0;font-size:14px;color:#3f3f46;line-height:1.6;">%s</p>
 </div>
 
 <table role="presentation" cellpadding="0" cellspacing="0">
-<tr><td style="background-color:#2563eb;border-radius:6px;">
-<a href="%s" style="display:inline-block;padding:10px 24px;font-size:14px;font-weight:500;color:#ffffff;text-decoration:none;">View Post</a>
+<tr><td style="background-color:#18181b;border-radius:8px;">
+<a href="%s" style="display:inline-block;padding:10px 20px;font-size:13px;font-weight:500;color:#ffffff;text-decoration:none;">View post</a>
 </td></tr>
 </table>
-
-<p style="margin:16px 0 0;font-size:13px;color:#999;line-height:1.5;">
-To delete this comment, ask your AI assistant: &ldquo;delete the spam comment from %s&rdquo;
-</p>
-`, commentAuthor, postTitle, blogName, commentContent, postURL, commentAuthor))
+`, postTitle, commentAuthor, blogName, commentContent, postURL))
 }

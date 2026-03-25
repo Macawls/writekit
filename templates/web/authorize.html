@@ -73,13 +73,13 @@
         .btn{
             flex:1;padding:.65rem 1rem;border-radius:10px;
             font-family:var(--sans);font-size:.85rem;font-weight:600;
-            cursor:pointer;border:none;transition:all .2s cubic-bezier(.19,1,.22,1);
+            cursor:pointer;border:none;
         }
         .btn-approve{
             background:var(--surface);color:var(--white);
         }
         .btn-approve:hover{
-            background:#27272a;transform:translateY(-1px);
+            background:#27272a;
             box-shadow:0 2px 8px rgba(0,0,0,.15);
         }
         .btn-deny{
@@ -88,9 +88,7 @@
         }
         .btn-deny:hover{
             border-color:var(--border2);color:var(--fg);
-            transform:translateY(-1px);
         }
-        .btn:active{transform:translateY(0);box-shadow:none}
 
         @keyframes fadeUp{
             from{opacity:0;transform:translateY(12px)}
@@ -116,7 +114,7 @@
 
         <div class="user-info">
             <div class="user-email">{{.User.Email}}</div>
-            <div class="user-scope">This will allow the application to manage your blog posts, comments, and settings.</div>
+            <div class="user-scope">This will allow the application to manage your pages, collections, and settings.</div>
         </div>
 
         <form method="POST" action="/oauth/authorize">
