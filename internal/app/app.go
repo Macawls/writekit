@@ -116,7 +116,7 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, blogHandler *blog.
 
 	webR := webRouter(cfg, webHandler, mcpSrv, platformDB)
 	blogR := blogRouter(blogHandler)
-	spaR := spaRouter(apiHandler, appFS)
+	spaR := spaRouter(apiHandler, appFS, cfg, platformDB)
 
 	root.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
 		host := r.Host
@@ -152,7 +152,7 @@ func webRouter(cfg *config.Config, webHandler *web.Handler, mcpSrv *mcpserver.Se
 	return r
 }
 
-func spaRouter(apiHandler *api.Handler, appFS fs.FS) http.Handler {
+func spaRouter(apiHandler *api.Handler, appFS fs.FS, cfg *config.Config, platformDB *platform.DB) http.Handler {
 	r := chi.NewRouter()
 
 	apiHandler.Routes(r)
@@ -162,6 +162,16 @@ func spaRouter(apiHandler *api.Handler, appFS fs.FS) http.Handler {
 
 	r.Handle("/assets/*", fileServer)
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("session")
+		if err != nil {
+			http.Redirect(w, r, cfg.BaseURL, http.StatusSeeOther)
+			return
+		}
+		if _, err := platformDB.GetSession(r.Context(), cookie.Value); err != nil {
+			http.Redirect(w, r, cfg.BaseURL, http.StatusSeeOther)
+			return
+		}
+
 		f, err := distFS.Open("index.html")
 		if err != nil {
 			http.Error(w, "not found", http.StatusNotFound)
