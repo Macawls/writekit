@@ -5,7 +5,7 @@
 ## Quick start
 
 ```
-claude mcp add writekit https://writekit.dev/mcp
+claude mcp add --transport http writekit https://writekit.dev/mcp
 ```
 
 Authentication happens automatically via OAuth (GitHub, Google, Discord) or magic link on first connect.

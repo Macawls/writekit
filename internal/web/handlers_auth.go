@@ -45,7 +45,7 @@ func (h *Handler) OAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nonce := getOAuthState(r)
+	nonce := getOAuthState()
 
 	cookieValue := providerName + ":" + nonce
 	if r.URL.Query().Get("action") == "link" {
@@ -443,9 +443,11 @@ func (h *Handler) appURL() string {
 	return "https://app." + h.Config.Host
 }
 
-func getOAuthState(_ *http.Request) string {
+func getOAuthState() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
 	return hex.EncodeToString(b)
 }
 

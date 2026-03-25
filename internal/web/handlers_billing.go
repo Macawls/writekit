@@ -27,12 +27,18 @@ func (h *Handler) StripeWebhook(w http.ResponseWriter, r *http.Request) {
 	switch event.Type {
 	case "checkout.session.completed":
 		var sess stripe.CheckoutSession
-		json.Unmarshal(event.Data.Raw, &sess)
+		if err := json.Unmarshal(event.Data.Raw, &sess); err != nil {
+			slog.Error("unmarshal checkout session", "err", err)
+			return
+		}
 		h.handleCheckoutComplete(r, &sess)
 
 	case "customer.subscription.updated", "customer.subscription.deleted":
 		var sub stripe.Subscription
-		json.Unmarshal(event.Data.Raw, &sub)
+		if err := json.Unmarshal(event.Data.Raw, &sub); err != nil {
+			slog.Error("unmarshal subscription", "err", err)
+			return
+		}
 		h.handleSubscriptionUpdate(r, &sub)
 	}
 

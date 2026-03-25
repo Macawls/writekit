@@ -95,7 +95,10 @@ func (e *Engine) get(name string) (*template.Template, error) {
 func (e *Engine) parse(name string) (*template.Template, error) {
 	t := template.New(name).Funcs(e.funcMap)
 
-	partials, _ := fs.Glob(e.fsys, "partials/*.html")
+	partials, err := fs.Glob(e.fsys, "partials/*.html")
+	if err != nil {
+		return nil, fmt.Errorf("glob partials: %w", err)
+	}
 	for _, p := range partials {
 		content, err := fs.ReadFile(e.fsys, p)
 		if err != nil {

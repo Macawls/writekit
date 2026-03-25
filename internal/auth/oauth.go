@@ -93,7 +93,10 @@ func getGoogleUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
 	var data struct {
 		ID      string `json:"id"`
 		Email   string `json:"email"`
@@ -120,7 +123,10 @@ func getGithubUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
 	var data struct {
 		ID        int    `json:"id"`
 		Login     string `json:"login"`
@@ -158,7 +164,10 @@ func getGithubPrimaryEmail(client *http.Client) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response: %w", err)
+	}
 	var emails []struct {
 		Email    string `json:"email"`
 		Primary  bool   `json:"primary"`
@@ -183,7 +192,10 @@ func getDiscordUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
 	var data struct {
 		ID            string `json:"id"`
 		Username      string `json:"username"`

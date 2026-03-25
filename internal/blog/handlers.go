@@ -36,9 +36,15 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collections, _ := db.ListCollections(r.Context())
+	collections, err := db.ListCollections(r.Context())
+	if err != nil {
+		slog.Error("list collections", "tenant", tenantID, "err", err)
+	}
 	standalone := ""
-	pages, _ := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", CollectionID: &standalone, Limit: 20})
+	pages, err := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", CollectionID: &standalone, Limit: 20})
+	if err != nil {
+		slog.Error("list pages", "tenant", tenantID, "err", err)
+	}
 	settings, _ := db.GetSettings(r.Context())
 
 	collectionData := make([]map[string]any, len(collections))

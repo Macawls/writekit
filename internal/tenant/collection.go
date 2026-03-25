@@ -41,7 +41,10 @@ func (db *DB) UpdateCollection(ctx context.Context, c *Collection) error {
 
 func (db *DB) DeleteCollection(ctx context.Context, id string) error {
 	_, err := db.DB.ExecContext(ctx, `DELETE FROM collections WHERE id = ?`, id)
-	return err
+	if err != nil {
+		return fmt.Errorf("delete collection: %w", err)
+	}
+	return nil
 }
 
 func (db *DB) GetCollection(ctx context.Context, id string) (*Collection, error) {
