@@ -70,6 +70,10 @@ func (s *Sender) SendWelcome(ctx context.Context, to, name string) error {
 	return s.Send(ctx, to, "Welcome to WriteKit", welcomeHTML(name))
 }
 
+func (s *Sender) SendMagicLink(ctx context.Context, to, link string) error {
+	return s.Send(ctx, to, "Sign in to WriteKit", magicLinkHTML(link))
+}
+
 func (s *Sender) SendCommentNotification(ctx context.Context, to, blogName, postTitle, commentAuthor, commentContent, postURL string) error {
 	subject := fmt.Sprintf("New comment on \"%s\"", postTitle)
 	return s.Send(ctx, to, subject, commentNotificationHTML(blogName, postTitle, commentAuthor, commentContent, postURL))

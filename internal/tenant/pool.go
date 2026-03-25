@@ -88,7 +88,7 @@ func (p *Pool) open(tenantID string) (*DB, error) {
 	}
 
 	if migrated {
-		if err := db.rerenderPosts(); err != nil {
+		if err := db.rerenderPages(); err != nil {
 			slog.Warn("failed to re-render posts after migration", "tenant", tenantID, "err", err)
 		}
 	}
@@ -129,6 +129,25 @@ func (p *Pool) Rename(oldID, newID string) error {
 	os.Rename(oldPath+"-wal", newPath+"-wal")
 	os.Rename(oldPath+"-shm", newPath+"-shm")
 
+	return nil
+}
+
+func (p *Pool) Delete(tenantID string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if entry, ok := p.dbs[tenantID]; ok {
+		entry.db.Close()
+		p.lru.Remove(entry.element)
+		delete(p.dbs, tenantID)
+	}
+
+	dbPath := filepath.Join(p.dataDir, tenantID+".db")
+	os.Remove(dbPath + "-wal")
+	os.Remove(dbPath + "-shm")
+	if err := os.Remove(dbPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("delete tenant db: %w", err)
+	}
 	return nil
 }
 

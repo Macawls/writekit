@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/mail"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -46,9 +47,14 @@ func (h *Handler) OAuthStart(w http.ResponseWriter, r *http.Request) {
 
 	nonce := getOAuthState(r)
 
+	cookieValue := providerName + ":" + nonce
+	if r.URL.Query().Get("action") == "link" {
+		cookieValue = providerName + ":link:" + nonce
+	}
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_state",
-		Value:    providerName + ":" + nonce,
+		Value:    cookieValue,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   !h.Config.Dev,
@@ -60,6 +66,7 @@ func (h *Handler) OAuthStart(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("oauth") == "1" {
 		q := r.URL.Query()
 		q.Del("oauth")
+		q.Del("action")
 		state = nonce + "|" + q.Encode()
 	}
 
@@ -77,26 +84,21 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{Name: "oauth_state", MaxAge: -1, Path: "/"})
 
-	cookieParts := strings.SplitN(stateCookie.Value, ":", 2)
-	if len(cookieParts) != 2 || !strings.HasPrefix(state, cookieParts[1]) {
+	cookieParts := strings.SplitN(stateCookie.Value, ":", 3)
+	if len(cookieParts) < 2 {
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
 	providerName := cookieParts[0]
+	isLinkAction := len(cookieParts) == 3 && cookieParts[1] == "link"
 
-	var provider *auth.OAuthProvider
-	switch providerName {
-	case "google":
-		provider = h.Google
-	case "github":
-		provider = h.Github
-	case "discord":
-		provider = h.Discord
-	default:
-		http.Error(w, "unknown provider", http.StatusBadRequest)
+	nonce := cookieParts[len(cookieParts)-1]
+	if !strings.HasPrefix(state, nonce) {
+		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
 
+	provider := h.getProvider(providerName)
 	if provider == nil {
 		http.Error(w, "provider not configured", http.StatusBadRequest)
 		return
@@ -116,15 +118,14 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, isNew, err := h.DB.UpsertUser(r.Context(), &platform.User{
-		Email:         info.Email,
-		Name:          info.Name,
-		AvatarURL:     info.AvatarURL,
-		OAuthProvider: providerName,
-		OAuthID:       info.ID,
-	})
+if isLinkAction {
+		h.handleOAuthLink(w, r, providerName, info)
+		return
+	}
+
+user, isNew, err := h.findOrCreateUser(r, providerName, info)
 	if err != nil {
-		slog.Error("upsert user failed", "err", err)
+		slog.Error("find or create user failed", "err", err)
 		http.Error(w, "failed to save user", http.StatusInternalServerError)
 		return
 	}
@@ -137,7 +138,86 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
-	sess, err := h.DB.CreateSession(r.Context(), user.ID)
+	h.createSessionAndRedirect(w, r, user.ID, state)
+}
+
+
+func (h *Handler) findOrCreateUser(r *http.Request, providerName string, info *auth.OAuthUserInfo) (*platform.User, bool, error) {
+	ctx := r.Context()
+
+	user, err := h.DB.FindUserByProvider(ctx, providerName, info.ID)
+	if err == nil {
+		return user, false, nil
+	}
+
+	if info.EmailVerified && info.Email != "" {
+		user, err = h.DB.FindUserByVerifiedEmail(ctx, info.Email)
+		if err == nil {
+			_, linkErr := h.DB.LinkAccount(ctx, user.ID, providerName, info.ID, info.Email, true)
+			if linkErr != nil {
+				slog.Warn("auto-link failed", "err", linkErr, "provider", providerName, "user", user.ID)
+			}
+			return user, false, nil
+		}
+	}
+
+	user, err = h.DB.CreateUser(ctx, info.Email, info.Name, info.AvatarURL)
+	if err != nil {
+		if info.Email != "" {
+			user, err = h.DB.FindUserByVerifiedEmail(ctx, info.Email)
+			if err == nil {
+				h.DB.LinkAccount(ctx, user.ID, providerName, info.ID, info.Email, info.EmailVerified)
+				return user, false, nil
+			}
+		}
+		return nil, false, err
+	}
+
+	_, err = h.DB.LinkAccount(ctx, user.ID, providerName, info.ID, info.Email, info.EmailVerified)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return user, true, nil
+}
+
+
+func (h *Handler) handleOAuthLink(w http.ResponseWriter, r *http.Request, providerName string, info *auth.OAuthUserInfo) {
+	sessionCookie, err := r.Cookie("session")
+	if err != nil {
+		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
+		return
+	}
+
+	sess, err := h.DB.GetSession(r.Context(), sessionCookie.Value)
+	if err != nil {
+		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
+		return
+	}
+
+	existingUser, err := h.DB.FindUserByProvider(r.Context(), providerName, info.ID)
+	if err == nil && existingUser.ID != sess.UserID {
+		http.Redirect(w, r, "/settings?error=provider-taken", http.StatusSeeOther)
+		return
+	}
+
+	if err == nil {
+		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		return
+	}
+
+	_, err = h.DB.LinkAccount(r.Context(), sess.UserID, providerName, info.ID, info.Email, info.EmailVerified)
+	if err != nil {
+		slog.Error("link account failed", "err", err)
+		http.Redirect(w, r, "/settings?error=link-failed", http.StatusSeeOther)
+		return
+	}
+
+	http.Redirect(w, r, "/settings", http.StatusSeeOther)
+}
+
+func (h *Handler) createSessionAndRedirect(w http.ResponseWriter, r *http.Request, userID, state string) {
+	sess, err := h.DB.CreateSession(r.Context(), userID)
 	if err != nil {
 		slog.Error("create session failed", "err", err)
 		http.Error(w, "failed to create session", http.StatusInternalServerError)
@@ -160,8 +240,101 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	appURL := h.appURL()
-	http.Redirect(w, r, appURL, http.StatusSeeOther)
+	http.Redirect(w, r, h.appURL(), http.StatusSeeOther)
+}
+
+
+func (h *Handler) MagicLinkRequest(w http.ResponseWriter, r *http.Request) {
+	email := strings.TrimSpace(r.FormValue("email"))
+
+	if _, err := mail.ParseAddress(email); err != nil {
+		h.Engine.Render(w, "login.html", map[string]any{
+			"GoogleEnabled":  h.Config.GoogleClientID != "",
+			"GithubEnabled":  h.Config.GithubClientID != "",
+			"DiscordEnabled": h.Config.DiscordClientID != "",
+			"EmailError":     "Please enter a valid email address.",
+			"Email":          email,
+		})
+		return
+	}
+
+	ml, err := h.DB.CreateMagicLink(r.Context(), email)
+	if err != nil {
+		slog.Error("create magic link failed", "err", err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	var link string
+	if h.Config.Dev {
+		link = fmt.Sprintf("http://localhost:%d/auth/magic-link/verify?token=%s", h.Config.Port, ml.Token)
+	} else {
+		link = fmt.Sprintf("https://%s/auth/magic-link/verify?token=%s", h.Config.Host, ml.Token)
+	}
+
+	if oauthParams := r.FormValue("oauth_params"); oauthParams != "" {
+		link += "&oauth_params=" + oauthParams
+	}
+
+	go func() {
+		if err := h.Email.SendMagicLink(r.Context(), email, link); err != nil {
+			slog.Error("send magic link email", "err", err)
+		}
+	}()
+
+	h.Engine.Render(w, "magic_link_sent.html", map[string]any{
+		"Email": email,
+	})
+}
+
+
+func (h *Handler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "missing token", http.StatusBadRequest)
+		return
+	}
+
+	ml, err := h.DB.ConsumeMagicLink(r.Context(), token)
+	if err != nil {
+		slog.Warn("invalid magic link", "err", err)
+		h.Engine.Render(w, "magic_link_sent.html", map[string]any{
+			"Error": "This link is invalid or has expired. Please request a new one.",
+		})
+		return
+	}
+
+	user, err := h.DB.FindUserByVerifiedEmail(r.Context(), ml.Email)
+	isNew := false
+	if err != nil {
+		user, err = h.DB.CreateUser(r.Context(), ml.Email, "", "")
+		if err != nil {
+			slog.Error("create user from magic link", "err", err)
+			http.Error(w, "something went wrong", http.StatusInternalServerError)
+			return
+		}
+		isNew = true
+	}
+
+	hasEmail, _ := h.DB.HasLinkedProvider(r.Context(), user.ID, "email")
+	if !hasEmail {
+		h.DB.LinkAccount(r.Context(), user.ID, "email", ml.Email, ml.Email, true)
+	}
+
+	if isNew {
+		go func() {
+			if err := h.Email.SendWelcome(r.Context(), user.Email, user.Name); err != nil {
+				slog.Error("send welcome email", "err", err)
+			}
+		}()
+	}
+
+	state := ""
+	if oauthParams := r.URL.Query().Get("oauth_params"); oauthParams != "" {
+		state = "x|" + oauthParams
+	}
+
+	h.createSessionAndRedirect(w, r, user.ID, state)
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -270,7 +443,7 @@ func (h *Handler) appURL() string {
 	return "https://app." + h.Config.Host
 }
 
-func getOAuthState(r *http.Request) string {
+func getOAuthState(_ *http.Request) string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return hex.EncodeToString(b)

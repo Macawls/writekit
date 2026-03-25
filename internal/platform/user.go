@@ -7,47 +7,22 @@ import (
 )
 
 type User struct {
-	ID            string
-	Email         string
-	Name          string
-	AvatarURL     string
-	OAuthProvider string
-	OAuthID       string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
-func (db *DB) UpsertUser(ctx context.Context, u *User) (*User, bool, error) {
-	row := db.Pool.QueryRow(ctx, `
-		INSERT INTO users (email, name, avatar_url, oauth_provider, oauth_id)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (oauth_provider, oauth_id) DO UPDATE SET
-			email = EXCLUDED.email,
-			name = EXCLUDED.name,
-			avatar_url = EXCLUDED.avatar_url,
-			updated_at = NOW()
-		RETURNING id, email, name, avatar_url, oauth_provider, oauth_id, created_at, updated_at, (xmax = 0) AS is_new
-	`, u.Email, u.Name, u.AvatarURL, u.OAuthProvider, u.OAuthID)
-
-	var out User
-	var isNew bool
-	err := row.Scan(&out.ID, &out.Email, &out.Name, &out.AvatarURL,
-		&out.OAuthProvider, &out.OAuthID, &out.CreatedAt, &out.UpdatedAt, &isNew)
-	if err != nil {
-		return nil, false, fmt.Errorf("upsert user: %w", err)
-	}
-	return &out, isNew, nil
+	ID        string
+	Email     string
+	Name      string
+	AvatarURL string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func (db *DB) GetUser(ctx context.Context, id string) (*User, error) {
 	row := db.Pool.QueryRow(ctx, `
-		SELECT id, email, name, avatar_url, oauth_provider, oauth_id, created_at, updated_at
+		SELECT id, email, name, avatar_url, created_at, updated_at
 		FROM users WHERE id = $1
 	`, id)
 
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL,
-		&u.OAuthProvider, &u.OAuthID, &u.CreatedAt, &u.UpdatedAt)
+	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
@@ -59,4 +34,46 @@ func (db *DB) UpdateUser(ctx context.Context, id, name string) error {
 		UPDATE users SET name = $2, updated_at = NOW() WHERE id = $1
 	`, id, name)
 	return err
+}
+
+func (db *DB) DeleteUser(ctx context.Context, id string) ([]string, error) {
+	tx, err := db.Pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `SELECT id FROM tenants WHERE user_id = $1`, id)
+	if err != nil {
+		return nil, fmt.Errorf("list tenants: %w", err)
+	}
+	var tenantIDs []string
+	for rows.Next() {
+		var tid string
+		if err := rows.Scan(&tid); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		tenantIDs = append(tenantIDs, tid)
+	}
+	rows.Close()
+
+	for _, table := range []string{
+		"oauth_refresh_tokens", "oauth_access_tokens", "oauth_codes",
+		"sessions", "subscriptions", "linked_accounts", "tenants",
+	} {
+		if _, err := tx.Exec(ctx, fmt.Sprintf("DELETE FROM %s WHERE user_id = $1", table), id); err != nil {
+			return nil, fmt.Errorf("delete from %s: %w", table, err)
+		}
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM users WHERE id = $1`, id); err != nil {
+		return nil, fmt.Errorf("delete user: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+
+	return tenantIDs, nil
 }

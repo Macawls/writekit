@@ -76,6 +76,26 @@ Add this to your Claude Desktop configuration, then say <strong>&ldquo;write a p
 `, greeting))
 }
 
+func magicLinkHTML(link string) string {
+	return layout(fmt.Sprintf(`
+<h1 style="margin:0 0 16px;font-size:22px;font-weight:500;color:#111;line-height:1.3;">Sign in to WriteKit</h1>
+
+<p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6;">
+Click the button below to sign in. This link expires in 10 minutes.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0">
+<tr><td style="background-color:#2563eb;border-radius:6px;">
+<a href="%s" style="display:inline-block;padding:10px 24px;font-size:14px;font-weight:500;color:#ffffff;text-decoration:none;">Sign in</a>
+</td></tr>
+</table>
+
+<p style="margin:20px 0 0;font-size:13px;color:#999;line-height:1.5;">
+If you didn&rsquo;t request this, you can safely ignore this email.
+</p>
+`, link))
+}
+
 func commentNotificationHTML(blogName, postTitle, commentAuthor, commentContent, postURL string) string {
 	return layout(fmt.Sprintf(`
 <h1 style="margin:0 0 16px;font-size:20px;font-weight:500;color:#111;line-height:1.3;">New comment on your post</h1>

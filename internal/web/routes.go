@@ -7,6 +7,7 @@ import (
 	"writekit/internal/email"
 	"writekit/internal/platform"
 	"writekit/internal/render"
+	"writekit/internal/tenant"
 )
 
 type Handler struct {
@@ -18,6 +19,7 @@ type Handler struct {
 	Discord *auth.OAuthProvider
 	MCPAuth *auth.MCPAuth
 	Email   *email.Sender
+	Pool    *tenant.Pool
 }
 
 func (h *Handler) Routes(r chi.Router) {
@@ -26,6 +28,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/auth/login/{provider}", h.OAuthStart)
 	r.Get("/auth/callback", h.OAuthCallback)
 	r.Post("/auth/logout", h.Logout)
+	r.Post("/auth/magic-link", h.MagicLinkRequest)
+	r.Get("/auth/magic-link/verify", h.MagicLinkVerify)
 
 	r.Get("/.well-known/oauth-authorization-server", h.MCPAuth.WellKnown)
 	r.Get("/.well-known/oauth-protected-resource", h.MCPAuth.ProtectedResource)
@@ -33,6 +37,13 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/oauth/authorize", h.OAuthAuthorize)
 	r.Post("/oauth/authorize", h.OAuthAuthorizeSubmit)
 	r.Post("/oauth/token", h.MCPAuth.TokenExchange)
+
+	r.Group(func(r chi.Router) {
+		r.Use(auth.WebAuth(h.DB))
+		r.Get("/settings", h.SettingsPage)
+		r.Post("/settings/unlink/{accountID}", h.UnlinkAccount)
+		r.Post("/settings/delete-account", h.DeleteAccount)
+	})
 
 	r.Get("/", h.Home)
 	r.Get("/docs", h.Docs)

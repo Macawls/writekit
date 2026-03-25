@@ -60,10 +60,11 @@ func NewDiscordProvider(clientID, clientSecret, redirectURL string) *OAuthProvid
 }
 
 type OAuthUserInfo struct {
-	Email     string
-	Name      string
-	AvatarURL string
-	ID        string
+	Email         string
+	Name          string
+	AvatarURL     string
+	ID            string
+	EmailVerified bool
 }
 
 func (p *OAuthProvider) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
@@ -104,10 +105,11 @@ func getGoogleUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 	}
 
 	return &OAuthUserInfo{
-		Email:     data.Email,
-		Name:      data.Name,
-		AvatarURL: data.Picture,
-		ID:        data.ID,
+		Email:         data.Email,
+		Name:          data.Name,
+		AvatarURL:     data.Picture,
+		ID:            data.ID,
+		EmailVerified: true,
 	}, nil
 }
 
@@ -141,10 +143,11 @@ func getGithubUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 	}
 
 	return &OAuthUserInfo{
-		Email:     email,
-		Name:      name,
-		AvatarURL: data.AvatarURL,
-		ID:        fmt.Sprintf("%d", data.ID),
+		Email:         email,
+		Name:          name,
+		AvatarURL:     data.AvatarURL,
+		ID:            fmt.Sprintf("%d", data.ID),
+		EmailVerified: email != "",
 	}, nil
 }
 
@@ -186,6 +189,7 @@ func getDiscordUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 		Username      string `json:"username"`
 		GlobalName    string `json:"global_name"`
 		Email         string `json:"email"`
+		Verified      bool   `json:"verified"`
 		Avatar        string `json:"avatar"`
 	}
 	if err := json.Unmarshal(body, &data); err != nil {
@@ -203,9 +207,10 @@ func getDiscordUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 	}
 
 	return &OAuthUserInfo{
-		Email:     data.Email,
-		Name:      name,
-		AvatarURL: avatarURL,
-		ID:        data.ID,
+		Email:         data.Email,
+		Name:          name,
+		AvatarURL:     avatarURL,
+		ID:            data.ID,
+		EmailVerified: data.Verified,
 	}, nil
 }

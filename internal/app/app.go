@@ -75,6 +75,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Discord: discord,
 		MCPAuth: mcpAuth,
 		Email:   emailSender,
+		Pool:    pool,
 	}
 
 	blogHandler := &blog.Handler{
