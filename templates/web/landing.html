@@ -3,197 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WriteKit — MCP-native blogging</title>
+    <title>WriteKit</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         :root{
-            --bg:#fafafa;
-            --white:#fff;
-            --fg:#0f0f0f;
-            --fg2:#3f3f46;
-            --muted:#71717a;
-            --faint:#a1a1aa;
-            --border:#e4e4e7;
-            --border2:#d4d4d8;
-            --accent:#2563eb;
-            --surface:#18181b;
-            --green:#22c55e;
-            --blue:#3b82f6;
-            --amber:#f59e0b;
-            --sans:'Instrument Sans',system-ui,sans-serif;
+            --bg:#fafafa;--fg:#0f0f0f;--muted:#71717a;--faint:#a1a1aa;
+            --border:#e4e4e7;--border2:#d4d4d8;--surface:#18181b;--white:#fff;
+            --sans:'Plus Jakarta Sans',system-ui,sans-serif;
             --mono:'JetBrains Mono',ui-monospace,monospace;
         }
+        html,body{height:100%}
         body{
-            font-family:var(--sans);
-            background:var(--bg);
-            color:var(--fg);
+            font-family:var(--sans);background:var(--bg);color:var(--fg);
             -webkit-font-smoothing:antialiased;
-            line-height:1.6;
+            display:flex;flex-direction:column;
         }
-        a{color:var(--muted);text-decoration:none;transition:color .15s}
-        a:hover{color:var(--fg)}
+        body::before{
+            content:'';position:fixed;inset:0;
+            background-image:radial-gradient(circle,var(--border) .5px,transparent .5px);
+            background-size:24px 24px;opacity:.3;pointer-events:none;
+        }
 
-        nav{
-            max-width:960px;margin:0 auto;padding:1.25rem 2rem;
-            display:flex;justify-content:space-between;align-items:center;
-        }
-        .logo{font-family:var(--mono);font-weight:500;font-size:.9rem;color:var(--fg);letter-spacing:-.04em}
-        .nav-r{display:flex;gap:2rem;align-items:center;font-size:.85rem}
-        .nav-r a{color:var(--muted);font-weight:500}
-        .nav-r a:hover{color:var(--fg)}
-        .nav-btn{
-            color:var(--fg) !important;border:1.5px solid var(--border2);padding:.4rem 1.1rem;
-            border-radius:100px;font-weight:600;font-size:.8rem;transition:all .2s;
-        }
-        .nav-btn:hover{border-color:var(--fg);background:var(--fg);color:var(--white) !important}
 
-        .hero{
-            max-width:960px;margin:0 auto;padding:6rem 2rem 0;text-align:center;
+        main{
+            flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+            position:relative;z-index:1;padding:0 2rem 8rem;
         }
+
+        .hero{text-align:center;margin-bottom:2.5rem}
         .hero h1{
-            font-size:clamp(2.5rem,5.5vw,3.75rem);font-weight:700;
-            letter-spacing:-.045em;line-height:1.08;
+            font-size:1.5rem;font-weight:700;letter-spacing:-.03em;
+            line-height:1.2;margin-bottom:.6rem;color:var(--fg);
         }
-        .hero-sub{
-            margin-top:1rem;font-size:1.05rem;color:var(--muted);
-        }
+        .hero p{font-size:.86rem;color:var(--muted);line-height:1.5;max-width:340px;margin:0 auto}
 
-        .cta{
-            max-width:640px;margin:3rem auto 0;padding:0 2rem;
+        .cmd{
+            display:flex;align-items:center;justify-content:space-between;gap:.75rem;
+            width:100%;max-width:560px;
+            font-family:var(--mono);font-size:clamp(.76rem,1.5vw,.85rem);
+            font-weight:500;color:var(--fg);letter-spacing:-.01em;
+            padding:.85rem 1.15rem;
+            background:var(--white);
+            border:1px solid var(--border);
+            border-radius:10px;
+            box-shadow:0 1px 2px rgba(0,0,0,.02),0 4px 16px rgba(0,0,0,.03);
+            cursor:pointer;
+            transition:all .25s cubic-bezier(.19,1,.22,1);
         }
-        .term{
-            background:var(--surface);border-radius:12px;overflow:hidden;
-            box-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.08),0 16px 40px rgba(0,0,0,.08);
-            transition:box-shadow .3s,transform .3s;
-        }
-        .term:hover{
-            box-shadow:0 1px 2px rgba(0,0,0,.06),0 8px 20px rgba(0,0,0,.12),0 24px 56px rgba(0,0,0,.12);
+        .cmd:hover{
+            box-shadow:0 1px 2px rgba(0,0,0,.02),0 8px 32px rgba(0,0,0,.06);
             transform:translateY(-1px);
+            border-color:var(--border2);
         }
-        .term-bar{
-            padding:.65rem 1rem;display:flex;justify-content:space-between;align-items:center;
-            border-bottom:1px solid #27272a;
+        .cmd-text{white-space:nowrap;overflow-x:auto}
+        .cmd-text .d{color:var(--faint);user-select:none;margin-right:.3em}
+        .cmd-text .dim{color:var(--muted)}
+        .cmd-cp{
+            color:var(--faint);background:transparent;border:none;padding:0;
+            cursor:pointer;transition:color .15s;flex-shrink:0;display:flex;align-items:center;
         }
-        .term-dots{display:flex;gap:6px}
-        .term-dots i{width:9px;height:9px;border-radius:50%;background:#3f3f46;display:block}
-        .term-cp{
-            font-family:var(--mono);font-size:.65rem;font-weight:500;color:#71717a;
-            background:transparent;border:1px solid #3f3f46;padding:.2rem .6rem;
-            border-radius:5px;cursor:pointer;transition:all .15s;
-        }
-        .term-cp:hover{color:#d4d4d8;border-color:#52525b}
-        .term-cp.ok{color:var(--green);border-color:rgba(34,197,94,.4)}
-        .term-body{
-            padding:1.1rem 1.35rem;font-family:var(--mono);font-size:.85rem;
-            white-space:nowrap;overflow-x:auto;color:#e4e4e7;line-height:1;
-            display:flex;align-items:center;justify-content:center;
-        }
-        .term-body .u{color:var(--amber)}
+        .cmd-cp:hover{color:var(--muted)}
+        .cmd-cp.ok{color:var(--fg)}
 
-        .cta-below{
-            margin-top:1.25rem;text-align:center;font-size:.85rem;color:var(--muted);
+        .secondary{
+            margin-top:1rem;text-align:center;
         }
-        .cta-below a{color:var(--accent);font-weight:600}
-        .cta-below a:hover{color:var(--fg)}
-
-        .features{max-width:960px;margin:0 auto;padding:5rem 2rem 0}
-        .feat-label{
-            font-family:var(--mono);font-size:.65rem;font-weight:500;
-            letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:1.25rem;
+        .json-toggle{
+            display:inline-flex;align-items:center;gap:.3rem;
+            font-family:var(--mono);font-size:.58rem;font-weight:500;
+            color:var(--faint);cursor:pointer;background:none;border:none;
+            transition:color .15s;
         }
-        .feat-grid{
-            display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
-            border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--border);
+        .json-toggle:hover{color:var(--muted)}
+        .json-toggle svg{width:6px;height:6px;transition:transform .2s}
+        .json-toggle.open svg{transform:rotate(90deg)}
+        .json-code{
+            display:none;margin-top:.6rem;padding:.75rem 1rem;
+            background:var(--white);border:1px solid var(--border);border-radius:8px;
+            font-family:var(--mono);font-size:.65rem;line-height:1.6;
+            color:var(--muted);white-space:pre;text-align:left;
         }
-        .feat{background:var(--white);padding:1.4rem 1.5rem;transition:background .2s}
-        .feat:hover{background:#f8fafc}
-        .feat h3{font-size:.85rem;font-weight:700;color:var(--fg);margin-bottom:.2rem}
-        .feat p{font-size:.78rem;color:var(--muted);line-height:1.45}
+        .json-code.show{display:block}
 
         footer{
-            max-width:960px;margin:0 auto;padding:5rem 2rem 2.5rem;
-            display:flex;justify-content:space-between;align-items:center;
-            font-size:.75rem;color:var(--faint);
+            position:relative;z-index:1;padding:0 2rem 1.75rem;text-align:center;
         }
-        .f-links{display:flex;gap:1.5rem}
-        .f-links a{font-size:.75rem;font-weight:500}
+        footer a{font-size:.68rem;color:var(--faint);text-decoration:none;transition:color .15s}
+        footer a:hover{color:var(--fg)}
 
-        @media(max-width:768px){
-            .feat-grid{grid-template-columns:1fr}
-            .hero{padding-top:3.5rem}
-            .nav-r .hm{display:none}
+        @media(max-width:600px){
+            nav{margin:.75rem .75rem 0;width:auto}
+            main{padding:0 1.5rem 5rem}
+            .hero h1{font-size:1.3rem}
+            .cmd{padding:.75rem 1rem}
         }
-
-        @keyframes rise{
-            from{opacity:0;transform:translateY(20px)}
-            to{opacity:1;transform:translateY(0)}
-        }
-        .hero h1,.hero-sub,.cta,.features,footer{animation:rise .55s cubic-bezier(.19,1,.22,1) both}
-        .hero h1{animation-delay:.04s}
-        .hero-sub{animation-delay:.1s}
-        .cta{animation-delay:.18s}
-        .features{animation-delay:.28s}
-        footer{animation-delay:.35s}
     </style>
 </head>
 <body>
 
-<nav>
-    <span class="logo">writekit</span>
-    <div class="nav-r">
-        <a href="/docs" class="hm">Docs</a>
-        <a href="https://discord.gg/writekit" class="hm">Discord</a>
-        <a href="/auth/login" class="nav-btn">Sign in</a>
-    </div>
-</nav>
+{{template "partials/nav.html" .}}
 
-<section class="hero">
-    <h1>Your blog, managed<br>by conversation.</h1>
-    <p class="hero-sub">MCP-native blogging. No editor, no dashboard.</p>
-</section>
-
-<div class="cta">
-    <div class="term">
-        <div class="term-bar">
-            <div class="term-dots"><i></i><i></i><i></i></div>
-            <button class="term-cp" id="cp" onclick="cc()">Copy</button>
-        </div>
-        <div class="term-body"><span class="u">https://writekit.dev/mcp</span></div>
+<main>
+    <div class="hero">
+        <h1>Publish by conversation</h1>
+        <p>Pages, collections, docs — managed entirely through your AI assistant.</p>
     </div>
-    <p class="cta-below">Add this URL to any MCP client. Auth happens automatically. <a href="/docs">Client-specific instructions &rarr;</a></p>
-</div>
 
-<section class="features">
-    <div class="feat-label">Everything included</div>
-    <div class="feat-grid">
-        <div class="feat"><h3>Markdown</h3><p>GFM, syntax highlighting, tables, footnotes.</p></div>
-        <div class="feat"><h3>Preview URLs</h3><p>Shareable expiring links for every draft.</p></div>
-        <div class="feat"><h3>Full-text search</h3><p>FTS5 across all your content.</p></div>
-        <div class="feat"><h3>Comments</h3><p>Built-in. Moderate through conversation.</p></div>
-        <div class="feat"><h3>RSS</h3><p>/feed.xml, zero config.</p></div>
-        <div class="feat"><h3>Your data</h3><p>SQLite per tenant. Export anytime.</p></div>
+    <div class="cmd" onclick="copyCmd()">
+        <span class="cmd-text"><span class="d">$</span> claude mcp add <span class="dim">writekit</span> https://writekit.dev/mcp</span>
+        <button class="cmd-cp" id="cpBtn" onclick="event.stopPropagation();copyCmd()" aria-label="Copy to clipboard">
+            <svg id="cpIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <svg id="cpCheck" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
     </div>
-</section>
+
+    <div class="secondary">
+        <button class="json-toggle" onclick="toggleJson(this)">
+            <svg viewBox="0 0 6 10" fill="currentColor"><path d="M1 1l4 4-4 4"/></svg>
+            MCP config JSON
+        </button>
+        <div class="json-code" id="json">{
+  "mcpServers": {
+    "writekit": {
+      "url": "https://writekit.dev/mcp"
+    }
+  }
+}</div>
+    </div>
+</main>
 
 <footer>
-    <span>&copy; 2026 WriteKit</span>
-    <div class="f-links">
-        <a href="/docs">Docs</a>
-        <a href="https://discord.gg/writekit">Discord</a>
-        <a href="/auth/login">Sign in</a>
-    </div>
+    <a href="/docs">Read the docs</a>
 </footer>
 
 <script>
-function cc(){
-    navigator.clipboard.writeText('https://writekit.dev/mcp').then(()=>{
-        const b=document.getElementById('cp');
-        b.textContent='Copied';b.classList.add('ok');
-        setTimeout(()=>{b.textContent='Copy';b.classList.remove('ok')},2e3)
+function copyCmd(){
+    navigator.clipboard.writeText('claude mcp add writekit https://writekit.dev/mcp').then(()=>{
+        const btn=document.getElementById('cpBtn');
+        const icon=document.getElementById('cpIcon');
+        const check=document.getElementById('cpCheck');
+        icon.style.display='none';check.style.display='block';
+        btn.classList.add('ok');
+        setTimeout(()=>{icon.style.display='block';check.style.display='none';btn.classList.remove('ok')},2e3)
     })
+}
+function toggleJson(btn){
+    btn.classList.toggle('open');
+    document.getElementById('json').classList.toggle('show');
 }
 </script>
 </body>

@@ -6,56 +6,47 @@
     <title>Docs — WriteKit</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         :root{
             --bg:#fafafa;--white:#fff;--fg:#0f0f0f;--fg2:#3f3f46;--muted:#71717a;
             --faint:#a1a1aa;--border:#e4e4e7;--border2:#d4d4d8;--accent:#2563eb;
-            --surface:#18181b;--green:#22c55e;--blue:#3b82f6;--amber:#f59e0b;
-            --sans:'Instrument Sans',system-ui,sans-serif;
+            --surface:#18181b;
+            --sans:'Plus Jakarta Sans',system-ui,sans-serif;
             --mono:'JetBrains Mono',ui-monospace,monospace;
         }
         body{font-family:var(--sans);background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;line-height:1.7}
         a{color:var(--accent);text-decoration:none}
         a:hover{text-decoration:underline}
 
-        nav{
-            max-width:720px;margin:0 auto;padding:1.25rem 2rem;
-            display:flex;justify-content:space-between;align-items:center;
-        }
-        .logo{font-family:var(--mono);font-weight:500;font-size:.9rem;color:var(--fg);letter-spacing:-.04em;text-decoration:none}
-        .logo:hover{text-decoration:none}
-        .nav-r{display:flex;gap:1.5rem;align-items:center;font-size:.85rem}
-        .nav-r a{color:var(--muted);font-weight:500}
-        .nav-r a:hover{color:var(--fg);text-decoration:none}
 
-        .doc{max-width:720px;margin:0 auto;padding:3rem 2rem 5rem}
+        .doc{max-width:640px;margin:0 auto;padding:3rem 2rem 5rem}
 
-        h1{font-size:2rem;font-weight:700;letter-spacing:-.04em;line-height:1.1;margin-bottom:1.5rem}
-        h2{font-size:1.25rem;font-weight:700;letter-spacing:-.02em;margin-top:3rem;margin-bottom:.75rem;padding-top:1.5rem;border-top:1px solid var(--border)}
-        h3{font-size:1rem;font-weight:600;margin-top:1.5rem;margin-bottom:.5rem}
-        p{margin-bottom:1rem;color:var(--fg2);font-size:.95rem}
-        ul,ol{margin-bottom:1rem;padding-left:1.25rem;color:var(--fg2);font-size:.95rem}
+        h1{font-size:1.75rem;font-weight:700;letter-spacing:-.03em;line-height:1.15;margin-bottom:1.25rem}
+        h2{font-size:1.15rem;font-weight:700;letter-spacing:-.02em;margin-top:3rem;margin-bottom:.75rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+        h3{font-size:.95rem;font-weight:600;margin-top:1.5rem;margin-bottom:.5rem}
+        p{margin-bottom:1rem;color:var(--fg2);font-size:.9rem}
+        ul,ol{margin-bottom:1rem;padding-left:1.25rem;color:var(--fg2);font-size:.9rem}
         li{margin-bottom:.35rem}
         strong{color:var(--fg);font-weight:600}
 
         code{
-            font-family:var(--mono);font-size:.8rem;
+            font-family:var(--mono);font-size:.78rem;
             background:var(--white);border:1px solid var(--border);
             padding:.1rem .35rem;border-radius:4px;color:var(--fg);
         }
         pre{
             background:var(--surface);color:#e4e4e7;border-radius:10px;
             padding:1rem 1.25rem;margin-bottom:1.25rem;overflow-x:auto;
-            font-family:var(--mono);font-size:.8rem;line-height:1.7;
+            font-family:var(--mono);font-size:.78rem;line-height:1.7;
         }
         pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
 
         .tabs input[type="radio"]{display:none}
         .tab-labels{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--border);margin-bottom:0}
         .tab-labels label{
-            padding:.5rem 1rem;font-size:.8rem;font-weight:500;color:var(--faint);
+            padding:.5rem .85rem;font-size:.78rem;font-weight:500;color:var(--faint);
             cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
             transition:color .15s,border-color .15s;
         }
@@ -65,59 +56,43 @@
         #tc-cursor:checked ~ .tab-labels label[for="tc-cursor"],
         #tc-windsurf:checked ~ .tab-labels label[for="tc-windsurf"],
         #tc-vscode:checked ~ .tab-labels label[for="tc-vscode"],
-        #tc-opencode:checked ~ .tab-labels label[for="tc-opencode"],
         #tc-any:checked ~ .tab-labels label[for="tc-any"]{color:var(--fg);border-bottom-color:var(--accent)}
         #tc-claude:checked ~ .tab-panels .p-claude,
         #tc-cursor:checked ~ .tab-panels .p-cursor,
         #tc-windsurf:checked ~ .tab-panels .p-windsurf,
         #tc-vscode:checked ~ .tab-panels .p-vscode,
-        #tc-opencode:checked ~ .tab-panels .p-opencode,
         #tc-any:checked ~ .tab-panels .p-any{display:block}
 
         .prompt-card{
             background:var(--white);border:1px solid var(--border);border-radius:10px;
-            padding:1rem 1.25rem;margin-bottom:.75rem;
+            padding:.85rem 1.1rem;margin-bottom:.6rem;
         }
-        .prompt-card .say{
-            font-size:.85rem;color:var(--fg);font-weight:500;margin-bottom:.25rem;
-        }
-        .prompt-card .does{font-size:.8rem;color:var(--muted)}
-
-        .badge{
-            display:inline-block;font-family:var(--mono);font-size:.65rem;font-weight:500;
-            color:var(--accent);background:rgba(37,99,235,.08);
-            padding:.15rem .5rem;border-radius:100px;margin-right:.35rem;
-        }
+        .prompt-card .say{font-size:.84rem;color:var(--fg);font-weight:500;margin-bottom:.2rem}
+        .prompt-card .does{font-size:.78rem;color:var(--muted)}
 
         table{
-            width:100%;border-collapse:collapse;margin-bottom:1.25rem;font-size:.85rem;
+            width:100%;border-collapse:collapse;margin-bottom:1.25rem;font-size:.84rem;
         }
-        th{text-align:left;font-weight:600;color:var(--fg);padding:.5rem .75rem;border-bottom:2px solid var(--border)}
-        td{padding:.5rem .75rem;border-bottom:1px solid var(--border);color:var(--fg2)}
-        td code{font-size:.75rem}
+        th{text-align:left;font-weight:600;color:var(--fg);padding:.45rem .65rem;border-bottom:2px solid var(--border)}
+        td{padding:.45rem .65rem;border-bottom:1px solid var(--border);color:var(--fg2)}
+        td code{font-size:.72rem}
 
         footer{
-            max-width:720px;margin:0 auto;padding:2rem;
-            border-top:1px solid var(--border);font-size:.75rem;color:var(--faint);
+            max-width:640px;margin:0 auto;padding:2rem;
+            border-top:1px solid var(--border);font-size:.72rem;color:var(--faint);
             display:flex;justify-content:space-between;
         }
     </style>
 </head>
 <body>
 
-<nav>
-    <a href="/" class="logo">writekit</a>
-    <div class="nav-r">
-        <a href="/docs">Docs</a>
-        <a href="https://discord.gg/writekit">Discord</a>
-    </div>
-</nav>
+{{template "partials/nav.html" .}}
 
 <div class="doc">
 
 <h1>Documentation</h1>
 
-<p>WriteKit is an MCP-native blogging platform. You manage your blog entirely through an AI assistant — no editor, no dashboard. Connect, write, publish.</p>
+<p>WriteKit is an MCP-powered publishing tool. You create and manage pages and collections entirely through conversation with your AI assistant — no editor, no dashboard.</p>
 
 <h2>Get started</h2>
 
@@ -128,7 +103,6 @@
     <input type="radio" name="ct" id="tc-cursor">
     <input type="radio" name="ct" id="tc-windsurf">
     <input type="radio" name="ct" id="tc-vscode">
-    <input type="radio" name="ct" id="tc-opencode">
     <input type="radio" name="ct" id="tc-any">
 
     <div class="tab-labels">
@@ -136,13 +110,12 @@
         <label for="tc-cursor">Cursor</label>
         <label for="tc-windsurf">Windsurf</label>
         <label for="tc-vscode">VS Code</label>
-        <label for="tc-opencode">OpenCode</label>
         <label for="tc-any">Any Client</label>
     </div>
 
     <div class="tab-panels">
         <div class="tab-panel p-claude">
-<pre><code>claude mcp add --transport http writekit https://writekit.dev/mcp</code></pre>
+<pre><code>claude mcp add writekit https://writekit.dev/mcp</code></pre>
         </div>
         <div class="tab-panel p-cursor">
             <p>Add to <code>.cursor/mcp.json</code>:</p>
@@ -175,9 +148,6 @@
   }
 }</code></pre>
         </div>
-        <div class="tab-panel p-opencode">
-<pre><code>opencode mcp add --transport http writekit https://writekit.dev/mcp</code></pre>
-        </div>
         <div class="tab-panel p-any">
             <p>Point any Streamable HTTP MCP client at:</p>
 <pre><code>https://writekit.dev/mcp</code></pre>
@@ -186,76 +156,110 @@
 </div>
 
 <h3>2. Authenticate</h3>
-<p>A browser window opens automatically on first tool use. Sign in with <strong>GitHub</strong>, <strong>Google</strong>, or <strong>Discord</strong>. This only happens once — done.</p>
+<p>A browser window opens automatically on first tool use. Sign in with <strong>GitHub</strong>, <strong>Google</strong>, <strong>Discord</strong>, or <strong>email</strong> (magic link). This only happens once.</p>
 
-<h3>3. Create your blog</h3>
-<p>After signing in, visit <a href="/dashboard">your dashboard</a> to pick a subdomain. Your blog lives at <code>yourname.writekit.dev</code>.</p>
+<h3>3. Create your site</h3>
+<p>After signing in, pick a subdomain at the dashboard. Your site lives at <code>yourname.writekit.dev</code>.</p>
 
-<h3>4. Start writing</h3>
-<p>Tell your AI assistant what to write. It handles drafting, formatting, and publishing through MCP tools.</p>
+<h3>4. Start publishing</h3>
+<p>Tell your AI assistant what to write. It creates pages, organizes them into collections, and publishes — all through conversation.</p>
+
+<h2>Core concepts</h2>
+
+<h3>Pages</h3>
+<p>A page is any piece of markdown content — a doc, a blog post, a tutorial, a recipe. Pages start as drafts and can be published when ready. Each page gets a URL based on its slug.</p>
+
+<h3>Collections</h3>
+<p>Collections group related pages together. A "docs" collection, a "blog" collection, a "recipes" collection — whatever you need. Collections can be ordered manually (for docs/tutorials) or by date (for blog-style content). Pages can also exist standalone, outside any collection.</p>
+
+<h3>URLs</h3>
+<ul>
+    <li>Standalone page: <code>yourname.writekit.dev/{slug}</code></li>
+    <li>Collection index: <code>yourname.writekit.dev/{collection}</code></li>
+    <li>Page in collection: <code>yourname.writekit.dev/{collection}/{slug}</code></li>
+    <li>Search: <code>yourname.writekit.dev/search?q={query}</code></li>
+    <li>Preview: <code>yourname.writekit.dev/preview/{token}</code> (expiring link for drafts)</li>
+</ul>
 
 <h2>Example prompts</h2>
 
-<p>Copy these directly into Claude. They work as-is once you're connected.</p>
+<p>Copy these directly into your AI assistant. They work as-is once connected.</p>
 
 <div class="prompt-card">
-    <div class="say">"Write a blog post about Go concurrency patterns"</div>
-    <div class="does">Creates a draft with markdown content, returns a preview URL.</div>
+    <div class="say">"Write a getting-started guide and add it to the docs collection"</div>
+    <div class="does">Creates a draft page in the docs collection, returns a preview URL.</div>
 </div>
 
 <div class="prompt-card">
-    <div class="say">"Show me all my draft posts"</div>
+    <div class="say">"Create a collection called 'Tutorials' with manual ordering"</div>
+    <div class="does">Creates a new collection you can add pages to.</div>
+</div>
+
+<div class="prompt-card">
+    <div class="say">"Publish my getting-started page and move it to position 1"</div>
+    <div class="does">Publishes the page and reorders it to the top of its collection.</div>
+</div>
+
+<div class="prompt-card">
+    <div class="say">"Show me all my draft pages"</div>
     <div class="does">Lists all drafts with titles, IDs, and dates.</div>
 </div>
 
 <div class="prompt-card">
-    <div class="say">"Publish my post about Go concurrency"</div>
-    <div class="does">Sets the post to published, returns the live URL.</div>
+    <div class="say">"Update my auth page — add a section about rate limits"</div>
+    <div class="does">Fetches the page, appends content, regenerates the preview.</div>
 </div>
 
 <div class="prompt-card">
-    <div class="say">"Update my latest post — add a section about error handling"</div>
-    <div class="does">Fetches the post, appends content, regenerates HTML.</div>
+    <div class="say">"List all my collections"</div>
+    <div class="does">Shows collections with page counts and sort order.</div>
 </div>
 
 <div class="prompt-card">
     <div class="say">"Are there any new comments?"</div>
-    <div class="does">Lists recent comments across all your posts.</div>
+    <div class="does">Lists recent comments across all pages.</div>
 </div>
 
 <div class="prompt-card">
-    <div class="say">"Delete the spam comment from user123"</div>
-    <div class="does">Removes the comment by ID.</div>
-</div>
-
-<div class="prompt-card">
-    <div class="say">"Change my blog title to 'Ship Fast, Write Often'"</div>
-    <div class="does">Updates the blog title in settings.</div>
-</div>
-
-<div class="prompt-card">
-    <div class="say">"Search my posts for anything about databases"</div>
+    <div class="say">"Search my pages for anything about authentication"</div>
     <div class="does">Full-text search across titles and content.</div>
 </div>
 
 <h2>MCP tools</h2>
 
-<p>These tools are available to your AI assistant when connected to WriteKit.</p>
+<p>These tools are available to your AI assistant when connected.</p>
 
+<h3>Pages</h3>
 <table>
     <tr><th>Tool</th><th>Description</th></tr>
-    <tr><td><code>create_post</code></td><td>Create a new draft post with markdown content</td></tr>
-    <tr><td><code>update_post</code></td><td>Update any field of an existing post (partial updates)</td></tr>
-    <tr><td><code>delete_post</code></td><td>Permanently delete a post</td></tr>
-    <tr><td><code>publish_post</code></td><td>Publish a draft — returns the live URL</td></tr>
-    <tr><td><code>unpublish_post</code></td><td>Revert a published post to draft</td></tr>
-    <tr><td><code>list_posts</code></td><td>List posts, filter by status or tag</td></tr>
-    <tr><td><code>get_post</code></td><td>Get full post content by ID or slug</td></tr>
-    <tr><td><code>search_posts</code></td><td>Full-text search across all posts</td></tr>
-    <tr><td><code>list_comments</code></td><td>List comments on a post</td></tr>
+    <tr><td><code>create_page</code></td><td>Create a new draft page with markdown content</td></tr>
+    <tr><td><code>update_page</code></td><td>Update any field of an existing page</td></tr>
+    <tr><td><code>delete_page</code></td><td>Permanently delete a page and its comments</td></tr>
+    <tr><td><code>publish_page</code></td><td>Publish a draft — returns the live URL</td></tr>
+    <tr><td><code>unpublish_page</code></td><td>Revert a published page to draft</td></tr>
+    <tr><td><code>list_pages</code></td><td>List pages, filter by status, tag, or collection</td></tr>
+    <tr><td><code>get_page</code></td><td>Get full page content by ID or slug</td></tr>
+    <tr><td><code>search_pages</code></td><td>Full-text search across all pages</td></tr>
+</table>
+
+<h3>Collections</h3>
+<table>
+    <tr><th>Tool</th><th>Description</th></tr>
+    <tr><td><code>create_collection</code></td><td>Create a new collection (manual or date-sorted)</td></tr>
+    <tr><td><code>update_collection</code></td><td>Update collection title, description, slug, or sort order</td></tr>
+    <tr><td><code>delete_collection</code></td><td>Delete a collection (pages become standalone)</td></tr>
+    <tr><td><code>list_collections</code></td><td>List all collections with page counts</td></tr>
+    <tr><td><code>get_collection</code></td><td>Get collection details and its pages</td></tr>
+    <tr><td><code>reorder_pages</code></td><td>Set page order within a manually-ordered collection</td></tr>
+</table>
+
+<h3>Comments &amp; settings</h3>
+<table>
+    <tr><th>Tool</th><th>Description</th></tr>
+    <tr><td><code>list_comments</code></td><td>List comments on a page</td></tr>
     <tr><td><code>delete_comment</code></td><td>Delete a comment by ID</td></tr>
-    <tr><td><code>get_settings</code></td><td>Get current blog settings</td></tr>
-    <tr><td><code>update_settings</code></td><td>Update blog title, description</td></tr>
+    <tr><td><code>get_settings</code></td><td>Get current site settings</td></tr>
+    <tr><td><code>update_settings</code></td><td>Update site title, description</td></tr>
 </table>
 
 <h2>MCP resources</h2>
@@ -264,46 +268,25 @@
 
 <table>
     <tr><th>URI</th><th>Description</th></tr>
-    <tr><td><code>writekit://blog/stats</code></td><td>Post counts, comment counts</td></tr>
-    <tr><td><code>writekit://blog/settings</code></td><td>Current blog settings</td></tr>
-    <tr><td><code>writekit://blog/recent-posts</code></td><td>Last 10 published posts</td></tr>
-    <tr><td><code>writekit://blog/drafts</code></td><td>All draft posts</td></tr>
-    <tr><td><code>writekit://blog/recent-comments</code></td><td>Recent comments</td></tr>
+    <tr><td><code>writekit://site/stats</code></td><td>Page counts, collection counts, comment counts</td></tr>
+    <tr><td><code>writekit://site/settings</code></td><td>Current site settings</td></tr>
+    <tr><td><code>writekit://site/recent-pages</code></td><td>Last 10 published pages</td></tr>
+    <tr><td><code>writekit://site/drafts</code></td><td>All draft pages</td></tr>
+    <tr><td><code>writekit://site/collections</code></td><td>All collections with page counts</td></tr>
+    <tr><td><code>writekit://site/recent-comments</code></td><td>Recent comments</td></tr>
 </table>
 
 <h2>Markdown</h2>
 
-<p>Posts are written in markdown and rendered with <a href="https://github.com/yuin/goldmark">Goldmark</a>. Supported extensions:</p>
+<p>Pages are written in markdown with the following extensions:</p>
 
 <ul>
-    <li>GitHub Flavored Markdown (tables, strikethrough, autolinks, task lists)</li>
-    <li>Footnotes</li>
-    <li>Auto heading IDs</li>
-    <li>Syntax highlighting for code blocks (use language tags: <code>```go</code>, <code>```python</code>, etc.)</li>
-    <li>Raw HTML</li>
-</ul>
-
-<h2>Blog features</h2>
-
-<p>Every blog at <code>yourname.writekit.dev</code> includes:</p>
-
-<ul>
-    <li><strong>Index page</strong> — latest published posts</li>
-    <li><strong>Post pages</strong> — <code>/posts/{slug}</code></li>
-    <li><strong>Tag pages</strong> — <code>/tags/{tag}</code></li>
-    <li><strong>Search</strong> — <code>/search?q=query</code></li>
-    <li><strong>RSS feed</strong> — <code>/feed.xml</code></li>
-    <li><strong>Comments</strong> — built-in form on every post</li>
-    <li><strong>Preview URLs</strong> — shareable expiring links for drafts</li>
-</ul>
-
-<h2>Architecture</h2>
-
-<ul>
-    <li><strong>Per-tenant SQLite</strong> — each blog has its own database file (WAL mode)</li>
-    <li><strong>PostgreSQL</strong> — platform data (users, sessions, OAuth, billing)</li>
-    <li><strong>No Redis, no workers</strong> — single binary, in-process event bus</li>
-    <li><strong>MCP transport</strong> — Streamable HTTP with OAuth 2.0 + PKCE</li>
+    <li><strong>GitHub Flavored Markdown</strong> — tables, strikethrough, autolinks, task lists</li>
+    <li><strong>Code blocks</strong> — syntax highlighting with language tags (<code>```go</code>, <code>```python</code>, etc.)</li>
+    <li><strong>Callout blocks</strong> — <code>&gt; [!NOTE]</code>, <code>&gt; [!TIP]</code>, <code>&gt; [!WARNING]</code>, <code>&gt; [!DANGER]</code> for styled alert boxes</li>
+    <li><strong>Media embeds</strong> — <code>&lt;embed src="url" /&gt;</code> for YouTube, Spotify, SoundCloud, Twitter/X, GitHub Gists</li>
+    <li><strong>D2 diagrams</strong> — <code>```d2</code> code blocks for architecture diagrams</li>
+    <li><strong>Footnotes</strong>, auto heading IDs, raw HTML</li>
 </ul>
 
 </div>

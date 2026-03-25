@@ -1,0 +1,36 @@
+<style>
+    .wk-nav{
+        position:relative;z-index:10;
+        max-width:600px;width:100%;margin:1rem auto 0;padding:.5rem .5rem .5rem .85rem;
+        display:flex;justify-content:space-between;align-items:center;
+        background:var(--white,#fff);
+        border:1px solid var(--border,#e4e4e7);
+        border-radius:10px;
+        box-shadow:0 1px 2px rgba(0,0,0,.02),0 2px 8px rgba(0,0,0,.03);
+    }
+    .wk-nav .logo{
+        font-family:var(--mono,'JetBrains Mono',ui-monospace,monospace);
+        font-weight:500;font-size:.8rem;color:var(--fg,#0f0f0f);
+        letter-spacing:-.04em;text-decoration:none;
+    }
+    .wk-nav .nav-r{display:flex;gap:.25rem;align-items:center}
+    .wk-nav .nav-r a{
+        font-size:.76rem;font-weight:500;color:var(--muted,#71717a);
+        text-decoration:none;padding:.4rem .7rem;border-radius:7px;
+        transition:color .15s,background .15s;
+    }
+    .wk-nav .nav-r a:hover{color:var(--fg,#0f0f0f);background:var(--bg,#fafafa)}
+    .wk-nav .nav-r .signin{
+        color:var(--white,#fff);background:var(--surface,#18181b);
+        padding:.4rem .85rem;
+    }
+    .wk-nav .nav-r .signin:hover{opacity:.85;background:var(--surface,#18181b);color:var(--white,#fff)}
+    @media(max-width:600px){.wk-nav{margin:.75rem .75rem 0;width:auto}}
+</style>
+<nav class="wk-nav">
+    <a href="/" class="logo">writekit</a>
+    <div class="nav-r">
+        <a href="/docs">Docs</a>
+        <a href="/auth/login" class="signin">Sign in</a>
+    </div>
+</nav>
