@@ -385,10 +385,14 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.Engine.Render(w, "authorize.html", map[string]any{
-		"User":    user,
-		"AuthReq": authReq,
-	})
+	code, err := h.MCPAuth.IssueAuthCode(r, user.ID, authReq)
+	if err != nil {
+		slog.Error("issue auth code failed", "err", err)
+		http.Error(w, "failed to issue code", http.StatusInternalServerError)
+		return
+	}
+	redirectURL := auth.BuildRedirectURL(authReq.RedirectURI, code, authReq.State)
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
 func (h *Handler) OAuthAuthorizeSubmit(w http.ResponseWriter, r *http.Request) {

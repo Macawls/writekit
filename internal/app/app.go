@@ -145,7 +145,7 @@ func webRouter(cfg *config.Config, webHandler *web.Handler, mcpSrv *mcpserver.Se
 	webHandler.Routes(r)
 
 	r.Group(func(r chi.Router) {
-		r.Use(auth.BearerAuth(platformDB, cfg.BaseURL))
+		r.Use(auth.MCPBearerAuth(platformDB, cfg.BaseURL))
 		r.Handle("/mcp", mcpSrv.Handler())
 	})
 
