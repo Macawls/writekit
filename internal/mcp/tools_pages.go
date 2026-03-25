@@ -17,10 +17,10 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-func (s *Server) registerTools(mcpServer *mcp.Server) {
+func (s *Server) registerPageTools(mcpServer *mcp.Server) {
 	mcpServer.AddTool(&mcp.Tool{
-		Name: "create_post",
-		Description: `Create a new blog post. The post starts as a draft — use publish_post to make it live.
+		Name: "create_page",
+		Description: `Create a new page. The page starts as a draft — use publish_page to make it live.
 
 **Content format:** Write the body in rich Markdown. Supported syntax:
 - Headings (# through ######), **bold**, *italic*, ~~strikethrough~~
@@ -32,135 +32,141 @@ func (s *Server) registerTools(mcpServer *mcp.Server) {
 - Tables (GFM), ordered/unordered lists, task lists, horizontal rules, footnotes ([^1])
 - Raw HTML for advanced layouts
 
-Returns: The created post with a preview URL you can share.`,
+Returns: The created page with a preview URL you can share.`,
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"title":     map[string]any{"type": "string", "description": "Post title"},
-				"content":   map[string]any{"type": "string", "description": "Post body in rich Markdown. Use headings (##), bold, code blocks with language tags (```go), lists, links, blockquotes, callout blocks (> [!NOTE]), and embeds (<embed src=\"url\" />) to create professional, well-formatted content. Never write plain unformatted text."},
-				"excerpt":   map[string]any{"type": "string", "description": "Short excerpt for listings (auto-generated if omitted)"},
-				"tags":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Tags for categorization"},
-				"slug":      map[string]any{"type": "string", "description": "URL slug (auto-generated from title if omitted)"},
-				"tenant_id": map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"title":         map[string]any{"type": "string", "description": "Page title"},
+				"content":       map[string]any{"type": "string", "description": "Page body in rich Markdown."},
+				"excerpt":       map[string]any{"type": "string", "description": "Short excerpt for listings (auto-generated if omitted)"},
+				"tags":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Tags for categorization"},
+				"slug":          map[string]any{"type": "string", "description": "URL slug (auto-generated from title if omitted)"},
+				"collection_id": map[string]any{"type": "string", "description": "Collection ID to add this page to (optional)"},
+				"position":      map[string]any{"type": "integer", "description": "Position within collection (for manual ordering)"},
+				"tenant_id":     map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"title", "content"},
 		},
-	}, s.createPost)
+	}, s.createPage)
 
 	mcpServer.AddTool(&mcp.Tool{
-		Name: "update_post",
-		Description: `Update an existing blog post. Only send the fields you want to change.
+		Name: "update_page",
+		Description: `Update an existing page. Only send the fields you want to change.
 
 After updating, a new preview URL is generated so you can verify changes.`,
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"id":        map[string]any{"type": "string", "description": "Post ID"},
-				"title":     map[string]any{"type": "string", "description": "New title"},
-				"content":   map[string]any{"type": "string", "description": "New content in rich Markdown. Use headings, code blocks with language tags, callout blocks (> [!NOTE]), and embeds for professional formatting."},
-				"excerpt":   map[string]any{"type": "string", "description": "New excerpt"},
-				"tags":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "New tags"},
-				"slug":      map[string]any{"type": "string", "description": "New URL slug"},
-				"tenant_id": map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"id":            map[string]any{"type": "string", "description": "Page ID"},
+				"title":         map[string]any{"type": "string", "description": "New title"},
+				"content":       map[string]any{"type": "string", "description": "New content in rich Markdown."},
+				"excerpt":       map[string]any{"type": "string", "description": "New excerpt"},
+				"tags":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "New tags"},
+				"slug":          map[string]any{"type": "string", "description": "New URL slug"},
+				"collection_id": map[string]any{"type": "string", "description": "Move to a collection (use empty string to make standalone)"},
+				"position":      map[string]any{"type": "integer", "description": "New position within collection"},
+				"tenant_id":     map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"id"},
 		},
-	}, s.updatePost)
+	}, s.updatePage)
 
 	mcpServer.AddTool(&mcp.Tool{
-		Name:        "delete_post",
-		Description: "Permanently delete a post. This is irreversible — the post and all its comments will be removed.",
+		Name:        "delete_page",
+		Description: "Permanently delete a page and all its comments.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"id":        map[string]any{"type": "string", "description": "Post ID to delete"},
-				"tenant_id": map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"id":        map[string]any{"type": "string", "description": "Page ID to delete"},
+				"tenant_id": map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"id"},
 		},
-	}, s.deletePost)
+	}, s.deletePage)
 
 	mcpServer.AddTool(&mcp.Tool{
-		Name:        "publish_post",
-		Description: "Publish a draft post, making it live on your blog. Returns the live URL.",
+		Name:        "publish_page",
+		Description: "Publish a draft page, making it live on your site. Returns the live URL.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"id":        map[string]any{"type": "string", "description": "Post ID to publish"},
-				"tenant_id": map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"id":        map[string]any{"type": "string", "description": "Page ID to publish"},
+				"tenant_id": map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"id"},
 		},
-	}, s.publishPost)
+	}, s.publishPage)
 
 	mcpServer.AddTool(&mcp.Tool{
-		Name:        "unpublish_post",
-		Description: "Revert a published post to draft status. It will no longer be visible on your blog.",
+		Name:        "unpublish_page",
+		Description: "Revert a published page to draft status.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"id":        map[string]any{"type": "string", "description": "Post ID to unpublish"},
-				"tenant_id": map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"id":        map[string]any{"type": "string", "description": "Page ID to unpublish"},
+				"tenant_id": map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"id"},
 		},
-	}, s.unpublishPost)
+	}, s.unpublishPage)
 
 	mcpServer.AddTool(&mcp.Tool{
-		Name:        "list_posts",
-		Description: "List blog posts. Filter by status (draft/published) or tag.",
+		Name:        "list_pages",
+		Description: "List pages. Filter by status, tag, or collection.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"status":    map[string]any{"type": "string", "enum": []string{"draft", "published"}, "description": "Filter by status"},
-				"tag":       map[string]any{"type": "string", "description": "Filter by tag"},
-				"limit":     map[string]any{"type": "integer", "description": "Max results (default 50)"},
-				"tenant_id": map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"status":        map[string]any{"type": "string", "enum": []string{"draft", "published"}, "description": "Filter by status"},
+				"tag":           map[string]any{"type": "string", "description": "Filter by tag"},
+				"collection_id": map[string]any{"type": "string", "description": "Filter by collection ID. Use 'standalone' for pages not in any collection."},
+				"limit":         map[string]any{"type": "integer", "description": "Max results (default 50)"},
+				"tenant_id":     map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 		},
-	}, s.listPosts)
+	}, s.listPages)
 
 	mcpServer.AddTool(&mcp.Tool{
-		Name:        "get_post",
-		Description: "Get a single post with full content. Use this to read a post before editing.",
+		Name:        "get_page",
+		Description: "Get a single page with full content.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"id":        map[string]any{"type": "string", "description": "Post ID"},
-				"slug":      map[string]any{"type": "string", "description": "Post slug (alternative to ID)"},
-				"tenant_id": map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"id":        map[string]any{"type": "string", "description": "Page ID"},
+				"slug":      map[string]any{"type": "string", "description": "Page slug (alternative to ID)"},
+				"tenant_id": map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 		},
-	}, s.getPost)
+	}, s.getPage)
 
 	mcpServer.AddTool(&mcp.Tool{
-		Name:        "search_posts",
-		Description: "Full-text search across post titles and content.",
+		Name:        "search_pages",
+		Description: "Full-text search across page titles and content.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"query":     map[string]any{"type": "string", "description": "Search query"},
-				"tenant_id": map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"tenant_id": map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"query"},
 		},
-	}, s.searchPosts)
-
+	}, s.searchPages)
 }
 
-func (s *Server) createPost(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
 		return toolError("not authenticated"), nil
 	}
 
 	var args struct {
-		Title    string   `json:"title"`
-		Content  string   `json:"content"`
-		Excerpt  string   `json:"excerpt"`
-		Tags     []string `json:"tags"`
-		Slug     string   `json:"slug"`
-		TenantID string   `json:"tenant_id"`
+		Title        string   `json:"title"`
+		Content      string   `json:"content"`
+		Excerpt      string   `json:"excerpt"`
+		Tags         []string `json:"tags"`
+		Slug         string   `json:"slug"`
+		CollectionID string   `json:"collection_id"`
+		Position     int      `json:"position"`
+		TenantID     string   `json:"tenant_id"`
 	}
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
@@ -185,55 +191,57 @@ func (s *Server) createPost(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		tagsJSON = []byte("[]")
 	}
 
-	post := &tenant.Post{
-		ID:          ulid.Make().String(),
-		Title:       args.Title,
-		Slug:        slug,
-		Content:     args.Content,
-		ContentHTML: renderContent(args.Content),
-		Excerpt:     excerpt,
-		Status:      "draft",
-		Tags:        string(tagsJSON),
+	var collectionID *string
+	if args.CollectionID != "" {
+		collectionID = &args.CollectionID
 	}
 
-	if err := db.CreatePost(ctx, post); err != nil {
-		return toolError(fmt.Sprintf("failed to create post: %v", err)), nil
+	page := &tenant.Page{
+		ID:           ulid.Make().String(),
+		Title:        args.Title,
+		Slug:         slug,
+		Content:      args.Content,
+		ContentHTML:  renderContent(args.Content),
+		Excerpt:      excerpt,
+		Status:       "draft",
+		Tags:         string(tagsJSON),
+		CollectionID: collectionID,
+		Position:     args.Position,
 	}
 
-	pt, err := db.CreatePreviewToken(ctx, post.ID, 24*time.Hour)
+	if err := db.CreatePage(ctx, page); err != nil {
+		return toolError(fmt.Sprintf("failed to create page: %v", err)), nil
+	}
+
+	pt, err := db.CreatePreviewToken(ctx, page.ID, 24*time.Hour)
 	if err != nil {
-		return toolError("post created but failed to generate preview URL"), nil
+		return toolError("page created but failed to generate preview URL"), nil
 	}
 
-	s.Bus.Emit(events.Event{Type: events.PostCreated, TenantID: tenantID})
+	s.Bus.Emit(events.Event{Type: events.PageCreated, TenantID: tenantID})
 
-	result := fmt.Sprintf(`Post created as draft.
-
-**Title:** %s
-**ID:** %s
-**Slug:** %s
-**Preview:** %s
-
-Tip: Open the preview URL to check formatting. Use update_post to refine before publishing.`,
-		post.Title, post.ID, post.Slug, s.buildPreviewURL(tenantID, pt.Token))
+	result := fmt.Sprintf("Page created as draft.\n\n**Title:** %s\n**ID:** %s\n**Slug:** %s\n**Preview:** %s\n\nUse publish_page to make it live.",
+		page.Title, page.ID, page.Slug, s.buildPreviewURL(tenantID, pt.Token))
 
 	return toolResult(result), nil
 }
 
-func (s *Server) updatePost(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
 		return toolError("not authenticated"), nil
 	}
 
 	var args struct {
-		ID       string   `json:"id"`
-		Title    *string  `json:"title"`
-		Content  *string  `json:"content"`
-		Excerpt  *string  `json:"excerpt"`
-		Tags     []string `json:"tags"`
-		Slug     *string  `json:"slug"`
-		TenantID string   `json:"tenant_id"`
+		ID           string   `json:"id"`
+		Title        *string  `json:"title"`
+		Content      *string  `json:"content"`
+		Excerpt      *string  `json:"excerpt"`
+		Tags         []string `json:"tags"`
+		Slug         *string  `json:"slug"`
+		CollectionID *string  `json:"collection_id"`
+		Position     *int     `json:"position"`
+		TenantID     string   `json:"tenant_id"`
 	}
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
@@ -243,44 +251,54 @@ func (s *Server) updatePost(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		return toolError(err.Error()), nil
 	}
 
-	post, err := db.GetPost(ctx, args.ID)
+	page, err := db.GetPage(ctx, args.ID)
 	if err != nil {
-		return toolError("post not found"), nil
+		return toolError("page not found"), nil
 	}
 
 	if args.Title != nil {
-		post.Title = *args.Title
+		page.Title = *args.Title
 	}
 	if args.Content != nil {
-		post.Content = *args.Content
-		post.ContentHTML = renderContent(*args.Content)
+		page.Content = *args.Content
+		page.ContentHTML = renderContent(*args.Content)
 	}
 	if args.Excerpt != nil {
-		post.Excerpt = *args.Excerpt
+		page.Excerpt = *args.Excerpt
 	}
 	if args.Tags != nil {
 		tagsJSON, _ := json.Marshal(args.Tags)
-		post.Tags = string(tagsJSON)
+		page.Tags = string(tagsJSON)
 	}
 	if args.Slug != nil {
-		post.Slug = *args.Slug
+		page.Slug = *args.Slug
+	}
+	if args.CollectionID != nil {
+		if *args.CollectionID == "" {
+			page.CollectionID = nil
+		} else {
+			page.CollectionID = args.CollectionID
+		}
+	}
+	if args.Position != nil {
+		page.Position = *args.Position
 	}
 
-	if err := db.UpdatePost(ctx, post); err != nil {
+	if err := db.UpdatePage(ctx, page); err != nil {
 		return toolError(fmt.Sprintf("failed to update: %v", err)), nil
 	}
 
-	s.Bus.Emit(events.Event{Type: events.PostUpdated, TenantID: tenantID})
+	s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID})
 
-	pt, _ := db.CreatePreviewToken(ctx, post.ID, 24*time.Hour)
+	pt, _ := db.CreatePreviewToken(ctx, page.ID, 24*time.Hour)
 	previewURL := ""
 	if pt != nil {
 		previewURL = s.buildPreviewURL(tenantID, pt.Token)
 	}
 
-	result := fmt.Sprintf("Post updated!\n\n**Title:** %s\n**Status:** %s", post.Title, post.Status)
-	if post.Status == "published" {
-		result += fmt.Sprintf("\n**Live URL:** %s", s.buildPostURL(tenantID, post.Slug))
+	result := fmt.Sprintf("Page updated!\n\n**Title:** %s\n**Status:** %s", page.Title, page.Status)
+	if page.Status == "published" {
+		result += fmt.Sprintf("\n**Live URL:** %s", s.buildPageURL(tenantID, page.CollectionID, page.Slug))
 	}
 	if previewURL != "" {
 		result += fmt.Sprintf("\n**Preview URL:** %s", previewURL)
@@ -289,7 +307,7 @@ func (s *Server) updatePost(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	return toolResult(result), nil
 }
 
-func (s *Server) deletePost(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) deletePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
 		return toolError("not authenticated"), nil
@@ -307,15 +325,15 @@ func (s *Server) deletePost(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		return toolError(err.Error()), nil
 	}
 
-	if err := db.DeletePost(ctx, args.ID); err != nil {
+	if err := db.DeletePage(ctx, args.ID); err != nil {
 		return toolError(fmt.Sprintf("failed to delete: %v", err)), nil
 	}
 
-	s.Bus.Emit(events.Event{Type: events.PostDeleted, TenantID: tenantID})
-	return toolResult("Post deleted permanently."), nil
+	s.Bus.Emit(events.Event{Type: events.PageDeleted, TenantID: tenantID})
+	return toolResult("Page deleted."), nil
 }
 
-func (s *Server) publishPost(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) publishPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
 		return toolError("not authenticated"), nil
@@ -333,25 +351,25 @@ func (s *Server) publishPost(ctx context.Context, req *mcp.CallToolRequest) (*mc
 		return toolError(err.Error()), nil
 	}
 
-	post, err := db.GetPost(ctx, args.ID)
+	page, err := db.GetPage(ctx, args.ID)
 	if err != nil {
-		return toolError("post not found"), nil
+		return toolError("page not found"), nil
 	}
 
 	now := time.Now()
-	post.Status = "published"
-	post.PublishedAt = &now
+	page.Status = "published"
+	page.PublishedAt = &now
 
-	if err := db.UpdatePost(ctx, post); err != nil {
+	if err := db.UpdatePage(ctx, page); err != nil {
 		return toolError(fmt.Sprintf("failed to publish: %v", err)), nil
 	}
 
-	s.Bus.Emit(events.Event{Type: events.PostPublished, TenantID: tenantID})
-	liveURL := s.buildPostURL(tenantID, post.Slug)
-	return toolResult(fmt.Sprintf("Post published!\n\n**Live URL:** %s", liveURL)), nil
+	s.Bus.Emit(events.Event{Type: events.PagePublished, TenantID: tenantID})
+	liveURL := s.buildPageURL(tenantID, page.CollectionID, page.Slug)
+	return toolResult(fmt.Sprintf("Page published!\n\n**Live URL:** %s", liveURL)), nil
 }
 
-func (s *Server) unpublishPost(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) unpublishPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
 		return toolError("not authenticated"), nil
@@ -369,33 +387,34 @@ func (s *Server) unpublishPost(ctx context.Context, req *mcp.CallToolRequest) (*
 		return toolError(err.Error()), nil
 	}
 
-	post, err := db.GetPost(ctx, args.ID)
+	page, err := db.GetPage(ctx, args.ID)
 	if err != nil {
-		return toolError("post not found"), nil
+		return toolError("page not found"), nil
 	}
 
-	post.Status = "draft"
-	post.PublishedAt = nil
+	page.Status = "draft"
+	page.PublishedAt = nil
 
-	if err := db.UpdatePost(ctx, post); err != nil {
+	if err := db.UpdatePage(ctx, page); err != nil {
 		return toolError(fmt.Sprintf("failed to unpublish: %v", err)), nil
 	}
 
-	s.Bus.Emit(events.Event{Type: events.PostUpdated, TenantID: tenantID})
-	return toolResult("Post reverted to draft."), nil
+	s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID})
+	return toolResult("Page reverted to draft."), nil
 }
 
-func (s *Server) listPosts(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) listPages(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
 		return toolError("not authenticated"), nil
 	}
 
 	var args struct {
-		Status   string `json:"status"`
-		Tag      string `json:"tag"`
-		Limit    int    `json:"limit"`
-		TenantID string `json:"tenant_id"`
+		Status       string `json:"status"`
+		Tag          string `json:"tag"`
+		CollectionID string `json:"collection_id"`
+		Limit        int    `json:"limit"`
+		TenantID     string `json:"tenant_id"`
 	}
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
@@ -405,22 +424,31 @@ func (s *Server) listPosts(ctx context.Context, req *mcp.CallToolRequest) (*mcp.
 		return toolError(err.Error()), nil
 	}
 
-	posts, err := db.ListPosts(ctx, tenant.PostFilter{
-		Status: args.Status, Tag: args.Tag, Limit: args.Limit,
-	})
-	if err != nil {
-		return toolError(fmt.Sprintf("failed to list posts: %v", err)), nil
+	filter := tenant.PageFilter{Status: args.Status, Tag: args.Tag, Limit: args.Limit}
+	if args.CollectionID == "standalone" {
+		empty := ""
+		filter.CollectionID = &empty
+	} else if args.CollectionID != "" {
+		filter.CollectionID = &args.CollectionID
 	}
 
-	if len(posts) == 0 {
-		return toolResult("No posts found."), nil
+	pages, err := db.ListPages(ctx, filter)
+	if err != nil {
+		return toolError(fmt.Sprintf("failed to list pages: %v", err)), nil
+	}
+
+	if len(pages) == 0 {
+		return toolResult("No pages found."), nil
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Found %d post(s):\n\n", len(posts)))
-	for _, p := range posts {
+	sb.WriteString(fmt.Sprintf("Found %d page(s):\n\n", len(pages)))
+	for _, p := range pages {
 		sb.WriteString(fmt.Sprintf("- **%s** (ID: %s)\n  Slug: %s | Status: %s | Tags: %s\n",
 			p.Title, p.ID, p.Slug, p.Status, p.Tags))
+		if p.CollectionID != nil {
+			sb.WriteString(fmt.Sprintf("  Collection: %s\n", *p.CollectionID))
+		}
 		if p.PublishedAt != nil {
 			sb.WriteString(fmt.Sprintf("  Published: %s\n", p.PublishedAt.Format("2006-01-02")))
 		}
@@ -428,7 +456,7 @@ func (s *Server) listPosts(ctx context.Context, req *mcp.CallToolRequest) (*mcp.
 	return toolResult(sb.String()), nil
 }
 
-func (s *Server) getPost(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) getPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
 		return toolError("not authenticated"), nil
@@ -447,26 +475,26 @@ func (s *Server) getPost(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Ca
 		return toolError(err.Error()), nil
 	}
 
-	var post *tenant.Post
+	var page *tenant.Page
 	if args.ID != "" {
-		post, err = db.GetPost(ctx, args.ID)
+		page, err = db.GetPage(ctx, args.ID)
 	} else if args.Slug != "" {
-		post, err = db.GetPostBySlug(ctx, args.Slug)
+		page, err = db.GetPageBySlug(ctx, args.Slug)
 	} else {
 		return toolError("provide either id or slug"), nil
 	}
 	if err != nil {
-		return toolError("post not found"), nil
+		return toolError("page not found"), nil
 	}
 
 	result := fmt.Sprintf("**%s**\nID: %s\nSlug: %s\nStatus: %s\nTags: %s\nCreated: %s\n\n---\n\n%s",
-		post.Title, post.ID, post.Slug, post.Status, post.Tags,
-		post.CreatedAt.Format("2006-01-02 15:04"), post.Content)
+		page.Title, page.ID, page.Slug, page.Status, page.Tags,
+		page.CreatedAt.Format("2006-01-02 15:04"), page.Content)
 
 	return toolResult(result), nil
 }
 
-func (s *Server) searchPosts(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) searchPages(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
 		return toolError("not authenticated"), nil
@@ -484,18 +512,18 @@ func (s *Server) searchPosts(ctx context.Context, req *mcp.CallToolRequest) (*mc
 		return toolError(err.Error()), nil
 	}
 
-	posts, err := db.SearchPosts(ctx, args.Query)
+	pages, err := db.SearchPages(ctx, args.Query)
 	if err != nil {
 		return toolError(fmt.Sprintf("search failed: %v", err)), nil
 	}
 
-	if len(posts) == 0 {
-		return toolResult("No posts matching your search."), nil
+	if len(pages) == 0 {
+		return toolResult("No pages matching your search."), nil
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Found %d result(s):\n\n", len(posts)))
-	for _, p := range posts {
+	sb.WriteString(fmt.Sprintf("Found %d result(s):\n\n", len(pages)))
+	for _, p := range pages {
 		sb.WriteString(fmt.Sprintf("- **%s** (ID: %s, Status: %s)\n", p.Title, p.ID, p.Status))
 	}
 	return toolResult(sb.String()), nil

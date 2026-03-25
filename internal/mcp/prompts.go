@@ -9,8 +9,8 @@ import (
 
 func (s *Server) registerPrompts(mcpServer *mcp.Server) {
 	mcpServer.AddPrompt(&mcp.Prompt{
-		Name:        "write_post",
-		Description: "Write a well-formatted blog post about a topic",
+		Name:        "write_page",
+		Description: "Write a well-formatted page about a topic",
 		Arguments: []*mcp.PromptArgument{
 			{Name: "topic", Description: "What to write about", Required: true},
 			{Name: "audience", Description: "Target audience (e.g., beginners, senior devs)"},
@@ -51,7 +51,7 @@ Formatting guidelines:
 - Include links to relevant documentation
 - Add a `+"`"+`> [!WARNING]`+"`"+` callout for common pitfalls
 
-After writing, use create_post to save it as a draft, then share the preview URL.`, topic, audience, style)
+After writing, use create_page to save it as a draft, then share the preview URL.`, topic, audience, style)
 
 	return &mcp.GetPromptResult{
 		Description: fmt.Sprintf("Write a %s about %s for %s", style, topic, audience),

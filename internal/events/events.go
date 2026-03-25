@@ -35,10 +35,13 @@ func (b *Bus) Emit(e Event) {
 }
 
 const (
-	PostCreated   = "post.created"
-	PostUpdated   = "post.updated"
-	PostDeleted   = "post.deleted"
-	PostPublished = "post.published"
-	CommentAdded  = "comment.added"
-	CommentDelete = "comment.deleted"
+	PageCreated       = "page.created"
+	PageUpdated       = "page.updated"
+	PageDeleted       = "page.deleted"
+	PagePublished     = "page.published"
+	CommentAdded      = "comment.added"
+	CommentDeleted    = "comment.deleted"
+	CollectionCreated = "collection.created"
+	CollectionUpdated = "collection.updated"
+	CollectionDeleted = "collection.deleted"
 )

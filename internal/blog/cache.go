@@ -15,8 +15,9 @@ func NewCache(bus *events.Bus) *Cache {
 	c := &Cache{invalidated: make(map[string]bool)}
 
 	for _, eventType := range []string{
-		events.PostCreated, events.PostUpdated, events.PostDeleted,
-		events.PostPublished, events.CommentAdded, events.CommentDelete,
+		events.PageCreated, events.PageUpdated, events.PageDeleted,
+		events.PagePublished, events.CommentAdded, events.CommentDeleted,
+		events.CollectionCreated, events.CollectionUpdated, events.CollectionDeleted,
 	} {
 		bus.On(eventType, func(e events.Event) {
 			c.Invalidate(e.TenantID)

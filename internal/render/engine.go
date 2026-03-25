@@ -33,6 +33,12 @@ func New(fsys fs.FS, dev bool) *Engine {
 				css, _ := markdown.GenerateChromaCSS(theme)
 				return template.CSS(css)
 			},
+			"pageURL": func(collectionSlug, pageSlug string) string {
+				if collectionSlug != "" {
+					return "/" + collectionSlug + "/" + pageSlug
+				}
+				return "/" + pageSlug
+			},
 		},
 		dev:  dev,
 		fsys: fsys,

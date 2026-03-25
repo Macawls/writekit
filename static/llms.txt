@@ -1,14 +1,14 @@
-# WriteKit — MCP-native blogging platform
+# WriteKit — MCP-powered publishing tool
 
-> WriteKit lets developers manage a blog entirely through an AI assistant using the Model Context Protocol. No editor, no dashboard.
+> WriteKit lets you publish and manage pages and collections entirely through conversation with an AI assistant using the Model Context Protocol. No editor, no dashboard.
 
 ## Quick start
 
 ```
-claude mcp add --transport http writekit https://writekit.dev/mcp
+claude mcp add writekit https://writekit.dev/mcp
 ```
 
-Authentication happens automatically via OAuth (GitHub, Google, or Discord) on first connect.
+Authentication happens automatically via OAuth (GitHub, Google, Discord) or magic link on first connect.
 
 ## MCP Server URL
 
@@ -16,54 +16,83 @@ https://writekit.dev/mcp
 
 ## Tools
 
-### create_post
-Create a new blog post (starts as draft).
+### create_page
+Create a new page (starts as draft).
 - Required: title (string), content (string, rich markdown)
-- Optional: excerpt (string), tags (string[]), slug (string), tenant_id (string)
-- Returns: post ID, slug, preview URL
+- Optional: excerpt (string), tags (string[]), slug (string), collection_id (string), position (int), tenant_id (string)
+- Returns: page ID, slug, preview URL
 - Content supports: GFM, tables, footnotes, syntax-highlighted code blocks, callout blocks, media embeds, D2 diagrams, images, raw HTML
 
-### update_post
-Update an existing post. Partial updates — only send fields to change.
+### update_page
+Update an existing page. Partial updates — only send fields to change.
 - Required: id (string)
-- Optional: title, content, excerpt, tags, slug, tenant_id
-- Returns: updated post info, preview URL
+- Optional: title, content, excerpt, tags, slug, collection_id, position, tenant_id
+- Returns: updated page info, preview URL
 
-### delete_post
-Permanently delete a post and its comments.
-- Required: id (string)
-- Optional: tenant_id
-
-### publish_post
-Publish a draft post. Sets status=published, published_at=now.
-- Required: id (string)
-- Optional: tenant_id
-- Returns: live URL at {subdomain}.writekit.dev/posts/{slug}
-
-### unpublish_post
-Revert a published post to draft.
+### delete_page
+Permanently delete a page and its comments.
 - Required: id (string)
 - Optional: tenant_id
 
-### list_posts
-List posts with optional filters.
-- Optional: status (draft|published), tag (string), limit (int), tenant_id
-- Returns: titles, slugs, statuses, tags, published dates
+### publish_page
+Publish a draft page. Sets status=published, published_at=now.
+- Required: id (string)
+- Optional: tenant_id
+- Returns: live URL
 
-### get_post
-Get a single post with full markdown content.
+### unpublish_page
+Revert a published page to draft.
+- Required: id (string)
+- Optional: tenant_id
+
+### list_pages
+List pages with optional filters.
+- Optional: status (draft|published), tag (string), collection_id (string, use "standalone" for uncollected pages), limit (int), tenant_id
+- Returns: titles, slugs, statuses, tags, collection info, published dates
+
+### get_page
+Get a single page with full markdown content.
 - Required: id (string) OR slug (string)
 - Optional: tenant_id
-- Returns: full post including raw markdown content
+- Returns: full page including raw markdown content
 
-### search_posts
-Full-text search across post titles and content (FTS5).
+### search_pages
+Full-text search across page titles and content (FTS5).
 - Required: query (string)
 - Optional: tenant_id
 
+### create_collection
+Create a new collection to group pages.
+- Required: title (string)
+- Optional: description (string), slug (string), sort_order ("manual"|"date", default "manual"), tenant_id
+
+### update_collection
+Update a collection. Partial — only send fields to change.
+- Required: id (string)
+- Optional: title, description, slug, sort_order, tenant_id
+
+### delete_collection
+Delete a collection. Pages in the collection become standalone.
+- Required: id (string)
+- Optional: tenant_id
+
+### list_collections
+List all collections with page counts.
+- Optional: tenant_id
+
+### get_collection
+Get collection details and its pages.
+- Required: id (string) OR slug (string)
+- Optional: tenant_id
+
+### reorder_pages
+Set the order of pages within a manually-ordered collection.
+- Required: collection_id (string), page_ids (string[])
+- Optional: tenant_id
+
 ### list_comments
-List comments on a specific post.
-- Required: post_id (string)
+List comments on a specific page.
+- Required: page_id (string)
 - Optional: tenant_id
 
 ### delete_comment
@@ -72,36 +101,37 @@ Delete a comment.
 - Optional: tenant_id
 
 ### get_settings
-Get all blog settings (title, description, code_theme).
+Get all site settings (title, description, code_theme).
 - Optional: tenant_id
 
 ### update_settings
-Update blog settings. Partial — only send keys to change.
+Update site settings. Partial — only send keys to change.
 - Optional: title (string), description (string), code_theme (string), tenant_id
 
 ## Prompts
 
-### write_post
-Generate a well-structured blog post about a topic.
+### write_page
+Generate a well-structured page about a topic.
 - Required: topic (string) — What to write about
 - Optional: audience (string) — Target audience (e.g., beginners, senior devs)
 - Optional: style (string) — Writing style (e.g., tutorial, opinion, guide)
 
 ## Resources
 
-- writekit://blog/stats — post counts, comment counts
-- writekit://blog/settings — current blog settings as JSON
-- writekit://blog/recent-posts — last 10 published posts
-- writekit://blog/drafts — all draft posts
-- writekit://blog/recent-comments — recent comments across all posts
+- writekit://site/stats — page counts, collection counts, comment counts
+- writekit://site/settings — current site settings as JSON
+- writekit://site/recent-pages — last 10 published pages
+- writekit://site/drafts — all draft pages
+- writekit://site/collections — all collections with page counts
+- writekit://site/recent-comments — recent comments across all pages
 
 ## Tenant resolution
 
-If a user has one blog, it's selected automatically. If multiple blogs exist, pass tenant_id on each tool call.
+If a user has one site, it's selected automatically. If multiple sites exist, pass tenant_id on each tool call.
 
 ## Content format
 
-Posts use Markdown rendered with Goldmark and Chroma syntax highlighting. Supported features:
+Pages use Markdown rendered with Goldmark and Chroma syntax highlighting. Supported features:
 
 ### Basic Markdown
 - Headings (# through ######) with auto-generated IDs
@@ -118,7 +148,7 @@ func main() {
     fmt.Println("Hello, world!")
 }
 ```
-Supported languages include Go, Python, JavaScript, TypeScript, Rust, Java, Ruby, and 50+ more. Add a title with `title="filename.go"`.
+Supported languages include Go, Python, JavaScript, TypeScript, Rust, Java, Ruby, and 50+ more.
 
 ### Callout blocks
 Start a blockquote with a type marker for styled alert boxes:
@@ -147,22 +177,22 @@ db -> server: results
 server -> client: JSON response
 ```
 
-## Blog URLs
+## Site URLs
 
-- Blog: https://{subdomain}.writekit.dev
-- Post: https://{subdomain}.writekit.dev/posts/{slug}
-- Tag: https://{subdomain}.writekit.dev/tags/{tag}
+- Site index: https://{subdomain}.writekit.dev
+- Standalone page: https://{subdomain}.writekit.dev/{slug}
+- Collection index: https://{subdomain}.writekit.dev/{collection-slug}
+- Page in collection: https://{subdomain}.writekit.dev/{collection-slug}/{page-slug}
 - Search: https://{subdomain}.writekit.dev/search?q={query}
-- RSS: https://{subdomain}.writekit.dev/feed.xml
 - Preview: https://{subdomain}.writekit.dev/preview/{token} (expiring)
 
 ## Example prompts
 
-- "Write a tutorial post about Go error handling with code examples and callout tips"
-- "Create a post comparing React and Svelte with a comparison table"
-- "Write a guide to setting up Docker with a D2 architecture diagram"
-- "Show me all my draft posts"
-- "Publish my post about Go concurrency"
-- "Update my latest post — add a warning callout about common pitfalls"
+- "Write a getting-started guide and add it to the docs collection"
+- "Create a collection called 'Tutorials' with manual ordering"
+- "Publish my getting-started page and move it to position 1"
+- "Show me all my draft pages"
+- "Update my auth page — add a warning callout about rate limits"
+- "List all my collections"
 - "Are there any new comments?"
-- "Change my blog title to 'Ship Fast, Write Often'"
+- "Change my site title to 'Acme Docs'"

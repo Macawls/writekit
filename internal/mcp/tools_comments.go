@@ -14,14 +14,14 @@ import (
 func (s *Server) registerCommentTools(mcpServer *mcpsdk.Server) {
 	mcpServer.AddTool(&mcpsdk.Tool{
 		Name:        "list_comments",
-		Description: "List comments on a blog post.",
+		Description: "List comments on a page.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"post_id":   map[string]any{"type": "string", "description": "Post ID to list comments for"},
-				"tenant_id": map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"page_id":   map[string]any{"type": "string", "description": "Post ID to list comments for"},
+				"tenant_id": map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
-			"required": []string{"post_id"},
+			"required": []string{"page_id"},
 		},
 	}, s.listComments)
 
@@ -32,7 +32,7 @@ func (s *Server) registerCommentTools(mcpServer *mcpsdk.Server) {
 			"type": "object",
 			"properties": map[string]any{
 				"id":        map[string]any{"type": "string", "description": "Comment ID to delete"},
-				"tenant_id": map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"tenant_id": map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"id"},
 		},
@@ -46,7 +46,7 @@ func (s *Server) listComments(ctx context.Context, req *mcpsdk.CallToolRequest) 
 	}
 
 	var args struct {
-		PostID   string `json:"post_id"`
+		PageID   string `json:"page_id"`
 		TenantID string `json:"tenant_id"`
 	}
 	raw, _ := json.Marshal(req.Params.Arguments)
@@ -57,13 +57,13 @@ func (s *Server) listComments(ctx context.Context, req *mcpsdk.CallToolRequest) 
 		return toolError(err.Error()), nil
 	}
 
-	comments, err := db.ListComments(ctx, args.PostID)
+	comments, err := db.ListComments(ctx, args.PageID)
 	if err != nil {
 		return toolError(fmt.Sprintf("failed to list comments: %v", err)), nil
 	}
 
 	if len(comments) == 0 {
-		return toolResult("No comments on this post."), nil
+		return toolResult("No comments on this page."), nil
 	}
 
 	var sb strings.Builder
@@ -98,6 +98,6 @@ func (s *Server) deleteComment(ctx context.Context, req *mcpsdk.CallToolRequest)
 		return toolError(fmt.Sprintf("failed to delete comment: %v", err)), nil
 	}
 
-	s.Bus.Emit(events.Event{Type: events.CommentDelete, TenantID: tenantID})
+	s.Bus.Emit(events.Event{Type: events.CommentDeleted, TenantID: tenantID})
 	return toolResult("Comment deleted."), nil
 }

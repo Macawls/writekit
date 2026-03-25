@@ -10,7 +10,7 @@ import (
 
 type PreviewToken struct {
 	Token     string
-	PostID    string
+	PageID    string
 	ExpiresAt time.Time
 	CreatedAt time.Time
 }
@@ -24,23 +24,23 @@ func (db *DB) CreatePreviewToken(ctx context.Context, postID string, duration ti
 	expiresAt := time.Now().Add(duration)
 
 	_, err := db.DB.ExecContext(ctx, `
-		INSERT INTO preview_tokens (token, post_id, expires_at) VALUES (?, ?, ?)
+		INSERT INTO preview_tokens (token, page_id, expires_at) VALUES (?, ?, ?)
 	`, token, postID, expiresAt)
 	if err != nil {
 		return nil, fmt.Errorf("create preview token: %w", err)
 	}
 
-	return &PreviewToken{Token: token, PostID: postID, ExpiresAt: expiresAt}, nil
+	return &PreviewToken{Token: token, PageID: postID, ExpiresAt: expiresAt}, nil
 }
 
 func (db *DB) GetPreviewToken(ctx context.Context, token string) (*PreviewToken, error) {
 	row := db.DB.QueryRowContext(ctx, `
-		SELECT token, post_id, expires_at, created_at FROM preview_tokens
+		SELECT token, page_id, expires_at, created_at FROM preview_tokens
 		WHERE token = ? AND expires_at > datetime('now')
 	`, token)
 
 	var pt PreviewToken
-	err := row.Scan(&pt.Token, &pt.PostID, &pt.ExpiresAt, &pt.CreatedAt)
+	err := row.Scan(&pt.Token, &pt.PageID, &pt.ExpiresAt, &pt.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get preview token: %w", err)
 	}

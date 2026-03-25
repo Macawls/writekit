@@ -67,11 +67,11 @@ func (db *DB) migrate() (bool, error) {
 	return applied, nil
 }
 
-func (db *DB) rerenderPosts() error {
+func (db *DB) rerenderPages() error {
 	rows, err := db.DB.QueryContext(context.Background(),
-		"SELECT id, content FROM posts WHERE content != ''")
+		"SELECT id, content FROM pages WHERE content != ''")
 	if err != nil {
-		return fmt.Errorf("query posts: %w", err)
+		return fmt.Errorf("query pages: %w", err)
 	}
 	defer rows.Close()
 
@@ -86,14 +86,14 @@ func (db *DB) rerenderPosts() error {
 			continue
 		}
 		if _, err := db.DB.ExecContext(context.Background(),
-			"UPDATE posts SET content_html = ? WHERE id = ?", html, id); err != nil {
-			slog.Warn("failed to re-render post", "id", id, "err", err)
+			"UPDATE pages SET content_html = ? WHERE id = ?", html, id); err != nil {
+			slog.Warn("failed to re-render page", "id", id, "err", err)
 			continue
 		}
 		updated++
 	}
 
-	slog.Info("re-rendered posts after migration", "tenant", db.TenantID, "count", updated)
+	slog.Info("re-rendered pages after migration", "tenant", db.TenantID, "count", updated)
 	return rows.Err()
 }
 

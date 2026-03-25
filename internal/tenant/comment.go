@@ -8,7 +8,7 @@ import (
 
 type Comment struct {
 	ID        string
-	PostID    string
+	PageID    string
 	ParentID  *string
 	Author    string
 	Email     string
@@ -18,9 +18,9 @@ type Comment struct {
 
 func (db *DB) CreateComment(ctx context.Context, c *Comment) error {
 	_, err := db.DB.ExecContext(ctx, `
-		INSERT INTO comments (id, post_id, parent_id, author, email, content)
+		INSERT INTO comments (id, page_id, parent_id, author, email, content)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, c.ID, c.PostID, c.ParentID, c.Author, c.Email, c.Content)
+	`, c.ID, c.PageID, c.ParentID, c.Author, c.Email, c.Content)
 	if err != nil {
 		return fmt.Errorf("create comment: %w", err)
 	}
@@ -29,8 +29,8 @@ func (db *DB) CreateComment(ctx context.Context, c *Comment) error {
 
 func (db *DB) ListComments(ctx context.Context, postID string) ([]Comment, error) {
 	rows, err := db.DB.QueryContext(ctx, `
-		SELECT id, post_id, parent_id, author, email, content, created_at
-		FROM comments WHERE post_id = ? ORDER BY created_at ASC
+		SELECT id, page_id, parent_id, author, email, content, created_at
+		FROM comments WHERE page_id = ? ORDER BY created_at ASC
 	`, postID)
 	if err != nil {
 		return nil, fmt.Errorf("list comments: %w", err)
@@ -40,7 +40,7 @@ func (db *DB) ListComments(ctx context.Context, postID string) ([]Comment, error
 	var comments []Comment
 	for rows.Next() {
 		var c Comment
-		if err := rows.Scan(&c.ID, &c.PostID, &c.ParentID, &c.Author, &c.Email, &c.Content, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.PageID, &c.ParentID, &c.Author, &c.Email, &c.Content, &c.CreatedAt); err != nil {
 			return nil, err
 		}
 		comments = append(comments, c)
@@ -53,7 +53,7 @@ func (db *DB) ListRecentComments(ctx context.Context, limit int) ([]Comment, err
 		limit = 20
 	}
 	rows, err := db.DB.QueryContext(ctx, `
-		SELECT id, post_id, parent_id, author, email, content, created_at
+		SELECT id, page_id, parent_id, author, email, content, created_at
 		FROM comments ORDER BY created_at DESC LIMIT ?
 	`, limit)
 	if err != nil {
@@ -64,7 +64,7 @@ func (db *DB) ListRecentComments(ctx context.Context, limit int) ([]Comment, err
 	var comments []Comment
 	for rows.Next() {
 		var c Comment
-		if err := rows.Scan(&c.ID, &c.PostID, &c.ParentID, &c.Author, &c.Email, &c.Content, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.PageID, &c.ParentID, &c.Author, &c.Email, &c.Content, &c.CreatedAt); err != nil {
 			return nil, err
 		}
 		comments = append(comments, c)

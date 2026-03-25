@@ -22,10 +22,10 @@ type Handler struct {
 
 func (h *Handler) Routes(r chi.Router) {
 	r.Get("/", h.Index)
-	r.Get("/posts/{slug}", h.Post)
-	r.Get("/tags/{tag}", h.Tag)
 	r.Get("/search", h.Search)
 	r.Get("/preview/{token}", h.Preview)
-	r.Get("/feed.xml", h.RSS)
-	r.Post("/posts/{slug}/comments", h.SubmitComment)
+	r.Get("/{slug}", h.PageOrCollection)
+	r.Get("/{collection}/{page}", h.CollectionPage)
+	r.Post("/{slug}/comments", h.SubmitComment)
+	r.Post("/{collection}/{page}/comments", h.SubmitCollectionComment)
 }

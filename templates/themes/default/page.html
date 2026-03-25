@@ -2,17 +2,23 @@
 
 {{if .Preview}}
 <div class="preview-banner">
-    This is a preview. This post is not yet published.
+    This is a preview. This page is not yet published.
 </div>
 {{end}}
 
+{{if .Collection}}
+<nav class="breadcrumb">
+    <a href="/">Home</a> &rsaquo; <a href="/{{.Collection.Slug}}">{{.Collection.Title}}</a>
+</nav>
+{{end}}
+
 <article>
-    <h1>{{.Post.Title}}</h1>
+    <h1>{{.Page.Title}}</h1>
     <div class="post-meta">
-        {{if .Post.PublishedAt}}{{.Post.PublishedAt.Format "January 2, 2006"}}{{end}}
+        {{if .Page.PublishedAt}}{{.Page.PublishedAt.Format "January 2, 2006"}}{{end}}
     </div>
     <div class="post-content">
-        {{safe .Post.ContentHTML}}
+        {{safe .Page.ContentHTML}}
     </div>
 </article>
 
@@ -32,7 +38,11 @@
     <p style="color: var(--muted); margin-top: 1rem;">No comments yet.</p>
     {{end}}
 
-    <form class="comment-form" method="POST" action="/posts/{{.Post.Slug}}/comments">
+    {{if .Collection}}
+    <form class="comment-form" method="POST" action="/{{.Collection.Slug}}/{{.Page.Slug}}/comments">
+    {{else}}
+    <form class="comment-form" method="POST" action="/{{.Page.Slug}}/comments">
+    {{end}}
         <h3>Leave a comment</h3>
         <input type="text" name="author" placeholder="Your name" required>
         <input type="email" name="email" placeholder="Email (optional)">

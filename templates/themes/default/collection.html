@@ -1,0 +1,22 @@
+{{template "partials/header.html" .}}
+
+<h1>{{.Collection.Title}}</h1>
+{{if .Collection.Description}}<p>{{.Collection.Description}}</p>{{end}}
+
+{{if .Pages}}
+<ul class="post-list">
+    {{range .Pages}}
+    <li class="post-item">
+        <h2><a href="/{{$.Collection.Slug}}/{{.Slug}}">{{.Title}}</a></h2>
+        <div class="post-meta">
+            {{if .PublishedAt}}{{.PublishedAt.Format "January 2, 2006"}}{{end}}
+        </div>
+        {{if .Excerpt}}<p class="post-excerpt">{{.Excerpt}}</p>{{end}}
+    </li>
+    {{end}}
+</ul>
+{{else}}
+<p style="color: var(--muted);">No pages in this collection yet.</p>
+{{end}}
+
+{{template "partials/footer.html" .}}

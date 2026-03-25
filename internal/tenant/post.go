@@ -8,69 +8,78 @@ import (
 	"time"
 )
 
-type Post struct {
-	ID          string
-	Title       string
-	Slug        string
-	Content     string
-	ContentHTML string
-	Excerpt     string
-	Status      string
-	Tags        string
-	PublishedAt *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+type Page struct {
+	ID           string
+	Title        string
+	Slug         string
+	Content      string
+	ContentHTML  string
+	Excerpt      string
+	Status       string
+	Tags         string
+	CollectionID *string
+	Position     int
+	PublishedAt  *time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
-type PostFilter struct {
-	Status string
-	Tag    string
-	Limit  int
-	Offset int
+type PageFilter struct {
+	Status       string
+	Tag          string
+	CollectionID *string
+	Limit        int
+	Offset       int
 }
 
-func (db *DB) CreatePost(ctx context.Context, p *Post) error {
+func (db *DB) CreatePage(ctx context.Context, p *Page) error {
 	_, err := db.DB.ExecContext(ctx, `
-		INSERT INTO posts (id, title, slug, content, content_html, excerpt, status, tags, published_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, p.ID, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Tags, p.PublishedAt)
+		INSERT INTO pages (id, title, slug, content, content_html, excerpt, status, tags, collection_id, position, published_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, p.ID, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Tags, p.CollectionID, p.Position, p.PublishedAt)
 	if err != nil {
-		return fmt.Errorf("create post: %w", err)
+		return fmt.Errorf("create page: %w", err)
 	}
 	return nil
 }
 
-func (db *DB) UpdatePost(ctx context.Context, p *Post) error {
+func (db *DB) UpdatePage(ctx context.Context, p *Page) error {
 	_, err := db.DB.ExecContext(ctx, `
-		UPDATE posts SET title=?, slug=?, content=?, content_html=?, excerpt=?, status=?, tags=?, published_at=?, updated_at=datetime('now')
+		UPDATE pages SET title=?, slug=?, content=?, content_html=?, excerpt=?, status=?, tags=?, collection_id=?, position=?, published_at=?, updated_at=datetime('now')
 		WHERE id=?
-	`, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Tags, p.PublishedAt, p.ID)
+	`, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Tags, p.CollectionID, p.Position, p.PublishedAt, p.ID)
 	if err != nil {
-		return fmt.Errorf("update post: %w", err)
+		return fmt.Errorf("update page: %w", err)
 	}
 	return nil
 }
 
-func (db *DB) DeletePost(ctx context.Context, id string) error {
-	_, err := db.DB.ExecContext(ctx, `DELETE FROM posts WHERE id = ?`, id)
+func (db *DB) DeletePage(ctx context.Context, id string) error {
+	_, err := db.DB.ExecContext(ctx, `DELETE FROM pages WHERE id = ?`, id)
 	return err
 }
 
-func (db *DB) GetPost(ctx context.Context, id string) (*Post, error) {
-	return db.scanPost(db.DB.QueryRowContext(ctx, `
-		SELECT id, title, slug, content, content_html, excerpt, status, tags, published_at, created_at, updated_at
-		FROM posts WHERE id = ?
-	`, id))
+func (db *DB) GetPage(ctx context.Context, id string) (*Page, error) {
+	return scanPage(db.DB.QueryRowContext(ctx,
+		pageSelect+" WHERE id = ?", id))
 }
 
-func (db *DB) GetPostBySlug(ctx context.Context, slug string) (*Post, error) {
-	return db.scanPost(db.DB.QueryRowContext(ctx, `
-		SELECT id, title, slug, content, content_html, excerpt, status, tags, published_at, created_at, updated_at
-		FROM posts WHERE slug = ?
-	`, slug))
+func (db *DB) GetPageBySlug(ctx context.Context, slug string) (*Page, error) {
+	return scanPage(db.DB.QueryRowContext(ctx,
+		pageSelect+" WHERE slug = ?", slug))
 }
 
-func (db *DB) ListPosts(ctx context.Context, f PostFilter) ([]Post, error) {
+func (db *DB) GetPageInCollection(ctx context.Context, collectionID, slug string) (*Page, error) {
+	return scanPage(db.DB.QueryRowContext(ctx,
+		pageSelect+" WHERE collection_id = ? AND slug = ?", collectionID, slug))
+}
+
+func (db *DB) GetStandalonePageBySlug(ctx context.Context, slug string) (*Page, error) {
+	return scanPage(db.DB.QueryRowContext(ctx,
+		pageSelect+" WHERE slug = ? AND collection_id IS NULL", slug))
+}
+
+func (db *DB) ListPages(ctx context.Context, f PageFilter) ([]Page, error) {
 	var where []string
 	var args []any
 
@@ -82,8 +91,16 @@ func (db *DB) ListPosts(ctx context.Context, f PostFilter) ([]Post, error) {
 		where = append(where, "tags LIKE ?")
 		args = append(args, "%\""+f.Tag+"\"%")
 	}
+	if f.CollectionID != nil {
+		if *f.CollectionID == "" {
+			where = append(where, "collection_id IS NULL")
+		} else {
+			where = append(where, "collection_id = ?")
+			args = append(args, *f.CollectionID)
+		}
+	}
 
-	query := "SELECT id, title, slug, content, content_html, excerpt, status, tags, published_at, created_at, updated_at FROM posts"
+	query := pageSelect
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -97,49 +114,73 @@ func (db *DB) ListPosts(ctx context.Context, f PostFilter) ([]Post, error) {
 
 	rows, err := db.DB.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("list posts: %w", err)
+		return nil, fmt.Errorf("list pages: %w", err)
 	}
 	defer rows.Close()
 
-	var posts []Post
+	var pages []Page
 	for rows.Next() {
-		p, err := scanPostRow(rows)
+		p, err := scanPageRow(rows)
 		if err != nil {
 			return nil, err
 		}
-		posts = append(posts, *p)
+		pages = append(pages, *p)
 	}
-	return posts, nil
+	return pages, nil
 }
 
-func (db *DB) SearchPosts(ctx context.Context, query string) ([]Post, error) {
+func (db *DB) ListCollectionPages(ctx context.Context, collectionID, sortOrder string) ([]Page, error) {
+	order := "position ASC"
+	if sortOrder == "date" {
+		order = "COALESCE(published_at, created_at) DESC"
+	}
+
+	rows, err := db.DB.QueryContext(ctx,
+		pageSelect+" WHERE collection_id = ? AND status = 'published' ORDER BY "+order, collectionID)
+	if err != nil {
+		return nil, fmt.Errorf("list collection pages: %w", err)
+	}
+	defer rows.Close()
+
+	var pages []Page
+	for rows.Next() {
+		p, err := scanPageRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		pages = append(pages, *p)
+	}
+	return pages, nil
+}
+
+func (db *DB) SearchPages(ctx context.Context, query string) ([]Page, error) {
 	rows, err := db.DB.QueryContext(ctx, `
-		SELECT p.id, p.title, p.slug, p.content, p.content_html, p.excerpt, p.status, p.tags, p.published_at, p.created_at, p.updated_at
-		FROM posts p
-		JOIN posts_fts ON posts_fts.rowid = p.rowid
-		WHERE posts_fts MATCH ?
+		SELECT p.id, p.title, p.slug, p.content, p.content_html, p.excerpt, p.status, p.tags, p.collection_id, p.position, p.published_at, p.created_at, p.updated_at
+		FROM pages p
+		JOIN pages_fts ON posts_fts.rowid = p.rowid
+		WHERE pages_fts MATCH ?
 		ORDER BY rank
 		LIMIT 20
 	`, query)
 	if err != nil {
-		return nil, fmt.Errorf("search posts: %w", err)
+		return nil, fmt.Errorf("search pages: %w", err)
 	}
 	defer rows.Close()
 
-	var posts []Post
+	var pages []Page
 	for rows.Next() {
-		p, err := scanPostRow(rows)
+		p, err := scanPageRow(rows)
 		if err != nil {
 			return nil, err
 		}
-		posts = append(posts, *p)
+		pages = append(pages, *p)
 	}
-	return posts, nil
+	return pages, nil
 }
 
-func (db *DB) CountPosts(ctx context.Context, status string) (int, error) {
+func (db *DB) CountPages(ctx context.Context, status string) (int, error) {
 	var count int
-	query := "SELECT COUNT(*) FROM posts"
+	query := "SELECT COUNT(*) FROM pages"
 	if status != "" {
 		query += " WHERE status = ?"
 		err := db.DB.QueryRowContext(ctx, query, status).Scan(&count)
@@ -149,24 +190,26 @@ func (db *DB) CountPosts(ctx context.Context, status string) (int, error) {
 	return count, err
 }
 
+const pageSelect = `SELECT id, title, slug, content, content_html, excerpt, status, tags, collection_id, position, published_at, created_at, updated_at FROM pages`
+
 type scanner interface {
 	Scan(dest ...any) error
 }
 
-func (db *DB) scanPost(row *sql.Row) (*Post, error) {
-	var p Post
+func scanPage(row *sql.Row) (*Page, error) {
+	var p Page
 	err := row.Scan(&p.ID, &p.Title, &p.Slug, &p.Content, &p.ContentHTML,
-		&p.Excerpt, &p.Status, &p.Tags, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+		&p.Excerpt, &p.Status, &p.Tags, &p.CollectionID, &p.Position, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return &p, nil
 }
 
-func scanPostRow(rows *sql.Rows) (*Post, error) {
-	var p Post
+func scanPageRow(rows *sql.Rows) (*Page, error) {
+	var p Page
 	err := rows.Scan(&p.ID, &p.Title, &p.Slug, &p.Content, &p.ContentHTML,
-		&p.Excerpt, &p.Status, &p.Tags, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+		&p.Excerpt, &p.Status, &p.Tags, &p.CollectionID, &p.Position, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

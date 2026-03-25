@@ -1,12 +1,10 @@
 package blog
 
 import (
-	"encoding/xml"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"writekit/internal/tenant"
@@ -34,46 +32,66 @@ func (h *Handler) getTenantDB(r *http.Request) (*tenant.DB, string, error) {
 func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
-		http.Error(w, "blog not found", http.StatusNotFound)
+		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
 
-	posts, err := db.ListPosts(r.Context(), tenant.PostFilter{Status: "published", Limit: 20})
-	if err != nil {
-		slog.Error("list posts", "tenant", tenantID, "err", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
+	collections, _ := db.ListCollections(r.Context())
+	standalone := ""
+	pages, _ := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", CollectionID: &standalone, Limit: 20})
 	settings, _ := db.GetSettings(r.Context())
 
+	collectionData := make([]map[string]any, len(collections))
+	for i, c := range collections {
+		count, _ := db.CountCollectionPages(r.Context(), c.ID)
+		collectionData[i] = map[string]any{
+			"Collection": c,
+			"PageCount":  count,
+		}
+	}
+
 	h.Engine.Render(w, "index.html", map[string]any{
-		"Posts":    posts,
-		"Settings": settings,
-		"TenantID": tenantID,
-		"Host":     h.Config.Host,
+		"Collections": collectionData,
+		"Pages":       pages,
+		"Settings":    settings,
+		"TenantID":    tenantID,
+		"Host":        h.Config.Host,
 	})
 }
 
-func (h *Handler) Post(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
-		http.Error(w, "blog not found", http.StatusNotFound)
+		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
 
 	slug := chi.URLParam(r, "slug")
-	post, err := db.GetPostBySlug(r.Context(), slug)
-	if err != nil || post.Status != "published" {
-		http.Error(w, "post not found", http.StatusNotFound)
+	settings, _ := db.GetSettings(r.Context())
+
+	collection, err := db.GetCollectionBySlug(r.Context(), slug)
+	if err == nil {
+		pages, _ := db.ListCollectionPages(r.Context(), collection.ID, collection.SortOrder)
+		h.Engine.Render(w, "collection.html", map[string]any{
+			"Collection": collection,
+			"Pages":      pages,
+			"Settings":   settings,
+			"TenantID":   tenantID,
+			"Host":       h.Config.Host,
+		})
 		return
 	}
 
-	comments, _ := db.ListComments(r.Context(), post.ID)
-	settings, _ := db.GetSettings(r.Context())
+	page, err := db.GetStandalonePageBySlug(r.Context(), slug)
+	if err != nil || page.Status != "published" {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
 
-	h.Engine.Render(w, "post.html", map[string]any{
-		"Post":     post,
+	comments, _ := db.ListComments(r.Context(), page.ID)
+
+	h.Engine.Render(w, "page.html", map[string]any{
+		"Page":     page,
 		"Comments": comments,
 		"Settings": settings,
 		"TenantID": tenantID,
@@ -81,49 +99,59 @@ func (h *Handler) Post(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) Tag(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
-		http.Error(w, "blog not found", http.StatusNotFound)
+		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
 
-	tag := chi.URLParam(r, "tag")
-	posts, err := db.ListPosts(r.Context(), tenant.PostFilter{Status: "published", Tag: tag, Limit: 50})
+	collectionSlug := chi.URLParam(r, "collection")
+	pageSlug := chi.URLParam(r, "page")
+
+	collection, err := db.GetCollectionBySlug(r.Context(), collectionSlug)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
+	page, err := db.GetPageInCollection(r.Context(), collection.ID, pageSlug)
+	if err != nil || page.Status != "published" {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	comments, _ := db.ListComments(r.Context(), page.ID)
 	settings, _ := db.GetSettings(r.Context())
 
-	h.Engine.Render(w, "tag.html", map[string]any{
-		"Tag":      tag,
-		"Posts":    posts,
-		"Settings": settings,
-		"TenantID": tenantID,
-		"Host":     h.Config.Host,
+	h.Engine.Render(w, "page.html", map[string]any{
+		"Page":       page,
+		"Collection": collection,
+		"Comments":   comments,
+		"Settings":   settings,
+		"TenantID":   tenantID,
+		"Host":       h.Config.Host,
 	})
 }
 
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
-		http.Error(w, "blog not found", http.StatusNotFound)
+		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
 
 	q := r.URL.Query().Get("q")
-	var posts []tenant.Post
+	var pages []tenant.Page
 	if q != "" {
-		posts, _ = db.SearchPosts(r.Context(), q)
+		pages, _ = db.SearchPages(r.Context(), q)
 	}
 
 	settings, _ := db.GetSettings(r.Context())
 
 	h.Engine.Render(w, "search.html", map[string]any{
 		"Query":    q,
-		"Posts":    posts,
+		"Pages":    pages,
 		"Settings": settings,
 		"TenantID": tenantID,
 		"Host":     h.Config.Host,
@@ -133,7 +161,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
-		http.Error(w, "blog not found", http.StatusNotFound)
+		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
 
@@ -144,16 +172,16 @@ func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := db.GetPost(r.Context(), pt.PostID)
+	page, err := db.GetPage(r.Context(), pt.PageID)
 	if err != nil {
-		http.Error(w, "post not found", http.StatusNotFound)
+		http.Error(w, "page not found", http.StatusNotFound)
 		return
 	}
 
 	settings, _ := db.GetSettings(r.Context())
 
-	h.Engine.Render(w, "post.html", map[string]any{
-		"Post":     post,
+	h.Engine.Render(w, "page.html", map[string]any{
+		"Page":     page,
 		"Settings": settings,
 		"TenantID": tenantID,
 		"Host":     h.Config.Host,
@@ -161,20 +189,7 @@ func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) SubmitComment(w http.ResponseWriter, r *http.Request) {
-	db, tenantID, err := h.getTenantDB(r)
-	if err != nil {
-		http.Error(w, "blog not found", http.StatusNotFound)
-		return
-	}
-
-	slug := chi.URLParam(r, "slug")
-	post, err := db.GetPostBySlug(r.Context(), slug)
-	if err != nil || post.Status != "published" {
-		http.Error(w, "post not found", http.StatusNotFound)
-		return
-	}
-
+func (h *Handler) submitComment(w http.ResponseWriter, r *http.Request, db *tenant.DB, tenantID string, page *tenant.Page, redirectPath string) {
 	author := strings.TrimSpace(r.FormValue("author"))
 	authorEmail := strings.TrimSpace(r.FormValue("email"))
 	content := strings.TrimSpace(r.FormValue("content"))
@@ -186,7 +201,7 @@ func (h *Handler) SubmitComment(w http.ResponseWriter, r *http.Request) {
 
 	comment := &tenant.Comment{
 		ID:      ulid.Make().String(),
-		PostID:  post.ID,
+		PageID:  page.ID,
 		Author:  author,
 		Email:   authorEmail,
 		Content: content,
@@ -213,77 +228,57 @@ func (h *Handler) SubmitComment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		settings, _ := db.GetSettings(r.Context())
-		blogName := settings["title"]
-		if blogName == "" {
-			blogName = tenantID
+		siteName := settings["title"]
+		if siteName == "" {
+			siteName = tenantID
 		}
-		postURL := fmt.Sprintf("https://%s.%s/posts/%s", tenantID, h.Config.Host, slug)
-		if err := h.Email.SendCommentNotification(r.Context(), owner.Email, blogName, post.Title, author, content, postURL); err != nil {
+		pageURL := fmt.Sprintf("https://%s.%s%s", tenantID, h.Config.Host, redirectPath)
+		if err := h.Email.SendCommentNotification(r.Context(), owner.Email, siteName, page.Title, author, content, pageURL); err != nil {
 			slog.Error("send comment notification", "err", err)
 		}
 	}()
 
-	http.Redirect(w, r, fmt.Sprintf("/posts/%s#comment-%s", slug, comment.ID), http.StatusSeeOther)
+	http.Redirect(w, r, fmt.Sprintf("%s#comment-%s", redirectPath, comment.ID), http.StatusSeeOther)
 }
 
-type rssChannel struct {
-	XMLName     xml.Name  `xml:"rss"`
-	Version     string    `xml:"version,attr"`
-	Channel     rssFeed   `xml:"channel"`
-}
-
-type rssFeed struct {
-	Title       string    `xml:"title"`
-	Link        string    `xml:"link"`
-	Description string    `xml:"description"`
-	Items       []rssItem `xml:"item"`
-}
-
-type rssItem struct {
-	Title       string `xml:"title"`
-	Link        string `xml:"link"`
-	Description string `xml:"description"`
-	PubDate     string `xml:"pubDate"`
-	GUID        string `xml:"guid"`
-}
-
-func (h *Handler) RSS(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) SubmitComment(w http.ResponseWriter, r *http.Request) {
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
-		http.Error(w, "blog not found", http.StatusNotFound)
+		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
 
-	posts, _ := db.ListPosts(r.Context(), tenant.PostFilter{Status: "published", Limit: 20})
-	settings, _ := db.GetSettings(r.Context())
-
-	blogURL := fmt.Sprintf("https://%s.%s", tenantID, h.Config.Host)
-
-	items := make([]rssItem, len(posts))
-	for i, p := range posts {
-		pubDate := p.CreatedAt.Format(time.RFC1123Z)
-		if p.PublishedAt != nil {
-			pubDate = p.PublishedAt.Format(time.RFC1123Z)
-		}
-		items[i] = rssItem{
-			Title:       p.Title,
-			Link:        fmt.Sprintf("%s/posts/%s", blogURL, p.Slug),
-			Description: p.Excerpt,
-			PubDate:     pubDate,
-			GUID:        p.ID,
-		}
+	slug := chi.URLParam(r, "slug")
+	page, err := db.GetStandalonePageBySlug(r.Context(), slug)
+	if err != nil || page.Status != "published" {
+		http.Error(w, "page not found", http.StatusNotFound)
+		return
 	}
 
-	feed := rssChannel{
-		Version: "2.0",
-		Channel: rssFeed{
-			Title:       settings["title"],
-			Link:        blogURL,
-			Description: settings["description"],
-			Items:       items,
-		},
+	h.submitComment(w, r, db, tenantID, page, "/"+slug)
+}
+
+func (h *Handler) SubmitCollectionComment(w http.ResponseWriter, r *http.Request) {
+	db, tenantID, err := h.getTenantDB(r)
+	if err != nil {
+		http.Error(w, "site not found", http.StatusNotFound)
+		return
 	}
 
-	w.Header().Set("Content-Type", "application/rss+xml; charset=utf-8")
-	xml.NewEncoder(w).Encode(feed)
+	collectionSlug := chi.URLParam(r, "collection")
+	pageSlug := chi.URLParam(r, "page")
+
+	collection, err := db.GetCollectionBySlug(r.Context(), collectionSlug)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	page, err := db.GetPageInCollection(r.Context(), collection.ID, pageSlug)
+	if err != nil || page.Status != "published" {
+		http.Error(w, "page not found", http.StatusNotFound)
+		return
+	}
+
+	h.submitComment(w, r, db, tenantID, page, "/"+collectionSlug+"/"+pageSlug)
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const writeKitInstructions = `You are helping the user manage their blog on WriteKit. When creating or updating blog posts, always write rich, well-structured Markdown content. Never write plain text — blog posts should look professional when rendered.
+const writeKitInstructions = `You are helping the user manage their site on WriteKit. Pages can be standalone or organized into collections. Always write rich, well-structured Markdown content.
 
 Content guidelines:
 - Use headings (##, ###) to organize sections
@@ -25,14 +25,13 @@ Content guidelines:
 
 Advanced features:
 - Callout blocks: Start a blockquote with [!NOTE], [!TIP], [!WARNING], or [!DANGER] for styled alert boxes
-  Example: > [!TIP] This renders as a green tip box with an icon
 - Media embeds: Use <embed src="url" /> for YouTube, Spotify, SoundCloud, Twitter, or GitHub Gists
 - D2 diagrams: Use ` + "```d2" + ` code blocks for architecture diagrams
 - Footnotes: Use [^1] syntax for references
 
-Workflow: Create posts as drafts first, share the preview URL, then publish when ready.
+Workflow: Create pages as drafts first, share the preview URL, then publish when ready. Use collections to group related pages (docs, tutorials, series, etc.).
 
-Important: Never ask the user for tenant_id. It is auto-resolved from their account. Only include tenant_id if the user explicitly tells you which blog to target, or if a tool returns an error about multiple blogs.`
+Important: Never ask the user for tenant_id. It is auto-resolved from their account. Only include tenant_id if the user explicitly tells you which site to target, or if a tool returns an error about multiple sites.`
 
 type Server struct {
 	PlatformDB *platform.DB
@@ -57,7 +56,8 @@ func New(platformDB *platform.DB, pool *tenant.Pool, cfg *config.Config, bus *ev
 		Instructions: writeKitInstructions,
 	})
 
-	s.registerTools(mcpServer)
+	s.registerPageTools(mcpServer)
+	s.registerCollectionTools(mcpServer)
 	s.registerCommentTools(mcpServer)
 	s.registerSettingsTools(mcpServer)
 	s.registerResources(mcpServer)
@@ -114,13 +114,32 @@ type mcpError struct {
 func (e *mcpError) Error() string { return e.msg }
 
 var (
-	errNoTenants       = &mcpError{"you don't have any blogs yet — create one at the WriteKit dashboard"}
-	errTenantNotFound  = &mcpError{"blog not found or you don't have access to it"}
-	errMultipleTenants = &mcpError{"you have multiple blogs — please specify tenant_id"}
+	errNoTenants       = &mcpError{"you don't have any sites yet — create one at the WriteKit dashboard"}
+	errTenantNotFound  = &mcpError{"site not found or you don't have access to it"}
+	errMultipleTenants = &mcpError{"you have multiple sites — please specify tenant_id"}
 )
 
-func (s *Server) buildPostURL(tenantID, slug string) string {
-	return "https://" + tenantID + "." + s.Config.Host + "/posts/" + slug
+func (s *Server) buildPageURL(tenantID string, collectionID *string, pageSlug string) string {
+	base := "https://" + tenantID + "." + s.Config.Host
+	if collectionID != nil && *collectionID != "" {
+		col, err := s.getCollectionSlug(tenantID, *collectionID)
+		if err == nil {
+			return base + "/" + col + "/" + pageSlug
+		}
+	}
+	return base + "/" + pageSlug
+}
+
+func (s *Server) getCollectionSlug(tenantID, collectionID string) (string, error) {
+	db, err := s.Pool.Get(tenantID)
+	if err != nil {
+		return "", err
+	}
+	col, err := db.GetCollection(context.Background(), collectionID)
+	if err != nil {
+		return "", err
+	}
+	return col.Slug, nil
 }
 
 func (s *Server) buildPreviewURL(tenantID, token string) string {
