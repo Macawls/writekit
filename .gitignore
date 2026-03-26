@@ -13,3 +13,4 @@ tmp/
 ui/node_modules/
 ui/dist/*
 !ui/dist/.gitkeep
+admin/node_modules
