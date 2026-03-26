@@ -42,6 +42,11 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/oauth/authorize", h.OAuthAuthorizeSubmit)
 	r.Post("/oauth/token", h.MCPAuth.TokenExchange)
 
+	r.Post("/register", h.MCPAuth.Register)
+	r.Get("/authorize", h.OAuthAuthorize)
+	r.Post("/authorize", h.OAuthAuthorizeSubmit)
+	r.Post("/token", h.MCPAuth.TokenExchange)
+
 	r.Group(func(r chi.Router) {
 		r.Use(auth.WebAuth(h.DB))
 		r.Get("/settings", h.SettingsPage)

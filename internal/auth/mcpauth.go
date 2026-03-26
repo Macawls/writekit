@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -45,19 +46,31 @@ func (m *MCPAuth) WellKnown(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *MCPAuth) Register(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		RedirectURIs []string `json:"redirect_uris"`
-		ClientName   string   `json:"client_name"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpError(w, "invalid request", http.StatusBadRequest)
+	var reqBody map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		slog.Warn("oauth register: invalid request body", "err", err)
+		httpError(w, "invalid_client_metadata", http.StatusBadRequest)
 		return
 	}
 
-	if len(req.RedirectURIs) == 0 {
-		httpError(w, "redirect_uris required", http.StatusBadRequest)
+	redirectURIs, _ := reqBody["redirect_uris"].([]any)
+	if len(redirectURIs) == 0 {
+		slog.Warn("oauth register: missing redirect_uris")
+		httpError(w, "invalid_client_metadata", http.StatusBadRequest)
 		return
 	}
+
+	uris := make([]string, len(redirectURIs))
+	for i, u := range redirectURIs {
+		s, ok := u.(string)
+		if !ok {
+			httpError(w, "invalid_client_metadata", http.StatusBadRequest)
+			return
+		}
+		uris[i] = s
+	}
+
+	clientName, _ := reqBody["client_name"].(string)
 
 	clientID, _ := generateID()
 	clientSecret, _ := generateID()
@@ -65,28 +78,42 @@ func (m *MCPAuth) Register(w http.ResponseWriter, r *http.Request) {
 	client := &platform.OAuthClient{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		RedirectURIs: req.RedirectURIs,
-		ClientName:   req.ClientName,
+		RedirectURIs: uris,
+		ClientName:   clientName,
 		IsDynamic:    true,
 	}
 
 	if err := m.DB.CreateOAuthClient(r.Context(), client); err != nil {
-		httpError(w, "failed to register client", http.StatusInternalServerError)
+		slog.Error("oauth register: db insert failed", "err", err)
+		httpError(w, "server_error", http.StatusInternalServerError)
 		return
+	}
+
+	slog.Info("oauth client registered", "client_id", clientID, "client_name", clientName, "redirect_uris", uris)
+
+	resp := map[string]any{
+		"client_id":                clientID,
+		"client_secret":            clientSecret,
+		"client_id_issued_at":      time.Now().Unix(),
+		"client_secret_expires_at": 0,
+	}
+	for k, v := range reqBody {
+		if _, exists := resp[k]; !exists {
+			resp[k] = v
+		}
+	}
+	if _, ok := resp["redirect_uris"]; !ok {
+		resp["redirect_uris"] = uris
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{
-		"client_id":     clientID,
-		"client_secret": clientSecret,
-		"redirect_uris": req.RedirectURIs,
-		"client_name":   req.ClientName,
-	})
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (m *MCPAuth) TokenExchange(w http.ResponseWriter, r *http.Request) {
 	grantType := r.FormValue("grant_type")
+	slog.Info("oauth token exchange", "grant_type", grantType)
 
 	switch grantType {
 	case "authorization_code":
@@ -201,23 +228,22 @@ func ParseAuthRequest(r *http.Request) *AuthRequest {
 }
 
 func (m *MCPAuth) ValidateAuthRequest(r *http.Request, req *AuthRequest) error {
+	slog.Info("oauth authorize", "client_id", req.ClientID, "redirect_uri", req.RedirectURI)
+
 	client, err := m.DB.GetOAuthClient(r.Context(), req.ClientID)
 	if err != nil {
-		return fmt.Errorf("unknown client")
+		slog.Warn("oauth authorize: unknown client", "client_id", req.ClientID, "err", err)
+		return fmt.Errorf("unknown client: %s", req.ClientID)
 	}
 
-	validRedirect := false
 	for _, uri := range client.RedirectURIs {
 		if uri == req.RedirectURI {
-			validRedirect = true
-			break
+			return nil
 		}
 	}
-	if !validRedirect {
-		return fmt.Errorf("invalid redirect_uri")
-	}
 
-	return nil
+	slog.Warn("oauth authorize: redirect_uri mismatch", "client_id", req.ClientID, "requested", req.RedirectURI, "registered", client.RedirectURIs)
+	return fmt.Errorf("invalid redirect_uri")
 }
 
 func (m *MCPAuth) IssueAuthCode(r *http.Request, userID string, req *AuthRequest) (string, error) {

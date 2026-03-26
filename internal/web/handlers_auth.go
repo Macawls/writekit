@@ -363,6 +363,7 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 	authReq := auth.ParseAuthRequest(r)
 
 	if err := h.MCPAuth.ValidateAuthRequest(r, authReq); err != nil {
+		slog.Warn("oauth authorize failed", "err", err, "path", r.URL.Path)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -601,7 +602,7 @@ func (h *Handler) SetupSubmit(w http.ResponseWriter, r *http.Request) {
 		slog.Error("init tenant db failed", "err", err)
 	}
 
-	if next == "" || (!strings.HasPrefix(next, "/oauth/authorize") && next != h.appURL()) {
+	if next == "" || (!strings.HasPrefix(next, "/oauth/authorize") && !strings.HasPrefix(next, "/authorize") && next != h.appURL()) {
 		next = h.appURL()
 	}
 
