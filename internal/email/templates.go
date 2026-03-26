@@ -77,9 +77,14 @@ This link expires in 10 minutes. If you didn&rsquo;t request this, ignore this e
 `, link))
 }
 
-func commentNotificationHTML(blogName, postTitle, commentAuthor, commentContent, postURL string) string {
+func commentNotificationHTML(ownerName, blogName, postTitle, commentAuthor, commentContent, postURL string) string {
+	greeting := "Hey"
+	if ownerName != "" {
+		greeting = fmt.Sprintf("Hey %s", ownerName)
+	}
+
 	return layout(fmt.Sprintf(`
-<p style="margin:0 0 16px;font-size:15px;color:#0f0f0f;line-height:1.5;">New comment on &ldquo;%s&rdquo;</p>
+<p style="margin:0 0 16px;font-size:15px;color:#0f0f0f;line-height:1.5;">%s, new comment on &ldquo;%s&rdquo;</p>
 
 <p style="margin:0 0 12px;font-size:13px;color:#71717a;">%s on %s:</p>
 
@@ -92,5 +97,5 @@ func commentNotificationHTML(blogName, postTitle, commentAuthor, commentContent,
 <a href="%s" style="display:inline-block;padding:10px 20px;font-size:13px;font-weight:500;color:#ffffff;text-decoration:none;">View post</a>
 </td></tr>
 </table>
-`, postTitle, commentAuthor, blogName, commentContent, postURL))
+`, greeting, postTitle, commentAuthor, blogName, commentContent, postURL))
 }
