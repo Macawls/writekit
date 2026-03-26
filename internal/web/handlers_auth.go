@@ -239,20 +239,12 @@ func (h *Handler) createSessionAndRedirect(w http.ResponseWriter, r *http.Reques
 		Expires:  sess.ExpiresAt,
 	})
 
-	var next string
 	if parts := strings.SplitN(state, "|", 2); len(parts) == 2 {
-		next = "/oauth/authorize?" + parts[1]
-	} else {
-		next = h.appURL()
-	}
-
-	tenant, _ := h.DB.GetTenantByUser(r.Context(), userID)
-	if tenant == nil {
-		http.Redirect(w, r, "/setup?next="+url.QueryEscape(next), http.StatusSeeOther)
+		http.Redirect(w, r, "/oauth/authorize?"+parts[1], http.StatusSeeOther)
 		return
 	}
 
-	http.Redirect(w, r, next, http.StatusSeeOther)
+	http.Redirect(w, r, h.appURL(), http.StatusSeeOther)
 }
 
 
