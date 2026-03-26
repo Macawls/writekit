@@ -108,8 +108,6 @@
     {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
 
     <form method="POST" action="/setup" id="setup-form">
-        <input type="hidden" name="next" value="{{.Next}}">
-
         <div class="field">
             <label for="name">Your name</label>
             <input type="text" id="name" name="name" class="input"

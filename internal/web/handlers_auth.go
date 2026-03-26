@@ -391,8 +391,16 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 
 	tenant, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if tenant == nil {
-		setupURL := "/setup?next=" + url.QueryEscape(r.URL.RequestURI())
-		http.Redirect(w, r, setupURL, http.StatusSeeOther)
+		http.SetCookie(w, &http.Cookie{
+			Name:     "setup_next",
+			Value:    r.URL.RequestURI(),
+			Path:     "/setup",
+			HttpOnly: true,
+			Secure:   !h.Config.Dev,
+			SameSite: http.SameSiteLaxMode,
+			MaxAge:   600,
+		})
+		http.Redirect(w, r, "/setup", http.StatusSeeOther)
 		return
 	}
 
@@ -511,12 +519,11 @@ func (h *Handler) SetupPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	next := r.URL.Query().Get("next")
-
 	tenant, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if tenant != nil {
-		if next == "" {
-			next = h.appURL()
+		next := h.appURL()
+		if cookie, err := r.Cookie("setup_next"); err == nil {
+			next = cookie.Value
 		}
 		http.Redirect(w, r, next, http.StatusSeeOther)
 		return
@@ -533,7 +540,6 @@ func (h *Handler) SetupPage(w http.ResponseWriter, r *http.Request) {
 		"Name":      name,
 		"Subdomain": subdomain,
 		"Host":      h.Config.Host,
-		"Next":      next,
 	})
 }
 
@@ -544,7 +550,6 @@ func (h *Handler) SetupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	next := r.FormValue("next")
 	name := strings.TrimSpace(r.FormValue("name"))
 	subdomain := strings.TrimSpace(r.FormValue("subdomain"))
 
@@ -553,15 +558,15 @@ func (h *Handler) SetupSubmit(w http.ResponseWriter, r *http.Request) {
 			"Name":      name,
 			"Subdomain": subdomain,
 			"Host":      h.Config.Host,
-			"Next":      next,
 			"Error":     msg,
 		})
 	}
 
 	tenant, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if tenant != nil {
-		if next == "" {
-			next = h.appURL()
+		next := h.appURL()
+		if cookie, err := r.Cookie("setup_next"); err == nil {
+			next = cookie.Value
 		}
 		http.Redirect(w, r, next, http.StatusSeeOther)
 		return
@@ -602,8 +607,10 @@ func (h *Handler) SetupSubmit(w http.ResponseWriter, r *http.Request) {
 		slog.Error("init tenant db failed", "err", err)
 	}
 
-	if next == "" || (!strings.HasPrefix(next, "/oauth/authorize") && !strings.HasPrefix(next, "/authorize") && next != h.appURL()) {
-		next = h.appURL()
+	next := h.appURL()
+	if cookie, err := r.Cookie("setup_next"); err == nil {
+		next = cookie.Value
+		http.SetCookie(w, &http.Cookie{Name: "setup_next", Path: "/setup", MaxAge: -1})
 	}
 
 	http.Redirect(w, r, next, http.StatusSeeOther)
