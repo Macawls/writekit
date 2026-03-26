@@ -576,7 +576,7 @@ func (h *Handler) SetupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if subdomain == "app" || subdomain == "www" || subdomain == "api" {
+	if subdomain == "app" || subdomain == "www" || subdomain == "api" || subdomain == "admin" {
 		renderErr("This subdomain is reserved.")
 		return
 	}
@@ -617,7 +617,7 @@ func (h *Handler) CheckSlug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if slug == "app" || slug == "www" || slug == "api" {
+	if slug == "app" || slug == "www" || slug == "api" || slug == "admin" {
 		json.NewEncoder(w).Encode(map[string]any{"available": false, "error": "this subdomain is reserved"})
 		return
 	}

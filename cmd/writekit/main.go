@@ -49,7 +49,7 @@ func main() {
 	tFS, _ := fs.Sub(writekit.TemplatesFS, "templates")
 	sFS, _ := fs.Sub(writekit.StaticFS, "static")
 
-	application := app.New(cfg, platformDB, pool, tFS, sFS, writekit.AppFS)
+	application := app.New(cfg, platformDB, pool, tFS, sFS, writekit.AppFS, writekit.AdminFS)
 
 	if err := application.Run(); err != nil {
 		slog.Error("server error", "err", err)

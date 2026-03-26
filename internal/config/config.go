@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -32,6 +33,8 @@ type Config struct {
 	SESRegion string
 
 	MaxPoolSize int
+
+	AdminEmails []string
 }
 
 func Load() (*Config, error) {
@@ -84,6 +87,14 @@ func Load() (*Config, error) {
 	}
 	if cfg.SessionSecret == "" {
 		return nil, fmt.Errorf("SESSION_SECRET is required")
+	}
+
+	if adminRaw := getenv("ADMIN_EMAILS", ""); adminRaw != "" {
+		for _, e := range strings.Split(adminRaw, ",") {
+			if trimmed := strings.TrimSpace(strings.ToLower(e)); trimmed != "" {
+				cfg.AdminEmails = append(cfg.AdminEmails, trimmed)
+			}
+		}
 	}
 
 	return cfg, nil

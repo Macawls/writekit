@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"writekit/internal/admin"
 	"writekit/internal/api"
 	"writekit/internal/auth"
 	"writekit/internal/site"
@@ -32,7 +33,7 @@ type App struct {
 	Router     http.Handler
 }
 
-func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templatesFS, staticFS, appFS fs.FS) *App {
+func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templatesFS, staticFS, appFS, adminFS fs.FS) *App {
 	bus := events.NewBus()
 
 	if cfg.StripeSecretKey != "" {
@@ -94,7 +95,14 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Config: cfg,
 	}
 
-	router := buildRouter(cfg, webHandler, siteHandler, apiHandler, mcpSrv, platformDB, staticFS, appFS)
+	adminHandler := &admin.Handler{
+		DB:     platformDB,
+		Pool:   pool,
+		Config: cfg,
+		Email:  emailSender,
+	}
+
+	router := buildRouter(cfg, webHandler, siteHandler, apiHandler, adminHandler, mcpSrv, platformDB, staticFS, appFS, adminFS)
 
 	return &App{
 		Config:     cfg,
@@ -105,7 +113,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 	}
 }
 
-func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.Handler, apiHandler *api.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB, staticFS, appFS fs.FS) http.Handler {
+func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.Handler, apiHandler *api.Handler, adminHandler *admin.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB, staticFS, appFS, adminFS fs.FS) http.Handler {
 	root := chi.NewRouter()
 	root.Use(chimw.Logger)
 	root.Use(chimw.Recoverer)
@@ -117,6 +125,7 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.
 	webR := webRouter(cfg, webHandler, mcpSrv, platformDB)
 	siteR := siteRouter(siteHandler)
 	spaR := spaRouter(apiHandler, appFS, cfg, platformDB)
+	adminR := adminSpaRouter(adminHandler, adminFS)
 
 	root.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
 		host := r.Host
@@ -127,6 +136,8 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.
 		switch {
 		case host == "app."+cfg.Host || (cfg.Dev && host == "app.localhost"):
 			spaR.ServeHTTP(w, r)
+		case host == "admin."+cfg.Host || (cfg.Dev && host == "admin.localhost"):
+			adminR.ServeHTTP(w, r)
 		case host == cfg.Host || (cfg.Dev && (host == "localhost" || host == "127.0.0.1")):
 			webR.ServeHTTP(w, r)
 		case strings.HasSuffix(host, "."+cfg.Host):
@@ -172,6 +183,29 @@ func spaRouter(apiHandler *api.Handler, appFS fs.FS, cfg *config.Config, platfor
 			return
 		}
 
+		f, err := distFS.Open("index.html")
+		if err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		defer f.Close()
+		stat, _ := f.Stat()
+		http.ServeContent(w, r, "index.html", stat.ModTime(), f.(io.ReadSeeker))
+	})
+
+	return r
+}
+
+func adminSpaRouter(adminHandler *admin.Handler, adminFS fs.FS) http.Handler {
+	r := chi.NewRouter()
+
+	adminHandler.Routes(r)
+
+	distFS, _ := fs.Sub(adminFS, "admin/dist")
+	fileServer := http.FileServer(http.FS(distFS))
+
+	r.Handle("/assets/*", fileServer)
+	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		f, err := distFS.Open("index.html")
 		if err != nil {
 			http.Error(w, "not found", http.StatusNotFound)

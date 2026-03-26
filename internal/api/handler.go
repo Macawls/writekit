@@ -113,7 +113,7 @@ func (h *Handler) CreateBlog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if body.Slug == "app" || body.Slug == "www" || body.Slug == "api" {
+	if body.Slug == "app" || body.Slug == "www" || body.Slug == "api" || body.Slug == "admin" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "this subdomain is reserved"})
 		return
 	}
@@ -163,7 +163,7 @@ func (h *Handler) UpdateSlug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if body.Slug == "app" || body.Slug == "www" || body.Slug == "api" {
+	if body.Slug == "app" || body.Slug == "www" || body.Slug == "api" || body.Slug == "admin" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "this subdomain is reserved"})
 		return
 	}
