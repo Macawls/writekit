@@ -151,6 +151,10 @@ func (p *Pool) Delete(tenantID string) error {
 	return nil
 }
 
+func (p *Pool) DataDir() string {
+	return p.dataDir
+}
+
 func (p *Pool) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()

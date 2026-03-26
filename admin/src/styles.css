@@ -31,8 +31,8 @@ body { font-family: var(--sans); color: var(--fg); background: var(--bg); -webki
 }
 .logo {
   display: block; text-align: center; margin-bottom: 2rem;
-  font-family: var(--mono); font-weight: 500; font-size: .85rem;
-  color: var(--fg); letter-spacing: -.04em;
+  font-family: var(--sans); font-weight: 700; font-size: .85rem;
+  color: var(--fg); letter-spacing: -.03em;
 }
 .login-card h2 { text-align: center; font-size: 1.1rem; font-weight: 600; margin-bottom: 1.5rem; }
 

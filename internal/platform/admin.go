@@ -70,6 +70,26 @@ func (db *DB) SearchUsers(ctx context.Context, query string) ([]User, error) {
 	return users, nil
 }
 
+func (db *DB) ListAllTenants(ctx context.Context) ([]Tenant, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT id, user_id, name, created_at FROM tenants ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list all tenants: %w", err)
+	}
+	defer rows.Close()
+
+	var tenants []Tenant
+	for rows.Next() {
+		var t Tenant
+		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.CreatedAt); err != nil {
+			return nil, err
+		}
+		tenants = append(tenants, t)
+	}
+	return tenants, nil
+}
+
 type AdminSession struct {
 	Token     string
 	Email     string

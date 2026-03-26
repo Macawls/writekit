@@ -29,11 +29,19 @@ export interface Subscription {
   CurrentPeriodEnd: string | null
 }
 
+export interface TenantStorage {
+  id: string
+  name: string
+  bytes: number
+}
+
 export interface Stats {
   total_users: number
   total_tenants: number
   active_subscriptions: number
   recent_users: User[]
+  total_storage_bytes: number
+  tenant_storage: TenantStorage[]
 }
 
 export interface UsersResponse {

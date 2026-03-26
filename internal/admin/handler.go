@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -182,12 +184,51 @@ func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
 	activeSubs, _ := h.DB.CountActiveSubscriptions(ctx)
 	recentUsers, _ := h.DB.ListUsers(ctx, 10, 0)
 
+	totalStorage, tenantSizes := h.calcStorage(ctx)
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"total_users":          totalUsers,
 		"total_tenants":        totalTenants,
 		"active_subscriptions": activeSubs,
 		"recent_users":         recentUsers,
+		"total_storage_bytes":  totalStorage,
+		"tenant_storage":       tenantSizes,
 	})
+}
+
+type tenantStorage struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Bytes int64  `json:"bytes"`
+}
+
+func (h *Handler) calcStorage(ctx context.Context) (int64, []tenantStorage) {
+	tenants, err := h.DB.ListAllTenants(ctx)
+	if err != nil {
+		return 0, nil
+	}
+
+	dataDir := h.Pool.DataDir()
+	var total int64
+	var sizes []tenantStorage
+
+	for _, t := range tenants {
+		var size int64
+		dbPath := filepath.Join(dataDir, t.ID+".db")
+		if info, err := os.Stat(dbPath); err == nil {
+			size += info.Size()
+		}
+		if info, err := os.Stat(dbPath + "-wal"); err == nil {
+			size += info.Size()
+		}
+		if info, err := os.Stat(dbPath + "-shm"); err == nil {
+			size += info.Size()
+		}
+		total += size
+		sizes = append(sizes, tenantStorage{ID: t.ID, Name: t.Name, Bytes: size})
+	}
+
+	return total, sizes
 }
 
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
