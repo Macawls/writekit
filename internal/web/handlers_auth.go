@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/mail"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -274,7 +275,7 @@ func (h *Handler) MagicLinkRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if oauthParams := r.FormValue("oauth_params"); oauthParams != "" {
-		link += "&oauth_params=" + oauthParams
+		link += "&oauth_params=" + url.QueryEscape(oauthParams)
 	}
 
 	go func() {
