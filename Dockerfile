@@ -2,14 +2,14 @@
 
 FROM oven/bun:1.2-alpine AS ui
 WORKDIR /ui
-COPY ui/package.json ui/bun.lockb ./
+COPY ui/package.json ui/bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile
 COPY ui/ ./
 RUN bun run build
 
 FROM oven/bun:1.2-alpine AS admin
 WORKDIR /admin
-COPY admin/package.json admin/bun.lockb ./
+COPY admin/package.json admin/bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile
 COPY admin/ ./
 RUN bun run build
