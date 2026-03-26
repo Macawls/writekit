@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set up your blog — WriteKit</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --bg:#fafafa;--white:#fff;--fg:#0f0f0f;
+            --muted:#71717a;--faint:#a1a1aa;--border:#e4e4e7;--border2:#d4d4d8;
+            --surface:#18181b;
+            --sans:'Plus Jakarta Sans',system-ui,sans-serif;
+            --mono:'JetBrains Mono',ui-monospace,monospace;
+        }
+        body{
+            font-family:var(--sans);background:var(--bg);color:var(--fg);
+            -webkit-font-smoothing:antialiased;
+            min-height:100vh;display:flex;align-items:center;justify-content:center;
+            padding:2rem;
+        }
+        body::before{
+            content:'';position:fixed;inset:0;
+            background-image:radial-gradient(circle,var(--border) .5px,transparent .5px);
+            background-size:24px 24px;opacity:.3;pointer-events:none;
+        }
+
+        .setup{position:relative;z-index:1;width:100%;max-width:380px}
+
+        .logo{
+            display:block;text-align:center;margin-bottom:1.5rem;
+            font-family:var(--mono);font-weight:500;font-size:.85rem;
+            color:var(--fg);letter-spacing:-.04em;text-decoration:none;
+        }
+
+        h1{
+            text-align:center;font-size:1.15rem;font-weight:600;
+            margin-bottom:.35rem;
+        }
+        .subtitle{
+            text-align:center;font-size:.78rem;color:var(--muted);
+            margin-bottom:1.5rem;
+        }
+
+        .error{
+            background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
+            padding:.5rem .75rem;font-size:.78rem;color:#dc2626;margin-bottom:1rem;
+        }
+
+        label{
+            display:block;font-size:.75rem;font-weight:600;
+            margin-bottom:.35rem;color:var(--fg);
+        }
+
+        .field{margin-bottom:1rem}
+
+        .input{
+            width:100%;padding:.7rem .85rem;font-size:.85rem;font-family:var(--sans);
+            border:1px solid var(--border);border-radius:10px;background:var(--white);
+            color:var(--fg);outline:none;
+        }
+        .input:focus{border-color:var(--border2)}
+
+        .slug-wrap{
+            display:flex;align-items:center;
+            border:1px solid var(--border);border-radius:10px;
+            background:var(--white);overflow:hidden;
+        }
+        .slug-wrap:focus-within{border-color:var(--border2)}
+        .slug-wrap input{
+            flex:1;padding:.7rem .85rem;font-size:.85rem;font-family:var(--sans);
+            border:none;background:none;color:var(--fg);outline:none;
+            min-width:0;
+        }
+        .slug-suffix{
+            padding:0 .85rem 0 0;font-size:.78rem;color:var(--faint);
+            font-family:var(--mono);white-space:nowrap;flex-shrink:0;
+        }
+
+        .slug-status{
+            font-size:.72rem;margin-top:.3rem;height:.9rem;
+            font-family:var(--mono);
+        }
+        .slug-status.available{color:#16a34a}
+        .slug-status.taken{color:#dc2626}
+        .slug-status.checking{color:var(--faint)}
+
+        .submit-btn{
+            width:100%;margin-top:.5rem;padding:.7rem;font-size:.85rem;
+            font-weight:600;font-family:var(--sans);border:none;border-radius:10px;
+            background:var(--surface);color:var(--white);cursor:pointer;
+        }
+        .submit-btn:hover{opacity:.85}
+        .submit-btn:disabled{opacity:.5;cursor:not-allowed}
+    </style>
+</head>
+<body>
+
+<div class="setup">
+    <span class="logo">writekit</span>
+
+    <h1>Set up your blog</h1>
+    <p class="subtitle">Choose your name and blog address</p>
+
+    {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+
+    <form method="POST" action="/setup" id="setup-form">
+        <input type="hidden" name="next" value="{{.Next}}">
+
+        <div class="field">
+            <label for="name">Your name</label>
+            <input type="text" id="name" name="name" class="input"
+                   placeholder="Jane Smith" value="{{.Name}}" required autocomplete="name">
+        </div>
+
+        <div class="field">
+            <label for="subdomain">Blog address</label>
+            <div class="slug-wrap">
+                <input type="text" id="subdomain" name="subdomain"
+                       placeholder="my-blog" value="{{.Subdomain}}" required
+                       pattern="[a-z0-9][a-z0-9-]{1,62}[a-z0-9]" autocomplete="off">
+                <span class="slug-suffix">.{{.Host}}</span>
+            </div>
+            <div class="slug-status" id="slug-status"></div>
+        </div>
+
+        <button type="submit" class="submit-btn" id="submit-btn">Create my blog</button>
+    </form>
+</div>
+
+<script>
+(function() {
+    const nameEl = document.getElementById('name');
+    const slugEl = document.getElementById('subdomain');
+    const statusEl = document.getElementById('slug-status');
+    const form = document.getElementById('setup-form');
+    let userEditedSlug = slugEl.value !== '';
+    let debounceTimer = null;
+
+    function slugify(s) {
+        return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
+
+    nameEl.addEventListener('input', function() {
+        if (!userEditedSlug) {
+            slugEl.value = slugify(this.value);
+            checkSlug();
+        }
+    });
+
+    slugEl.addEventListener('input', function() {
+        userEditedSlug = true;
+        this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+        checkSlug();
+    });
+
+    function checkSlug() {
+        clearTimeout(debounceTimer);
+        const slug = slugEl.value;
+        if (slug.length < 3) {
+            statusEl.textContent = '';
+            statusEl.className = 'slug-status';
+            return;
+        }
+        statusEl.textContent = 'checking...';
+        statusEl.className = 'slug-status checking';
+        debounceTimer = setTimeout(function() {
+            fetch('/setup/check-slug?slug=' + encodeURIComponent(slug))
+                .then(r => r.json())
+                .then(data => {
+                    if (slugEl.value !== slug) return;
+                    if (data.available) {
+                        statusEl.textContent = slug + '.{{.Host}} is available';
+                        statusEl.className = 'slug-status available';
+                    } else {
+                        statusEl.textContent = data.error || 'this subdomain is taken';
+                        statusEl.className = 'slug-status taken';
+                    }
+                })
+                .catch(() => {
+                    statusEl.textContent = '';
+                    statusEl.className = 'slug-status';
+                });
+        }, 300);
+    }
+
+    form.addEventListener('submit', function() {
+        document.getElementById('submit-btn').disabled = true;
+    });
+
+    if (slugEl.value.length >= 3) checkSlug();
+})();
+</script>
+
+</body>
+</html>

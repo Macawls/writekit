@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/mail"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -237,12 +239,20 @@ func (h *Handler) createSessionAndRedirect(w http.ResponseWriter, r *http.Reques
 		Expires:  sess.ExpiresAt,
 	})
 
+	var next string
 	if parts := strings.SplitN(state, "|", 2); len(parts) == 2 {
-		http.Redirect(w, r, "/oauth/authorize?"+parts[1], http.StatusSeeOther)
+		next = "/oauth/authorize?" + parts[1]
+	} else {
+		next = h.appURL()
+	}
+
+	tenant, _ := h.DB.GetTenantByUser(r.Context(), userID)
+	if tenant == nil {
+		http.Redirect(w, r, "/setup?next="+url.QueryEscape(next), http.StatusSeeOther)
 		return
 	}
 
-	http.Redirect(w, r, h.appURL(), http.StatusSeeOther)
+	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
 
@@ -386,6 +396,13 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tenant, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
+	if tenant == nil {
+		setupURL := "/setup?next=" + url.QueryEscape(r.URL.RequestURI())
+		http.Redirect(w, r, setupURL, http.StatusSeeOther)
+		return
+	}
+
 	code, err := h.MCPAuth.IssueAuthCode(r, user.ID, authReq)
 	if err != nil {
 		slog.Error("issue auth code failed", "err", err)
@@ -469,3 +486,155 @@ func (h *Handler) getProvider(name string) *auth.OAuthProvider {
 	return nil
 }
 
+var setupSlugRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$`)
+
+func slugifyForSubdomain(s string) string {
+	s = strings.ToLower(s)
+	s = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(s, "-")
+	s = strings.Trim(s, "-")
+	if len(s) > 64 {
+		s = s[:64]
+		s = strings.TrimRight(s, "-")
+	}
+	return s
+}
+
+func (h *Handler) getSessionUser(r *http.Request) (*platform.User, error) {
+	cookie, err := r.Cookie("session")
+	if err != nil {
+		return nil, err
+	}
+	sess, err := h.DB.GetSession(r.Context(), cookie.Value)
+	if err != nil {
+		return nil, err
+	}
+	return h.DB.GetUser(r.Context(), sess.UserID)
+}
+
+func (h *Handler) SetupPage(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getSessionUser(r)
+	if err != nil {
+		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
+		return
+	}
+
+	next := r.URL.Query().Get("next")
+
+	tenant, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
+	if tenant != nil {
+		if next == "" {
+			next = h.appURL()
+		}
+		http.Redirect(w, r, next, http.StatusSeeOther)
+		return
+	}
+
+	name := user.Name
+	subdomain := slugifyForSubdomain(name)
+	if subdomain == "" {
+		parts := strings.SplitN(user.Email, "@", 2)
+		subdomain = slugifyForSubdomain(parts[0])
+	}
+
+	h.Engine.Render(w, "setup.html", map[string]any{
+		"Name":      name,
+		"Subdomain": subdomain,
+		"Host":      h.Config.Host,
+		"Next":      next,
+	})
+}
+
+func (h *Handler) SetupSubmit(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getSessionUser(r)
+	if err != nil {
+		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
+		return
+	}
+
+	next := r.FormValue("next")
+	name := strings.TrimSpace(r.FormValue("name"))
+	subdomain := strings.TrimSpace(r.FormValue("subdomain"))
+
+	renderErr := func(msg string) {
+		h.Engine.Render(w, "setup.html", map[string]any{
+			"Name":      name,
+			"Subdomain": subdomain,
+			"Host":      h.Config.Host,
+			"Next":      next,
+			"Error":     msg,
+		})
+	}
+
+	tenant, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
+	if tenant != nil {
+		if next == "" {
+			next = h.appURL()
+		}
+		http.Redirect(w, r, next, http.StatusSeeOther)
+		return
+	}
+
+	if name == "" {
+		renderErr("Please enter your name.")
+		return
+	}
+
+	if !setupSlugRegex.MatchString(subdomain) {
+		renderErr("Invalid subdomain: use only lowercase letters, numbers, and hyphens (3-64 chars).")
+		return
+	}
+
+	if subdomain == "app" || subdomain == "www" || subdomain == "api" {
+		renderErr("This subdomain is reserved.")
+		return
+	}
+
+	if err := h.DB.UpdateUser(r.Context(), user.ID, name); err != nil {
+		slog.Error("update user name failed", "err", err)
+		renderErr("Something went wrong. Please try again.")
+		return
+	}
+
+	err = h.DB.CreateTenant(r.Context(), &platform.Tenant{
+		ID:     subdomain,
+		UserID: user.ID,
+		Name:   name,
+	})
+	if err != nil {
+		renderErr("This subdomain is already taken. Please choose another.")
+		return
+	}
+
+	if _, err := h.Pool.Get(subdomain); err != nil {
+		slog.Error("init tenant db failed", "err", err)
+	}
+
+	if next == "" || (!strings.HasPrefix(next, "/oauth/authorize") && next != h.appURL()) {
+		next = h.appURL()
+	}
+
+	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
+func (h *Handler) CheckSlug(w http.ResponseWriter, r *http.Request) {
+	slug := r.URL.Query().Get("slug")
+	w.Header().Set("Content-Type", "application/json")
+
+	if !setupSlugRegex.MatchString(slug) {
+		json.NewEncoder(w).Encode(map[string]any{"available": false, "error": "invalid format (3-64 chars, lowercase letters, numbers, hyphens)"})
+		return
+	}
+
+	if slug == "app" || slug == "www" || slug == "api" {
+		json.NewEncoder(w).Encode(map[string]any{"available": false, "error": "this subdomain is reserved"})
+		return
+	}
+
+	_, err := h.DB.GetTenant(r.Context(), slug)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]any{"available": true})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]any{"available": false, "error": "this subdomain is taken"})
+}
