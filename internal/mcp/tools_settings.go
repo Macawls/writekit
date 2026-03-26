@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"writekit/internal/auth"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+var subdomainRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$`)
 
 func (s *Server) registerSettingsTools(mcpServer *mcpsdk.Server) {
 	mcpServer.AddTool(&mcpsdk.Tool{
@@ -36,6 +39,19 @@ func (s *Server) registerSettingsTools(mcpServer *mcpsdk.Server) {
 			},
 		},
 	}, s.updateSettings)
+
+	mcpServer.AddTool(&mcpsdk.Tool{
+		Name:        "rename_subdomain",
+		Description: "Rename your blog's subdomain (e.g. my-blog → new-name). The old URL will stop working immediately.",
+		InputSchema: map[string]any{
+			"type":     "object",
+			"required": []string{"new_subdomain"},
+			"properties": map[string]any{
+				"new_subdomain": map[string]any{"type": "string", "description": "New subdomain (lowercase letters, numbers, hyphens, 3-64 chars)"},
+				"tenant_id":     map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+			},
+		},
+	}, s.renameSubdomain)
 }
 
 func (s *Server) getSettings(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
@@ -101,4 +117,55 @@ func (s *Server) updateSettings(ctx context.Context, req *mcpsdk.CallToolRequest
 	}
 
 	return toolResult("Settings updated."), nil
+}
+
+var reservedSubdomains = map[string]bool{"app": true, "www": true, "api": true, "admin": true}
+
+func (s *Server) renameSubdomain(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
+	}
+
+	var args struct {
+		NewSubdomain string `json:"new_subdomain"`
+		TenantID     string `json:"tenant_id"`
+	}
+	raw, _ := json.Marshal(req.Params.Arguments)
+	json.Unmarshal(raw, &args)
+
+	if args.NewSubdomain == "" {
+		return toolError("new_subdomain is required"), nil
+	}
+
+	if !subdomainRegex.MatchString(args.NewSubdomain) {
+		return toolError("invalid subdomain: use only lowercase letters, numbers, and hyphens (3-64 chars)"), nil
+	}
+
+	if reservedSubdomains[args.NewSubdomain] {
+		return toolError("this subdomain is reserved"), nil
+	}
+
+	_, oldID, err := s.resolveTenant(user.ID, args.TenantID)
+	if err != nil {
+		return toolError(err.Error()), nil
+	}
+
+	if oldID == args.NewSubdomain {
+		return toolResult(fmt.Sprintf("Subdomain is already **%s**.", oldID)), nil
+	}
+
+	if _, err := s.PlatformDB.GetTenant(ctx, args.NewSubdomain); err == nil {
+		return toolError("this subdomain is already taken"), nil
+	}
+
+	if err := s.PlatformDB.RenameTenant(ctx, oldID, args.NewSubdomain); err != nil {
+		return toolError(fmt.Sprintf("failed to rename: %v", err)), nil
+	}
+
+	if err := s.Pool.Rename(oldID, args.NewSubdomain); err != nil {
+		return toolError(fmt.Sprintf("failed to rename database files: %v", err)), nil
+	}
+
+	return toolResult(fmt.Sprintf("Subdomain renamed from **%s** to **%s**. Your site is now at https://%s.%s", oldID, args.NewSubdomain, args.NewSubdomain, s.Config.Host)), nil
 }

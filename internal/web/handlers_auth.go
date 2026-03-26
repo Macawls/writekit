@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"net/mail"
@@ -32,12 +32,14 @@ func (h *Handler) LoginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) renderOAuthLogin(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	q.Del("oauth")
 	h.Engine.Render(w, "login.html", map[string]any{
 		"GoogleEnabled":  h.Config.GoogleClientID != "",
 		"GithubEnabled":  h.Config.GithubClientID != "",
 		"DiscordEnabled": h.Config.DiscordClientID != "",
 		"OAuth":          true,
-		"OAuthParams":    r.URL.Query().Encode(),
+		"OAuthParams":    template.URL(q.Encode()),
 	})
 }
 
@@ -135,6 +137,7 @@ user, isNew, err := h.findOrCreateUser(r, providerName, info)
 	}
 
 	if isNew {
+		h.autoCreateTenant(r.Context(), user)
 		go func() {
 			if err := h.Email.SendWelcome(context.WithoutCancel(r.Context()), user.Email, user.Name); err != nil {
 				slog.Error("send welcome email", "err", err)
@@ -326,6 +329,7 @@ func (h *Handler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isNew {
+		h.autoCreateTenant(r.Context(), user)
 		go func() {
 			if err := h.Email.SendWelcome(context.WithoutCancel(r.Context()), user.Email, user.Name); err != nil {
 				slog.Error("send welcome email", "err", err)
@@ -386,21 +390,6 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 	user, err := h.DB.GetUser(r.Context(), sess.UserID)
 	if err != nil {
 		http.Error(w, "user not found", http.StatusInternalServerError)
-		return
-	}
-
-	tenant, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
-	if tenant == nil {
-		http.SetCookie(w, &http.Cookie{
-			Name:     "setup_next",
-			Value:    r.URL.RequestURI(),
-			Path:     "/setup",
-			HttpOnly: true,
-			Secure:   !h.Config.Dev,
-			SameSite: http.SameSiteLaxMode,
-			MaxAge:   600,
-		})
-		http.Redirect(w, r, "/setup", http.StatusSeeOther)
 		return
 	}
 
@@ -512,129 +501,55 @@ func (h *Handler) getSessionUser(r *http.Request) (*platform.User, error) {
 	return h.DB.GetUser(r.Context(), sess.UserID)
 }
 
-func (h *Handler) SetupPage(w http.ResponseWriter, r *http.Request) {
-	user, err := h.getSessionUser(r)
-	if err != nil {
-		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
+var reservedSlugs = map[string]bool{"app": true, "www": true, "api": true, "admin": true}
+
+func (h *Handler) autoCreateTenant(ctx context.Context, user *platform.User) {
+	existing, _ := h.DB.GetTenantByUser(ctx, user.ID)
+	if existing != nil {
 		return
 	}
 
-	tenant, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
-	if tenant != nil {
-		next := h.appURL()
-		if cookie, err := r.Cookie("setup_next"); err == nil {
-			next = cookie.Value
+	slug := slugifyForSubdomain(user.Name)
+	if slug == "" {
+		parts := strings.SplitN(user.Email, "@", 2)
+		slug = slugifyForSubdomain(parts[0])
+	}
+	if slug == "" || len(slug) < 3 {
+		slug = "site-" + slug
+	}
+
+	if reservedSlugs[slug] {
+		slug = slug + "-blog"
+	}
+
+	// If slug is taken, append random suffix
+	base := slug
+	for i := 0; i < 5; i++ {
+		if _, err := h.DB.GetTenant(ctx, slug); err != nil {
+			break // not found, available
 		}
-		http.Redirect(w, r, next, http.StatusSeeOther)
-		return
+		b := make([]byte, 3)
+		rand.Read(b)
+		slug = base + "-" + hex.EncodeToString(b)
 	}
 
 	name := user.Name
-	subdomain := slugifyForSubdomain(name)
-	if subdomain == "" {
-		parts := strings.SplitN(user.Email, "@", 2)
-		subdomain = slugifyForSubdomain(parts[0])
-	}
-
-	h.Engine.Render(w, "setup.html", map[string]any{
-		"Name":      name,
-		"Subdomain": subdomain,
-		"Host":      h.Config.Host,
-	})
-}
-
-func (h *Handler) SetupSubmit(w http.ResponseWriter, r *http.Request) {
-	user, err := h.getSessionUser(r)
-	if err != nil {
-		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
-		return
-	}
-
-	name := strings.TrimSpace(r.FormValue("name"))
-	subdomain := strings.TrimSpace(r.FormValue("subdomain"))
-
-	renderErr := func(msg string) {
-		h.Engine.Render(w, "setup.html", map[string]any{
-			"Name":      name,
-			"Subdomain": subdomain,
-			"Host":      h.Config.Host,
-			"Error":     msg,
-		})
-	}
-
-	tenant, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
-	if tenant != nil {
-		next := h.appURL()
-		if cookie, err := r.Cookie("setup_next"); err == nil {
-			next = cookie.Value
-		}
-		http.Redirect(w, r, next, http.StatusSeeOther)
-		return
-	}
-
 	if name == "" {
-		renderErr("Please enter your name.")
-		return
+		name = slug
 	}
 
-	if !setupSlugRegex.MatchString(subdomain) {
-		renderErr("Invalid subdomain: use only lowercase letters, numbers, and hyphens (3-64 chars).")
-		return
-	}
-
-	if subdomain == "app" || subdomain == "www" || subdomain == "api" || subdomain == "admin" {
-		renderErr("This subdomain is reserved.")
-		return
-	}
-
-	if err := h.DB.UpdateUser(r.Context(), user.ID, name); err != nil {
-		slog.Error("update user name failed", "err", err)
-		renderErr("Something went wrong. Please try again.")
-		return
-	}
-
-	err = h.DB.CreateTenant(r.Context(), &platform.Tenant{
-		ID:     subdomain,
+	if err := h.DB.CreateTenant(ctx, &platform.Tenant{
+		ID:     slug,
 		UserID: user.ID,
 		Name:   name,
-	})
-	if err != nil {
-		renderErr("This subdomain is already taken. Please choose another.")
+	}); err != nil {
+		slog.Error("auto-create tenant failed", "err", err, "slug", slug, "user", user.ID)
 		return
 	}
 
-	if _, err := h.Pool.Get(subdomain); err != nil {
+	if _, err := h.Pool.Get(slug); err != nil {
 		slog.Error("init tenant db failed", "err", err)
 	}
 
-	next := h.appURL()
-	if cookie, err := r.Cookie("setup_next"); err == nil {
-		next = cookie.Value
-		http.SetCookie(w, &http.Cookie{Name: "setup_next", Path: "/setup", MaxAge: -1})
-	}
-
-	http.Redirect(w, r, next, http.StatusSeeOther)
-}
-
-func (h *Handler) CheckSlug(w http.ResponseWriter, r *http.Request) {
-	slug := r.URL.Query().Get("slug")
-	w.Header().Set("Content-Type", "application/json")
-
-	if !setupSlugRegex.MatchString(slug) {
-		json.NewEncoder(w).Encode(map[string]any{"available": false, "error": "invalid format (3-64 chars, lowercase letters, numbers, hyphens)"})
-		return
-	}
-
-	if slug == "app" || slug == "www" || slug == "api" || slug == "admin" {
-		json.NewEncoder(w).Encode(map[string]any{"available": false, "error": "this subdomain is reserved"})
-		return
-	}
-
-	_, err := h.DB.GetTenant(r.Context(), slug)
-	if err != nil {
-		json.NewEncoder(w).Encode(map[string]any{"available": true})
-		return
-	}
-
-	json.NewEncoder(w).Encode(map[string]any{"available": false, "error": "this subdomain is taken"})
+	slog.Info("auto-created tenant", "slug", slug, "user", user.ID)
 }
