@@ -1,7 +1,7 @@
 <style>
     .wk-nav{
         position:relative;z-index:10;
-        max-width:600px;width:100%;margin:1rem auto 0;padding:.5rem .5rem .5rem .85rem;
+        max-width:600px;width:100%;margin:1rem auto 0;padding:.55rem .55rem .55rem .85rem;
         display:flex;justify-content:space-between;align-items:center;
         background:rgba(255,255,255,.6);
         backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
@@ -12,7 +12,7 @@
     .wk-nav .nav-l{display:flex;align-items:center;gap:.45rem}
     .wk-nav .logo{
         font-family:var(--sans,'Plus Jakarta Sans',system-ui,sans-serif);
-        font-weight:700;font-size:.8rem;color:var(--fg,#0f0f0f);
+        font-weight:700;font-size:.85rem;color:var(--fg,#0f0f0f);
         letter-spacing:-.04em;text-decoration:none;
     }
     .wk-nav .badge{
@@ -24,7 +24,7 @@
     }
     .wk-nav .nav-r{display:flex;gap:.25rem;align-items:center}
     .wk-nav .nav-r a{
-        font-size:.76rem;font-weight:500;color:var(--muted,#71717a);
+        font-size:.78rem;font-weight:500;color:var(--muted,#71717a);
         text-decoration:none;padding:.4rem .7rem;border-radius:7px;line-height:normal;
     }
     .wk-nav .nav-r a:hover{color:var(--fg,#0f0f0f);background:rgba(0,0,0,.04)}
@@ -33,12 +33,85 @@
         padding:.4rem .85rem;
     }
     .wk-nav .nav-r .signin:hover{opacity:.85;background:var(--surface,#18181b);color:var(--white,#fff)}
+    .wk-nav .profile{position:relative;display:none}
+    .wk-nav .avatar{
+        width:28px;height:28px;border-radius:50%;object-fit:cover;cursor:pointer;
+        border:1px solid var(--border,#e4e4e7);
+    }
+    .wk-nav .avatar-fallback{
+        width:28px;height:28px;border-radius:50%;cursor:pointer;
+        border:1px solid var(--border,#e4e4e7);
+        background:var(--surface,#18181b);color:var(--white,#fff);
+        display:flex;align-items:center;justify-content:center;
+        font-family:var(--sans,'Plus Jakarta Sans',system-ui,sans-serif);
+        font-size:.7rem;font-weight:600;line-height:1;
+    }
+    .wk-nav .dropdown{
+        display:none;position:absolute;right:0;top:calc(100% + .45rem);
+        background:var(--white,#fff);border:1px solid var(--border,#e4e4e7);
+        border-radius:8px;padding:.25rem;min-width:140px;
+        box-shadow:0 4px 16px rgba(0,0,0,.08);
+    }
+    .wk-nav .dropdown.open{display:block}
+    .wk-nav .dropdown a,.wk-nav .dropdown button{
+        display:block;width:100%;text-align:left;padding:.4rem .65rem;
+        font-family:var(--sans,'Plus Jakarta Sans',system-ui,sans-serif);
+        font-size:.76rem;font-weight:500;color:var(--muted,#71717a);
+        text-decoration:none;border:none;background:none;cursor:pointer;
+        border-radius:5px;line-height:normal;
+    }
+    .wk-nav .dropdown a:hover,.wk-nav .dropdown button:hover{
+        color:var(--fg,#0f0f0f);background:rgba(0,0,0,.04);
+    }
     @media(max-width:600px){.wk-nav{margin:.75rem .75rem 0;width:auto}}
 </style>
 <nav class="wk-nav">
     <div class="nav-l"><a href="/" class="logo">writekit</a><span class="badge">beta</span></div>
     <div class="nav-r">
         <a href="/docs">Docs</a>
-        <a href="/auth/login" class="signin">Sign in</a>
+        <a href="/auth/login" class="signin" id="wk-signin">Sign in</a>
+        <div class="profile" id="wk-profile">
+            <div id="wk-avatar-wrap"></div>
+            <div class="dropdown" id="wk-dropdown">
+                <a id="wk-dash-link" href="#">Dashboard</a>
+                <form method="POST" action="/auth/logout" style="margin:0">
+                    <button type="submit">Sign out</button>
+                </form>
+            </div>
+        </div>
     </div>
 </nav>
+<script>
+(function(){
+    if(!/logged_in=1/.test(document.cookie))return;
+    fetch('/auth/me',{credentials:'include'}).then(function(r){
+        if(!r.ok)return;
+        return r.json();
+    }).then(function(u){
+        if(!u)return;
+        var wrap=document.getElementById('wk-avatar-wrap');
+        if(u.avatar_url){
+            var img=document.createElement('img');
+            img.className='avatar';img.src=u.avatar_url;img.alt=u.name||'';
+            wrap.appendChild(img);
+        }else{
+            var d=document.createElement('div');
+            d.className='avatar-fallback';
+            d.textContent=(u.name||'?')[0].toUpperCase();
+            wrap.appendChild(d);
+        }
+        var h=location.host,proto=location.protocol;
+        var parts=h.split(':'),host=parts[0],port=parts[1];
+        var appHost='app.'+host+(port?':'+port:'');
+        document.getElementById('wk-dash-link').href=proto+'//'+appHost;
+        document.getElementById('wk-signin').style.display='none';
+        var profile=document.getElementById('wk-profile');
+        profile.style.display='block';
+        var dd=document.getElementById('wk-dropdown');
+        wrap.addEventListener('click',function(e){
+            e.stopPropagation();dd.classList.toggle('open');
+        });
+        document.addEventListener('click',function(){dd.classList.remove('open')});
+    });
+})();
+</script>

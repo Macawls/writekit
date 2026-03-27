@@ -183,6 +183,7 @@ server -> client: JSON response
 - Standalone page: https://{subdomain}.writekit.dev/{slug}
 - Collection index: https://{subdomain}.writekit.dev/{collection-slug}
 - Page in collection: https://{subdomain}.writekit.dev/{collection-slug}/{page-slug}
+- Raw markdown: append `.md` to any page URL (e.g. `/{slug}.md` or `/{collection}/{page}.md`)
 - Search: https://{subdomain}.writekit.dev/search?q={query}
 - Preview: https://{subdomain}.writekit.dev/preview/{token} (expiring)
 

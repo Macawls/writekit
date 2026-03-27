@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -244,7 +245,19 @@ func (h *Handler) createSessionAndRedirect(w http.ResponseWriter, r *http.Reques
 		cookie.Domain = "." + h.Config.Host
 	}
 	http.SetCookie(w, cookie)
-	slog.Info("session cookie set", "session_prefix", sess.ID[:8], "domain", cookie.Domain, "secure", cookie.Secure)
+
+	loggedIn := &http.Cookie{
+		Name:     "logged_in",
+		Value:    "1",
+		Path:     "/",
+		Secure:   !h.Config.Dev,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  sess.ExpiresAt,
+	}
+	if !h.Config.Dev {
+		loggedIn.Domain = "." + h.Config.Host
+	}
+	http.SetCookie(w, loggedIn)
 
 	if parts := strings.SplitN(state, "|", 2); len(parts) == 2 {
 		http.Redirect(w, r, "/oauth/authorize?"+parts[1], http.StatusSeeOther)
@@ -367,6 +380,17 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, logoutCookie)
 
+	clearLoggedIn := &http.Cookie{
+		Name:   "logged_in",
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1,
+	}
+	if !h.Config.Dev {
+		clearLoggedIn.Domain = "." + h.Config.Host
+	}
+	http.SetCookie(w, clearLoggedIn)
+
 	http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
 }
 
@@ -381,7 +405,6 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 
 	cookie, err := r.Cookie("session")
 	if err != nil {
-		slog.Warn("oauth authorize: no session cookie", "err", err, "cookies", r.Header.Get("Cookie"))
 		loginURL := fmt.Sprintf("/auth/login?oauth=1&%s", r.URL.RawQuery)
 		http.Redirect(w, r, loginURL, http.StatusSeeOther)
 		return
@@ -389,7 +412,6 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 
 	sess, err := h.DB.GetSession(r.Context(), cookie.Value)
 	if err != nil {
-		slog.Warn("oauth authorize: session lookup failed", "err", err, "cookie_prefix", cookie.Value[:8])
 		loginURL := fmt.Sprintf("/auth/login?oauth=1&%s", r.URL.RawQuery)
 		http.Redirect(w, r, loginURL, http.StatusSeeOther)
 		return
@@ -465,6 +487,19 @@ func (h *Handler) getSessionUser(r *http.Request) (*platform.User, error) {
 		return nil, err
 	}
 	return h.DB.GetUser(r.Context(), sess.UserID)
+}
+
+func (h *Handler) AuthMe(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getSessionUser(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"name":       user.Name,
+		"avatar_url": user.AvatarURL,
+	})
 }
 
 var reservedSlugs = map[string]bool{"app": true, "www": true, "api": true, "admin": true}

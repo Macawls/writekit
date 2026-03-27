@@ -24,6 +24,7 @@ type Handler struct {
 
 func (h *Handler) Routes(r chi.Router) {
 
+	r.Get("/auth/me", h.AuthMe)
 	r.Get("/auth/login", h.LoginPage)
 	r.Get("/auth/login/{provider}", h.OAuthStart)
 	r.Get("/auth/callback", h.OAuthCallback)

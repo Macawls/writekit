@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, type MeResponse } from './api'
 import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
@@ -6,11 +6,15 @@ import Dashboard from './pages/Dashboard'
 type View = 'loading' | 'onboarding' | 'dashboard'
 
 const ONBOARDED_KEY = 'writekit_onboarded'
+const POLL_INTERVAL = 2000
+const MAX_RETRIES = 7
 
 export default function App() {
   const [view, setView] = useState<View>('loading')
   const [data, setData] = useState<MeResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const retriesRef = useRef(0)
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const load = async () => {
     try {
@@ -18,8 +22,16 @@ export default function App() {
       setData(me)
 
       if (!me.site) {
-        setView('onboarding')
-      } else if (!localStorage.getItem(ONBOARDED_KEY)) {
+        if (retriesRef.current < MAX_RETRIES) {
+          retriesRef.current++
+          timerRef.current = setTimeout(load, POLL_INTERVAL)
+        } else {
+          setError('Site setup is taking longer than expected. Please refresh the page.')
+        }
+        return
+      }
+
+      if (!localStorage.getItem(ONBOARDED_KEY)) {
         setView('onboarding')
       } else {
         setView('dashboard')
@@ -36,12 +48,15 @@ export default function App() {
     setView('dashboard')
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [])
 
   if (error) {
     return (
       <div className="container">
-        <p className="error">Something went wrong: {error}</p>
+        <p className="error">{error}</p>
       </div>
     )
   }

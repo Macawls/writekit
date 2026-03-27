@@ -141,6 +141,50 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) RawMarkdown(w http.ResponseWriter, r *http.Request) {
+	db, _, err := h.getTenantDB(r)
+	if err != nil {
+		http.Error(w, "site not found", http.StatusNotFound)
+		return
+	}
+
+	slug := strings.TrimSuffix(chi.URLParam(r, "slug"), ".md")
+	page, err := db.GetStandalonePageBySlug(r.Context(), slug)
+	if err != nil || page.Status != "published" {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Write([]byte(page.Content))
+}
+
+func (h *Handler) RawCollectionMarkdown(w http.ResponseWriter, r *http.Request) {
+	db, _, err := h.getTenantDB(r)
+	if err != nil {
+		http.Error(w, "site not found", http.StatusNotFound)
+		return
+	}
+
+	collectionSlug := chi.URLParam(r, "collection")
+	pageSlug := strings.TrimSuffix(chi.URLParam(r, "page"), ".md")
+
+	collection, err := db.GetCollectionBySlug(r.Context(), collectionSlug)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	page, err := db.GetPageInCollection(r.Context(), collection.ID, pageSlug)
+	if err != nil || page.Status != "published" {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Write([]byte(page.Content))
+}
+
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
