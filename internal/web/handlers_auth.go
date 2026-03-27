@@ -522,7 +522,7 @@ func (h *Handler) autoCreateTenant(ctx context.Context, user *platform.User) {
 	}
 
 	if reservedSlugs[slug] {
-		slug = slug + "-blog"
+		slug = slug + "-site"
 	}
 
 	// If slug is taken, append random suffix

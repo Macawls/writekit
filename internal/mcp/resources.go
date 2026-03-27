@@ -47,12 +47,6 @@ func (s *Server) registerResources(mcpServer *mcpsdk.Server) {
 		MIMEType:    "text/plain",
 	}, s.collectionsResource)
 
-	mcpServer.AddResource(&mcpsdk.Resource{
-		URI:         "writekit://site/recent-comments",
-		Name:        "Recent Comments",
-		Description: "Recent comments across all pages",
-		MIMEType:    "text/plain",
-	}, s.recentCommentsResource)
 }
 
 func (s *Server) resolveResourceTenant(ctx context.Context) (*tenant.DB, string, error) {
@@ -71,13 +65,11 @@ func (s *Server) statsResource(ctx context.Context, req *mcpsdk.ReadResourceRequ
 
 	published, _ := db.CountPages(ctx, "published")
 	drafts, _ := db.CountPages(ctx, "draft")
-	comments, _ := db.CountComments(ctx)
 	collections, _ := db.ListCollections(ctx)
 
 	data, _ := json.Marshal(map[string]int{
 		"published_pages":   published,
 		"draft_pages":       drafts,
-		"total_comments":    comments,
 		"total_collections": len(collections),
 	})
 
@@ -180,26 +172,3 @@ func (s *Server) collectionsResource(ctx context.Context, req *mcpsdk.ReadResour
 	}, nil
 }
 
-func (s *Server) recentCommentsResource(ctx context.Context, req *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
-	db, _, err := s.resolveResourceTenant(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	comments, _ := db.ListRecentComments(ctx, 20)
-
-	var sb strings.Builder
-	for _, c := range comments {
-		sb.WriteString(fmt.Sprintf("- [%s] %s on page %s: %s\n",
-			c.CreatedAt.Format("2006-01-02"), c.Author, c.PageID, c.Content))
-	}
-	if sb.Len() == 0 {
-		sb.WriteString("No comments yet.")
-	}
-
-	return &mcpsdk.ReadResourceResult{
-		Contents: []*mcpsdk.ResourceContents{
-			{URI: "writekit://site/recent-comments", MIMEType: "text/plain", Text: sb.String()},
-		},
-	}, nil
-}

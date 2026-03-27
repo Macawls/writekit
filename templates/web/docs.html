@@ -251,11 +251,6 @@
 </div>
 
 <div class="prompt-card">
-    <div class="say">"Are there any new comments?"</div>
-    <div class="does">Lists recent comments across all pages.</div>
-</div>
-
-<div class="prompt-card">
     <div class="say">"Search my pages for anything about authentication"</div>
     <div class="does">Full-text search across titles and content.</div>
 </div>
@@ -269,7 +264,7 @@
     <tr><th>Tool</th><th>Description</th></tr>
     <tr><td><code>create_page</code></td><td>Create a new draft page with markdown content</td></tr>
     <tr><td><code>update_page</code></td><td>Update any field of an existing page</td></tr>
-    <tr><td><code>delete_page</code></td><td>Permanently delete a page and its comments</td></tr>
+    <tr><td><code>delete_page</code></td><td>Permanently delete a page</td></tr>
     <tr><td><code>publish_page</code></td><td>Publish a draft — returns the live URL</td></tr>
     <tr><td><code>unpublish_page</code></td><td>Revert a published page to draft</td></tr>
     <tr><td><code>list_pages</code></td><td>List pages, filter by status, tag, or collection</td></tr>
@@ -288,11 +283,9 @@
     <tr><td><code>reorder_pages</code></td><td>Set page order within a manually-ordered collection</td></tr>
 </table>
 
-<h3>Comments &amp; settings</h3>
+<h3>Settings</h3>
 <table>
     <tr><th>Tool</th><th>Description</th></tr>
-    <tr><td><code>list_comments</code></td><td>List comments on a page</td></tr>
-    <tr><td><code>delete_comment</code></td><td>Delete a comment by ID</td></tr>
     <tr><td><code>get_settings</code></td><td>Get current site settings</td></tr>
     <tr><td><code>update_settings</code></td><td>Update site title, description</td></tr>
 </table>
@@ -303,12 +296,11 @@
 
 <table>
     <tr><th>URI</th><th>Description</th></tr>
-    <tr><td><code>writekit://site/stats</code></td><td>Page counts, collection counts, comment counts</td></tr>
+    <tr><td><code>writekit://site/stats</code></td><td>Page counts, collection counts</td></tr>
     <tr><td><code>writekit://site/settings</code></td><td>Current site settings</td></tr>
     <tr><td><code>writekit://site/recent-pages</code></td><td>Last 10 published pages</td></tr>
     <tr><td><code>writekit://site/drafts</code></td><td>All draft pages</td></tr>
     <tr><td><code>writekit://site/collections</code></td><td>All collections with page counts</td></tr>
-    <tr><td><code>writekit://site/recent-comments</code></td><td>Recent comments</td></tr>
 </table>
 
 <h2>Markdown</h2>

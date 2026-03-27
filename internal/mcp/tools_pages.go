@@ -73,7 +73,7 @@ After updating, a new preview URL is generated so you can verify changes.`,
 
 	mcpServer.AddTool(&mcp.Tool{
 		Name:        "delete_page",
-		Description: "Permanently delete a page and all its comments.",
+		Description: "Permanently delete a page.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

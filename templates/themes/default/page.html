@@ -31,34 +31,4 @@
     </div>
 </article>
 
-{{if not .Preview}}
-<div class="comments">
-    <h2>Comments</h2>
-
-    {{if .Comments}}
-    {{range .Comments}}
-    <div class="comment" id="comment-{{.ID}}">
-        <span class="comment-author">{{.Author}}</span>
-        <span class="comment-date">{{.CreatedAt.Format "Jan 2, 2006 3:04 PM"}}</span>
-        <p style="margin-top: 0.5rem;">{{.Content}}</p>
-    </div>
-    {{end}}
-    {{else}}
-    <p style="color: var(--muted); margin-top: 1rem;">No comments yet.</p>
-    {{end}}
-
-    {{if .Collection}}
-    <form class="comment-form" method="POST" action="/{{.Collection.Slug}}/{{.Page.Slug}}/comments">
-    {{else}}
-    <form class="comment-form" method="POST" action="/{{.Page.Slug}}/comments">
-    {{end}}
-        <h3>Leave a comment</h3>
-        <input type="text" name="author" placeholder="Your name" required>
-        <input type="email" name="email" placeholder="Email (optional)">
-        <textarea name="content" placeholder="Your comment..." required></textarea>
-        <button type="submit" class="btn">Post Comment</button>
-    </form>
-</div>
-{{end}}
-
 {{template "partials/footer.html" .}}

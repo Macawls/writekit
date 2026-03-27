@@ -16,39 +16,39 @@ var subdomainRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$`)
 func (s *Server) registerSettingsTools(mcpServer *mcpsdk.Server) {
 	mcpServer.AddTool(&mcpsdk.Tool{
 		Name: "get_settings",
-		Description: `Get your blog settings. Available settings:
-- **title**: Your blog's title (shown in header and RSS feed)
-- **description**: A short description of your blog`,
+		Description: `Get your site settings. Available settings:
+- **title**: Your site's title (shown in header)
+- **description**: A short description of your site`,
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"tenant_id": map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"tenant_id": map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 		},
 	}, s.getSettings)
 
 	mcpServer.AddTool(&mcpsdk.Tool{
 		Name:        "update_settings",
-		Description: "Update blog settings. Only send the settings you want to change.",
+		Description: "Update site settings. Only send the settings you want to change.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"title":       map[string]any{"type": "string", "description": "Blog title"},
-				"description": map[string]any{"type": "string", "description": "Blog description"},
-				"tenant_id":   map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"title":       map[string]any{"type": "string", "description": "Site title"},
+				"description": map[string]any{"type": "string", "description": "Site description"},
+				"tenant_id":   map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 		},
 	}, s.updateSettings)
 
 	mcpServer.AddTool(&mcpsdk.Tool{
 		Name:        "rename_subdomain",
-		Description: "Rename your blog's subdomain (e.g. my-blog → new-name). The old URL will stop working immediately.",
+		Description: "Rename your site's subdomain (e.g. my-site → new-name). The old URL will stop working immediately.",
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"new_subdomain"},
 			"properties": map[string]any{
 				"new_subdomain": map[string]any{"type": "string", "description": "New subdomain (lowercase letters, numbers, hyphens, 3-64 chars)"},
-				"tenant_id":     map[string]any{"type": "string", "description": "Blog ID (only needed if you have multiple blogs)"},
+				"tenant_id":     map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 		},
 	}, s.renameSubdomain)
@@ -77,7 +77,7 @@ func (s *Server) getSettings(ctx context.Context, req *mcpsdk.CallToolRequest) (
 	}
 
 	var sb strings.Builder
-	sb.WriteString("Current blog settings:\n\n")
+	sb.WriteString("Current site settings:\n\n")
 	for k, v := range settings {
 		sb.WriteString(fmt.Sprintf("- **%s**: %s\n", k, v))
 	}

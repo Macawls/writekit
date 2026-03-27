@@ -31,7 +31,7 @@ func (s *Server) writePostPrompt(_ context.Context, req *mcp.GetPromptRequest) (
 		style = "tutorial"
 	}
 
-	prompt := fmt.Sprintf(`Write a blog post about: %s
+	prompt := fmt.Sprintf(`Write a page about: %s
 
 Target audience: %s
 Style: %s

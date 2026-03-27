@@ -16,7 +16,7 @@ func NewCache(bus *events.Bus) *Cache {
 
 	for _, eventType := range []string{
 		events.PageCreated, events.PageUpdated, events.PageDeleted,
-		events.PagePublished, events.CommentAdded, events.CommentDeleted,
+		events.PagePublished,
 		events.CollectionCreated, events.CollectionUpdated, events.CollectionDeleted,
 	} {
 		bus.On(eventType, func(e events.Event) {

@@ -58,7 +58,6 @@ func New(platformDB *platform.DB, pool *tenant.Pool, cfg *config.Config, bus *ev
 
 	s.registerPageTools(mcpServer)
 	s.registerCollectionTools(mcpServer)
-	s.registerCommentTools(mcpServer)
 	s.registerSettingsTools(mcpServer)
 	s.registerResources(mcpServer)
 	s.registerPrompts(mcpServer)

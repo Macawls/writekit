@@ -60,7 +60,7 @@ Add to `.vscode/mcp.json`:
 |------|-------------|-----------------|-----------------|
 | `create_page` | Create a new draft page | title, content (markdown) | excerpt, tags[], slug, collection_id, position, tenant_id |
 | `update_page` | Partial update of a page | id | title, content, excerpt, tags[], slug, collection_id, position, tenant_id |
-| `delete_page` | Permanently delete a page and its comments | id | tenant_id |
+| `delete_page` | Permanently delete a page | id | tenant_id |
 | `publish_page` | Publish a draft (sets status=published) | id | tenant_id |
 | `unpublish_page` | Revert to draft | id | tenant_id |
 | `list_pages` | List pages with filters | — | status, tag, collection_id, limit, tenant_id |
@@ -78,12 +78,10 @@ Add to `.vscode/mcp.json`:
 | `get_collection` | Get details and pages | id OR slug | tenant_id |
 | `reorder_pages` | Set page order in manual collection | collection_id, page_ids[] | tenant_id |
 
-### Comments & Settings
+### Settings
 
 | Tool | Description | Required params | Optional params |
 |------|-------------|-----------------|-----------------|
-| `list_comments` | List comments on a page | page_id | tenant_id |
-| `delete_comment` | Delete a comment | id | tenant_id |
 | `get_settings` | Get site settings | — | tenant_id |
 | `update_settings` | Update site title/description | — | title, description, code_theme, tenant_id |
 
@@ -97,12 +95,11 @@ Add to `.vscode/mcp.json`:
 
 | URI | Description |
 |-----|-------------|
-| `writekit://site/stats` | Page counts, collection counts, comment counts |
+| `writekit://site/stats` | Page counts, collection counts |
 | `writekit://site/settings` | Current site settings as JSON |
 | `writekit://site/recent-pages` | Last 10 published pages |
 | `writekit://site/drafts` | All draft pages |
 | `writekit://site/collections` | All collections with page counts |
-| `writekit://site/recent-comments` | Recent comments across all pages |
 
 ## Tenant resolution
 
@@ -176,7 +173,6 @@ Every page update creates a version snapshot. The last 20 versions are kept per 
 - "Show me all my draft pages"
 - "Update my auth page — add a warning callout about rate limits"
 - "List all my collections"
-- "Are there any new comments?"
 - "Change my site title to 'Acme Docs'"
 - "Search my pages for anything about authentication"
 

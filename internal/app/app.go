@@ -86,7 +86,6 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Bus:        bus,
 		Cache:      cache,
 		PlatformDB: platformDB,
-		Email:      emailSender,
 	}
 
 	apiHandler := &api.Handler{

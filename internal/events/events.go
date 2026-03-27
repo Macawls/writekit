@@ -60,9 +60,7 @@ const (
 	PageUpdated       = "page.updated"
 	PageDeleted       = "page.deleted"
 	PagePublished     = "page.published"
-	CommentAdded      = "comment.added"
-	CommentDeleted    = "comment.deleted"
-	CollectionCreated = "collection.created"
+CollectionCreated = "collection.created"
 	CollectionUpdated = "collection.updated"
 	CollectionDeleted = "collection.deleted"
 )

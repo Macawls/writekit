@@ -30,7 +30,7 @@ Update an existing page. Partial updates — only send fields to change.
 - Returns: updated page info, preview URL
 
 ### delete_page
-Permanently delete a page and its comments.
+Permanently delete a page.
 - Required: id (string)
 - Optional: tenant_id
 
@@ -90,16 +90,6 @@ Set the order of pages within a manually-ordered collection.
 - Required: collection_id (string), page_ids (string[])
 - Optional: tenant_id
 
-### list_comments
-List comments on a specific page.
-- Required: page_id (string)
-- Optional: tenant_id
-
-### delete_comment
-Delete a comment.
-- Required: id (string)
-- Optional: tenant_id
-
 ### get_settings
 Get all site settings (title, description, code_theme).
 - Optional: tenant_id
@@ -118,12 +108,11 @@ Generate a well-structured page about a topic.
 
 ## Resources
 
-- writekit://site/stats — page counts, collection counts, comment counts
+- writekit://site/stats — page counts, collection counts
 - writekit://site/settings — current site settings as JSON
 - writekit://site/recent-pages — last 10 published pages
 - writekit://site/drafts — all draft pages
 - writekit://site/collections — all collections with page counts
-- writekit://site/recent-comments — recent comments across all pages
 
 ## Tenant resolution
 
@@ -195,5 +184,4 @@ server -> client: JSON response
 - "Show me all my draft pages"
 - "Update my auth page — add a warning callout about rate limits"
 - "List all my collections"
-- "Are there any new comments?"
 - "Change my site title to 'Acme Docs'"

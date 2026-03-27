@@ -1,7 +1,6 @@
 package site
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -9,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/oklog/ulid/v2"
 	"writekit/internal/events"
 	"writekit/internal/tenant"
 )
@@ -136,13 +134,10 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	comments, _ := db.ListComments(r.Context(), page.ID)
-
 	h.Engine.Render(w, "page.html", map[string]any{
 		"Page":            page,
 		"PageTitle":       page.Title,
 		"PageDescription": page.Excerpt,
-		"Comments":        comments,
 		"Settings":        settings,
 		"TenantID":        tenantID,
 		"Host":            h.Config.Host,
@@ -171,7 +166,6 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	comments, _ := db.ListComments(r.Context(), page.ID)
 	settings, _ := db.GetSettings(r.Context())
 
 	h.Engine.Render(w, "page.html", map[string]any{
@@ -179,10 +173,9 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 		"PageTitle":       page.Title,
 		"PageDescription": page.Excerpt,
 		"Collection":      collection,
-		"Comments":        comments,
 		"Settings":        settings,
-		"TenantID":   tenantID,
-		"Host":       h.Config.Host,
+		"TenantID":        tenantID,
+		"Host":            h.Config.Host,
 	})
 }
 
@@ -347,97 +340,3 @@ func (h *Handler) PreviewSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) submitComment(w http.ResponseWriter, r *http.Request, db *tenant.DB, tenantID string, page *tenant.Page, redirectPath string) {
-	author := strings.TrimSpace(r.FormValue("author"))
-	authorEmail := strings.TrimSpace(r.FormValue("email"))
-	content := strings.TrimSpace(r.FormValue("content"))
-
-	if author == "" || content == "" {
-		http.Error(w, "author and content are required", http.StatusBadRequest)
-		return
-	}
-
-	comment := &tenant.Comment{
-		ID:      ulid.Make().String(),
-		PageID:  page.ID,
-		Author:  author,
-		Email:   authorEmail,
-		Content: content,
-	}
-
-	parentID := r.FormValue("parent_id")
-	if parentID != "" {
-		comment.ParentID = &parentID
-	}
-
-	if err := db.CreateComment(r.Context(), comment); err != nil {
-		slog.Error("create comment", "err", err)
-		http.Error(w, "failed to post comment", http.StatusInternalServerError)
-		return
-	}
-
-	ctx := context.WithoutCancel(r.Context())
-	go func() {
-		t, err := h.PlatformDB.GetTenant(ctx, tenantID)
-		if err != nil {
-			return
-		}
-		owner, err := h.PlatformDB.GetUser(ctx, t.UserID)
-		if err != nil {
-			return
-		}
-		settings, _ := db.GetSettings(ctx)
-		siteName := settings["title"]
-		if siteName == "" {
-			siteName = tenantID
-		}
-		pageURL := fmt.Sprintf("https://%s.%s%s", tenantID, h.Config.Host, redirectPath)
-		if err := h.Email.SendCommentNotification(ctx, owner.Email, owner.Name, siteName, page.Title, author, content, pageURL); err != nil {
-			slog.Error("send comment notification", "err", err)
-		}
-	}()
-
-	http.Redirect(w, r, fmt.Sprintf("%s#comment-%s", redirectPath, comment.ID), http.StatusSeeOther)
-}
-
-func (h *Handler) SubmitComment(w http.ResponseWriter, r *http.Request) {
-	db, tenantID, err := h.getTenantDB(r)
-	if err != nil {
-		http.Error(w, "site not found", http.StatusNotFound)
-		return
-	}
-
-	slug := chi.URLParam(r, "slug")
-	page, err := db.GetStandalonePageBySlug(r.Context(), slug)
-	if err != nil || page.Status != "published" {
-		http.Error(w, "page not found", http.StatusNotFound)
-		return
-	}
-
-	h.submitComment(w, r, db, tenantID, page, "/"+slug)
-}
-
-func (h *Handler) SubmitCollectionComment(w http.ResponseWriter, r *http.Request) {
-	db, tenantID, err := h.getTenantDB(r)
-	if err != nil {
-		http.Error(w, "site not found", http.StatusNotFound)
-		return
-	}
-
-	collectionSlug := chi.URLParam(r, "collection")
-	pageSlug := chi.URLParam(r, "page")
-
-	collection, err := db.GetCollectionBySlug(r.Context(), collectionSlug)
-	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-
-	page, err := db.GetPageInCollection(r.Context(), collection.ID, pageSlug)
-	if err != nil || page.Status != "published" {
-		http.Error(w, "page not found", http.StatusNotFound)
-		return
-	}
-
-	h.submitComment(w, r, db, tenantID, page, "/"+collectionSlug+"/"+pageSlug)
-}
