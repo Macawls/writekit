@@ -59,6 +59,10 @@ func (h *Handler) getTenantDB(r *http.Request) (*tenant.DB, string, error) {
 		return nil, "", fmt.Errorf("invalid tenant host: %s", host)
 	}
 
+	if _, err := h.PlatformDB.GetTenant(r.Context(), tenantID); err != nil {
+		return nil, "", fmt.Errorf("tenant not found: %s", tenantID)
+	}
+
 	db, err := h.Pool.Get(tenantID)
 	if err != nil {
 		return nil, "", err
