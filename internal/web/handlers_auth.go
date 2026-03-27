@@ -231,16 +231,19 @@ func (h *Handler) createSessionAndRedirect(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     "session",
 		Value:    sess.ID,
 		Path:     "/",
-		Domain:   "." + h.Config.Host,
 		HttpOnly: true,
 		Secure:   !h.Config.Dev,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  sess.ExpiresAt,
-	})
+	}
+	if !h.Config.Dev {
+		cookie.Domain = "." + h.Config.Host
+	}
+	http.SetCookie(w, cookie)
 
 	if parts := strings.SplitN(state, "|", 2); len(parts) == 2 {
 		http.Redirect(w, r, "/oauth/authorize?"+parts[1], http.StatusSeeOther)
@@ -351,14 +354,17 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		h.DB.DeleteSession(r.Context(), cookie.Value)
 	}
 
-	http.SetCookie(w, &http.Cookie{
+	logoutCookie := &http.Cookie{
 		Name:     "session",
 		Value:    "",
 		Path:     "/",
-		Domain:   "." + h.Config.Host,
 		HttpOnly: true,
 		MaxAge:   -1,
-	})
+	}
+	if !h.Config.Dev {
+		logoutCookie.Domain = "." + h.Config.Host
+	}
+	http.SetCookie(w, logoutCookie)
 
 	http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
 }
