@@ -65,6 +65,7 @@ Add to `.vscode/mcp.json`:
 | `unpublish_page` | Revert to draft | id | tenant_id |
 | `list_pages` | List pages with filters | — | status, tag, collection_id, limit, tenant_id |
 | `get_page` | Get full page with markdown content | id OR slug | tenant_id |
+| `append_to_page` | Append content to end of page (avoids re-sending full content) | id, content | tenant_id |
 | `search_pages` | Full-text search (FTS5) | query | tenant_id |
 
 ### Collections

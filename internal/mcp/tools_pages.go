@@ -51,7 +51,7 @@ Returns: The created page with a preview URL you can share.`,
 
 	mcpServer.AddTool(&mcp.Tool{
 		Name: "update_page",
-		Description: `Update an existing page. Only send the fields you want to change.
+		Description: `Update an existing page. Partial updates — only send the fields you want to change. To move a page to a collection or change title/tags/slug, you don't need to include content.
 
 After updating, a new preview URL is generated so you can verify changes.`,
 		InputSchema: map[string]any{
@@ -109,6 +109,20 @@ After updating, a new preview URL is generated so you can verify changes.`,
 			"required": []string{"id"},
 		},
 	}, s.unpublishPage)
+
+	mcpServer.AddTool(&mcp.Tool{
+		Name:        "append_to_page",
+		Description: "Append content to the end of an existing page. Use this instead of update_page when adding new sections — avoids re-sending the entire page content.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id":        map[string]any{"type": "string", "description": "Page ID to append to"},
+				"content":   map[string]any{"type": "string", "description": "Markdown content to append at the end of the page"},
+				"tenant_id": map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
+			},
+			"required": []string{"id", "content"},
+		},
+	}, s.appendToPage)
 
 	mcpServer.AddTool(&mcp.Tool{
 		Name:        "list_pages",
@@ -426,6 +440,56 @@ func (s *Server) unpublishPage(ctx context.Context, req *mcp.CallToolRequest) (*
 
 	s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: page.ID})
 	return toolResult("Page reverted to draft."), nil
+}
+
+func (s *Server) appendToPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return toolError("not authenticated — please sign in at the WriteKit website first"), nil
+	}
+
+	var args struct {
+		ID       string `json:"id"`
+		Content  string `json:"content"`
+		TenantID string `json:"tenant_id"`
+	}
+	raw, _ := json.Marshal(req.Params.Arguments)
+	json.Unmarshal(raw, &args)
+
+	db, tenantID, err := s.resolveTenant(user.ID, args.TenantID)
+	if err != nil {
+		return toolError(err.Error()), nil
+	}
+
+	page, err := db.GetPage(ctx, args.ID)
+	if err != nil {
+		return toolError("page not found"), nil
+	}
+
+	page.Content = page.Content + "\n\n" + args.Content
+	page.ContentHTML, _ = renderContentWithErrors(page.Content)
+	page.Version++
+
+	if err := db.UpdatePage(ctx, page); err != nil {
+		return toolError(fmt.Sprintf("failed to append: %v", err)), nil
+	}
+
+	db.SavePageVersion(ctx, page)
+
+	s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: page.ID})
+
+	pt, _ := db.CreatePreviewToken(ctx, page.ID, 24*time.Hour)
+	previewURL := ""
+	if pt != nil {
+		previewURL = s.buildPreviewURL(tenantID, pt.Token)
+	}
+
+	result := fmt.Sprintf("Content appended (v%d).\n\n**Title:** %s\n**Status:** %s", page.Version, page.Title, page.Status)
+	if previewURL != "" {
+		result += fmt.Sprintf("\n**Preview URL:** %s", previewURL)
+	}
+
+	return toolResult(result), nil
 }
 
 func (s *Server) listPages(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {

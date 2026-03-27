@@ -56,6 +56,11 @@ Get a single page with full markdown content.
 - Optional: tenant_id
 - Returns: full page including raw markdown content
 
+### append_to_page
+Append markdown content to the end of an existing page. Use instead of update_page when adding new sections.
+- Required: id (string), content (string, markdown to append)
+- Optional: tenant_id
+
 ### search_pages
 Full-text search across page titles and content (FTS5).
 - Required: query (string)
