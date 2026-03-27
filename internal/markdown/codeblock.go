@@ -169,7 +169,7 @@ func (r *codeBlockRenderer) renderFencedCodeBlock(w util.BufWriter, source []byt
 			w.WriteString(fmt.Sprintf(`<span class="code-title">%s</span>`, html.EscapeString(language)))
 		}
 
-		w.WriteString(`<button class="code-copy" aria-label="Copy code" onclick="navigator.clipboard.writeText(this.closest('.code-block').querySelector('code').textContent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>`)
+		w.WriteString(`<button class="code-copy" aria-label="Copy code"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="toast">Copied</span></button>`)
 		w.WriteString(`</div>`)
 	}
 

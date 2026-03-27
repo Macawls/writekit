@@ -41,6 +41,20 @@
             document.body.appendChild(s);
         }
 
+        // Code block copy buttons
+        document.querySelectorAll('.code-copy').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var code = btn.closest('.code-block').querySelector('code').textContent;
+                navigator.clipboard.writeText(code).then(function() {
+                    var toast = btn.querySelector('.toast');
+                    if (toast) {
+                        toast.classList.add('show');
+                        setTimeout(function() { toast.classList.remove('show'); }, 1500);
+                    }
+                });
+            });
+        });
+
         // D2 zoom/pan/fullscreen controls
         document.querySelectorAll('.d2-diagram').forEach(function(diagram) {
             var viewport = diagram.querySelector('.d2-viewport');
