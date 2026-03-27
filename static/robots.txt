@@ -1,0 +1,40 @@
+# WriteKit robots.txt
+
+# Search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# AI retrieval bots (power real-time AI search answers with attribution)
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+# AI training bots (block content from entering training datasets)
+User-agent: GPTBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+# Default: allow all others
+User-agent: *
+Allow: /
+
+Sitemap: https://writekit.dev/sitemap.xml

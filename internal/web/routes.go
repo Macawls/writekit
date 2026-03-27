@@ -48,6 +48,9 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/", h.Home)
 	r.Get("/docs", h.Docs)
 	r.Get("/llms.txt", h.LLMsTxt)
+	r.Get("/llms-full.txt", h.LLMsFullTxt)
+	r.Get("/robots.txt", h.RobotsTxt)
+	r.Get("/sitemap.xml", h.Sitemap)
 
 	r.Post("/stripe/webhook", h.StripeWebhook)
 }

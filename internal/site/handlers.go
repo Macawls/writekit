@@ -14,6 +14,40 @@ import (
 	"writekit/internal/tenant"
 )
 
+func (h *Handler) TenantRobotsTxt(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	fmt.Fprint(w, "User-agent: *\nAllow: /\n")
+}
+
+func (h *Handler) TenantSitemap(w http.ResponseWriter, r *http.Request) {
+	db, tenantID, err := h.getTenantDB(r)
+	if err != nil {
+		http.Error(w, "site not found", http.StatusNotFound)
+		return
+	}
+
+	pages, _ := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", Limit: 1000})
+	baseURL := fmt.Sprintf("https://%s.%s", tenantID, h.Config.Host)
+
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>`+baseURL+`/</loc><priority>1.0</priority></url>
+`)
+	for _, p := range pages {
+		loc := baseURL + "/" + p.Slug
+		if p.CollectionID != nil && *p.CollectionID != "" {
+			col, err := db.GetCollection(r.Context(), *p.CollectionID)
+			if err == nil {
+				loc = baseURL + "/" + col.Slug + "/" + p.Slug
+			}
+		}
+		lastmod := p.UpdatedAt.Format("2006-01-02")
+		fmt.Fprintf(w, "  <url><loc>%s</loc><lastmod>%s</lastmod></url>\n", loc, lastmod)
+	}
+	fmt.Fprint(w, `</urlset>`)
+}
+
 func (h *Handler) getTenantDB(r *http.Request) (*tenant.DB, string, error) {
 	host := r.Host
 	if i := strings.LastIndex(host, ":"); i > 0 {
@@ -60,11 +94,12 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.Engine.Render(w, "index.html", map[string]any{
-		"Collections": collectionData,
-		"Pages":       pages,
-		"Settings":    settings,
-		"TenantID":    tenantID,
-		"Host":        h.Config.Host,
+		"Collections":     collectionData,
+		"Pages":           pages,
+		"Settings":        settings,
+		"TenantID":        tenantID,
+		"Host":            h.Config.Host,
+		"PageDescription": settings["description"],
 	})
 }
 
@@ -100,11 +135,13 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 	comments, _ := db.ListComments(r.Context(), page.ID)
 
 	h.Engine.Render(w, "page.html", map[string]any{
-		"Page":     page,
-		"Comments": comments,
-		"Settings": settings,
-		"TenantID": tenantID,
-		"Host":     h.Config.Host,
+		"Page":            page,
+		"PageTitle":       page.Title,
+		"PageDescription": page.Excerpt,
+		"Comments":        comments,
+		"Settings":        settings,
+		"TenantID":        tenantID,
+		"Host":            h.Config.Host,
 	})
 }
 
@@ -134,10 +171,12 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 	settings, _ := db.GetSettings(r.Context())
 
 	h.Engine.Render(w, "page.html", map[string]any{
-		"Page":       page,
-		"Collection": collection,
-		"Comments":   comments,
-		"Settings":   settings,
+		"Page":            page,
+		"PageTitle":       page.Title,
+		"PageDescription": page.Excerpt,
+		"Collection":      collection,
+		"Comments":        comments,
+		"Settings":        settings,
 		"TenantID":   tenantID,
 		"Host":       h.Config.Host,
 	})

@@ -21,6 +21,8 @@ type Handler struct {
 }
 
 func (h *Handler) Routes(r chi.Router) {
+	r.Get("/robots.txt", h.TenantRobotsTxt)
+	r.Get("/sitemap.xml", h.TenantSitemap)
 	r.Get("/", h.Index)
 	r.Get("/search", h.Search)
 	r.Get("/preview/{token}", h.Preview)

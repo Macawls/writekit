@@ -1,0 +1,187 @@
+# WriteKit — MCP-powered publishing tool
+
+> WriteKit lets you publish and manage pages and collections entirely through conversation with an AI assistant using the Model Context Protocol (MCP). No editor, no dashboard — just talk to your AI and it handles creating, editing, and publishing pages on your subdomain.
+
+## What is WriteKit?
+
+WriteKit is a hosted publishing platform where content is managed entirely via MCP tools. Each user gets a site at `{subdomain}.writekit.dev`. Pages are written in Markdown with rich extensions (syntax highlighting, callout blocks, D2 diagrams, media embeds). The AI assistant creates drafts, provides preview links, and publishes when ready.
+
+## How it works
+
+1. Connect your AI assistant (Claude Code, Cursor, VS Code, etc.) to the WriteKit MCP server
+2. Authenticate via browser on first use (GitHub, Google, Discord, or email magic link)
+3. A site is automatically created at `{yourname}.writekit.dev`
+4. Tell your AI what to write — it creates a draft and returns a preview link
+5. The preview auto-reloads on every edit via SSE (Server-Sent Events)
+6. Every edit is versioned (last 20 versions kept) — view previous versions with `?v=N` on the preview URL
+7. When you're happy, tell the AI to publish — the page goes live
+
+## MCP Server
+
+- URL: `https://writekit.dev/mcp`
+- Transport: Streamable HTTP
+- Auth: OAuth 2.0 with PKCE (automatic browser flow on first use)
+
+### Claude Code setup
+```
+claude mcp add --transport http writekit https://writekit.dev/mcp
+```
+
+### Cursor / Windsurf setup
+Add to `.cursor/mcp.json` or Windsurf MCP config:
+```json
+{
+  "mcpServers": {
+    "writekit": {
+      "url": "https://writekit.dev/mcp"
+    }
+  }
+}
+```
+
+### VS Code setup
+Add to `.vscode/mcp.json`:
+```json
+{
+  "servers": {
+    "writekit": {
+      "type": "http",
+      "url": "https://writekit.dev/mcp"
+    }
+  }
+}
+```
+
+## MCP Tools
+
+### Pages
+
+| Tool | Description | Required params | Optional params |
+|------|-------------|-----------------|-----------------|
+| `create_page` | Create a new draft page | title, content (markdown) | excerpt, tags[], slug, collection_id, position, tenant_id |
+| `update_page` | Partial update of a page | id | title, content, excerpt, tags[], slug, collection_id, position, tenant_id |
+| `delete_page` | Permanently delete a page and its comments | id | tenant_id |
+| `publish_page` | Publish a draft (sets status=published) | id | tenant_id |
+| `unpublish_page` | Revert to draft | id | tenant_id |
+| `list_pages` | List pages with filters | — | status, tag, collection_id, limit, tenant_id |
+| `get_page` | Get full page with markdown content | id OR slug | tenant_id |
+| `search_pages` | Full-text search (FTS5) | query | tenant_id |
+
+### Collections
+
+| Tool | Description | Required params | Optional params |
+|------|-------------|-----------------|-----------------|
+| `create_collection` | Create a page grouping | title | description, slug, sort_order (manual/date), tenant_id |
+| `update_collection` | Partial update | id | title, description, slug, sort_order, tenant_id |
+| `delete_collection` | Delete (pages become standalone) | id | tenant_id |
+| `list_collections` | List with page counts | — | tenant_id |
+| `get_collection` | Get details and pages | id OR slug | tenant_id |
+| `reorder_pages` | Set page order in manual collection | collection_id, page_ids[] | tenant_id |
+
+### Comments & Settings
+
+| Tool | Description | Required params | Optional params |
+|------|-------------|-----------------|-----------------|
+| `list_comments` | List comments on a page | page_id | tenant_id |
+| `delete_comment` | Delete a comment | id | tenant_id |
+| `get_settings` | Get site settings | — | tenant_id |
+| `update_settings` | Update site title/description | — | title, description, code_theme, tenant_id |
+
+## MCP Prompts
+
+| Prompt | Description | Params |
+|--------|-------------|--------|
+| `write_page` | Generate a well-structured page | topic (required), audience (optional), style (optional) |
+
+## MCP Resources
+
+| URI | Description |
+|-----|-------------|
+| `writekit://site/stats` | Page counts, collection counts, comment counts |
+| `writekit://site/settings` | Current site settings as JSON |
+| `writekit://site/recent-pages` | Last 10 published pages |
+| `writekit://site/drafts` | All draft pages |
+| `writekit://site/collections` | All collections with page counts |
+| `writekit://site/recent-comments` | Recent comments across all pages |
+
+## Tenant resolution
+
+If a user has one site, it's selected automatically. If multiple sites exist, pass `tenant_id` on each tool call.
+
+## Content format
+
+Pages use Markdown rendered with Goldmark and Chroma syntax highlighting.
+
+### Supported Markdown features
+- GitHub Flavored Markdown (GFM): tables, strikethrough, autolinks, task lists
+- Headings (# through ######) with auto-generated anchor IDs
+- Bold, italic, strikethrough, links, images
+- Ordered/unordered lists, task lists
+- Tables, horizontal rules, footnotes
+- Raw HTML
+
+### Syntax-highlighted code blocks
+Fenced code blocks with language tags render with syntax highlighting, language icons, and copy buttons. 50+ languages supported including Go, Python, JavaScript, TypeScript, Rust, Java, Ruby, C, C++, PHP, Swift, Kotlin, SQL, Bash, YAML, JSON, and more.
+
+### Callout blocks
+Blockquotes with type markers render as styled alert boxes:
+- `> [!NOTE]` — blue info box
+- `> [!TIP]` — green tip box
+- `> [!WARNING]` — yellow warning box
+- `> [!DANGER]` — red danger box
+- Also: `[!INFO]`, `[!IMPORTANT]`, `[!CAUTION]`
+
+### Media embeds
+Use `<embed src="url" />` for rich media:
+- YouTube — thumbnail with play button, loads iframe on click
+- Spotify — track, album, playlist, episode, or show
+- SoundCloud — player embed
+- Twitter/X — tweet embed
+- GitHub Gists — loaded dynamically
+
+### D2 diagrams
+Use `d2` fenced code blocks for architecture and flow diagrams. Rendered server-side to SVG with dagre layout. Includes zoom controls and fullscreen viewer with pan/zoom. If D2 compilation fails, the error is surfaced as a warning in the MCP tool response so the AI can fix it.
+
+## Site URLs
+
+| URL pattern | Description |
+|-------------|-------------|
+| `https://{subdomain}.writekit.dev/` | Site index |
+| `https://{subdomain}.writekit.dev/{slug}` | Standalone page |
+| `https://{subdomain}.writekit.dev/{slug}.md` | Raw markdown of a page |
+| `https://{subdomain}.writekit.dev/{collection}/{page}` | Page in collection |
+| `https://{subdomain}.writekit.dev/{collection}/{page}.md` | Raw markdown of collection page |
+| `https://{subdomain}.writekit.dev/search?q={query}` | Full-text search |
+| `https://{subdomain}.writekit.dev/preview/{token}` | Preview (expiring link, 24h) |
+| `https://{subdomain}.writekit.dev/preview/{token}?v=N` | Preview of specific version |
+
+## Live preview
+
+Preview URLs auto-reload when the page is updated via MCP tools. The browser connects via Server-Sent Events (SSE) and receives update notifications in real-time. No manual refresh needed — just keep the preview tab open while iterating with the AI.
+
+## Page versioning
+
+Every page update creates a version snapshot. The last 20 versions are kept per page. View previous versions by appending `?v=N` to a preview URL (e.g. `?v=1` for the first version, `?v=3` for the third).
+
+## Pricing
+
+- Free tier: full functionality on `{subdomain}.writekit.dev`
+- Creator plan ($5/month): custom domain support
+
+## Example prompts
+
+- "Write a getting-started guide and add it to the docs collection"
+- "Create a collection called 'Tutorials' with manual ordering"
+- "Publish my getting-started page and move it to position 1"
+- "Show me all my draft pages"
+- "Update my auth page — add a warning callout about rate limits"
+- "List all my collections"
+- "Are there any new comments?"
+- "Change my site title to 'Acme Docs'"
+- "Search my pages for anything about authentication"
+
+## Links
+
+- Website: https://writekit.dev
+- Documentation: https://writekit.dev/docs
+- MCP Server: https://writekit.dev/mcp
