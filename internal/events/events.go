@@ -5,32 +5,53 @@ import "sync"
 type Event struct {
 	Type     string
 	TenantID string
+	PageID   string
 	Payload  any
 }
 
 type Handler func(Event)
 
+type subscription struct {
+	id      int
+	handler Handler
+}
+
 type Bus struct {
 	mu       sync.RWMutex
-	handlers map[string][]Handler
+	handlers map[string][]subscription
+	nextID   int
 }
 
 func NewBus() *Bus {
-	return &Bus{handlers: make(map[string][]Handler)}
+	return &Bus{handlers: make(map[string][]subscription)}
 }
 
-func (b *Bus) On(eventType string, h Handler) {
+func (b *Bus) On(eventType string, h Handler) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.handlers[eventType] = append(b.handlers[eventType], h)
+	b.nextID++
+	b.handlers[eventType] = append(b.handlers[eventType], subscription{id: b.nextID, handler: h})
+	return b.nextID
+}
+
+func (b *Bus) Off(eventType string, id int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	subs := b.handlers[eventType]
+	for i, s := range subs {
+		if s.id == id {
+			b.handlers[eventType] = append(subs[:i], subs[i+1:]...)
+			return
+		}
+	}
 }
 
 func (b *Bus) Emit(e Event) {
 	b.mu.RLock()
-	handlers := b.handlers[e.Type]
+	subs := b.handlers[e.Type]
 	b.mu.RUnlock()
-	for _, h := range handlers {
-		go h(e)
+	for _, s := range subs {
+		go s.handler(e)
 	}
 }
 

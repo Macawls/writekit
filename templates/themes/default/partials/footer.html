@@ -41,17 +41,60 @@
             document.body.appendChild(s);
         }
 
-        // D2 zoom controls
+        // D2 zoom/pan/fullscreen controls
         document.querySelectorAll('.d2-diagram').forEach(function(diagram) {
             var viewport = diagram.querySelector('.d2-viewport');
             if (!viewport) return;
-            var scale = 1;
+            var scale = 1, panX = 0, panY = 0, dragging = false, startX, startY;
+
+            function applyTransform() {
+                viewport.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
+                viewport.style.transformOrigin = 'top left';
+            }
+            function resetView() { scale = 1; panX = 0; panY = 0; viewport.style.transform = ''; }
+
             var zoomIn = diagram.querySelector('.d2-zoom-in');
             var zoomOut = diagram.querySelector('.d2-zoom-out');
             var reset = diagram.querySelector('.d2-reset');
-            if (zoomIn) zoomIn.addEventListener('click', function() { scale = Math.min(scale * 1.25, 3); viewport.style.transform = 'scale(' + scale + ')'; viewport.style.transformOrigin = 'top left'; });
-            if (zoomOut) zoomOut.addEventListener('click', function() { scale = Math.max(scale / 1.25, 0.25); viewport.style.transform = 'scale(' + scale + ')'; viewport.style.transformOrigin = 'top left'; });
-            if (reset) reset.addEventListener('click', function() { scale = 1; viewport.style.transform = ''; });
+            var fs = diagram.querySelector('.d2-fullscreen');
+
+            if (zoomIn) zoomIn.addEventListener('click', function() { scale = Math.min(scale * 1.25, 5); applyTransform(); });
+            if (zoomOut) zoomOut.addEventListener('click', function() { scale = Math.max(scale / 1.25, 0.1); applyTransform(); });
+            if (reset) reset.addEventListener('click', resetView);
+
+            if (fs) fs.addEventListener('click', function() {
+                var isFs = diagram.classList.toggle('fullscreen');
+                if (!isFs) resetView();
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && diagram.classList.contains('fullscreen')) {
+                    diagram.classList.remove('fullscreen');
+                    resetView();
+                }
+            });
+
+            viewport.addEventListener('mousedown', function(e) {
+                if (!diagram.classList.contains('fullscreen')) return;
+                dragging = true; startX = e.clientX - panX; startY = e.clientY - panY;
+                viewport.classList.add('dragging');
+            });
+            document.addEventListener('mousemove', function(e) {
+                if (!dragging) return;
+                panX = e.clientX - startX; panY = e.clientY - startY;
+                applyTransform();
+            });
+            document.addEventListener('mouseup', function() {
+                dragging = false; viewport.classList.remove('dragging');
+            });
+
+            viewport.addEventListener('wheel', function(e) {
+                if (!diagram.classList.contains('fullscreen')) return;
+                e.preventDefault();
+                var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+                scale = Math.min(Math.max(scale * factor, 0.1), 5);
+                applyTransform();
+            }, { passive: false });
         });
     })();
     </script>

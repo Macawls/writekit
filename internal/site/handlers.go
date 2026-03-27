@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"writekit/internal/tenant"
 	"github.com/oklog/ulid/v2"
+	"writekit/internal/events"
+	"writekit/internal/tenant"
 )
 
 func (h *Handler) getTenantDB(r *http.Request) (*tenant.DB, string, error) {
@@ -229,15 +231,77 @@ func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if vStr := r.URL.Query().Get("v"); vStr != "" {
+		if v, err := strconv.Atoi(vStr); err == nil {
+			pv, err := db.GetPageVersion(r.Context(), page.ID, v)
+			if err == nil {
+				page.Title = pv.Title
+				page.Content = pv.Content
+				page.ContentHTML = pv.ContentHTML
+				page.Version = pv.Version
+			}
+		}
+	}
+
 	settings, _ := db.GetSettings(r.Context())
 
 	h.Engine.Render(w, "page.html", map[string]any{
-		"Page":     page,
-		"Settings": settings,
-		"TenantID": tenantID,
-		"Host":     h.Config.Host,
-		"Preview":  true,
+		"Page":         page,
+		"Settings":     settings,
+		"TenantID":     tenantID,
+		"Host":         h.Config.Host,
+		"Preview":      true,
+		"PreviewToken": token,
 	})
+}
+
+func (h *Handler) PreviewSSE(w http.ResponseWriter, r *http.Request) {
+	db, _, err := h.getTenantDB(r)
+	if err != nil {
+		http.Error(w, "site not found", http.StatusNotFound)
+		return
+	}
+
+	token := chi.URLParam(r, "token")
+	pt, err := db.GetPreviewToken(r.Context(), token)
+	if err != nil {
+		http.Error(w, "preview not found or expired", http.StatusNotFound)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	pageID := pt.PageID
+	ch := make(chan struct{}, 1)
+
+	subID := h.Bus.On(events.PageUpdated, func(e events.Event) {
+		if e.PageID == pageID {
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		}
+	})
+	defer h.Bus.Off(events.PageUpdated, subID)
+
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ch:
+			fmt.Fprintf(w, "data: updated\n\n")
+			flusher.Flush()
+		}
+	}
 }
 
 func (h *Handler) submitComment(w http.ResponseWriter, r *http.Request, db *tenant.DB, tenantID string, page *tenant.Page, redirectPath string) {

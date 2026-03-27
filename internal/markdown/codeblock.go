@@ -114,8 +114,9 @@ func getLanguageIconURL(language string) string {
 }
 
 type codeBlockRenderer struct {
-	style string
-	ruler *textmeasure.Ruler
+	style  string
+	ruler  *textmeasure.Ruler
+	errors *[]string
 }
 
 func (r *codeBlockRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
@@ -213,8 +214,11 @@ func (r *codeBlockRenderer) highlightCode(code, language string) string {
 func (r *codeBlockRenderer) renderD2Diagram(w util.BufWriter, code string) (ast.WalkStatus, error) {
 	svg, err := r.renderD2(code)
 	if err != nil {
+		if r.errors != nil {
+			*r.errors = append(*r.errors, "D2 diagram error: "+err.Error())
+		}
 		w.WriteString(`<div class="d2-diagram d2-error">`)
-		w.WriteString(`<p class="text-red-500 text-sm">Diagram error: `)
+		w.WriteString(`<p>Diagram error: `)
 		w.WriteString(html.EscapeString(err.Error()))
 		w.WriteString(`</p>`)
 		w.WriteString(`<pre><code>`)
@@ -226,6 +230,9 @@ func (r *codeBlockRenderer) renderD2Diagram(w util.BufWriter, code string) (ast.
 
 	w.WriteString(`<div class="d2-diagram">`)
 	w.WriteString(`<div class="d2-controls">`)
+	w.WriteString(`<button type="button" class="d2-fullscreen" aria-label="Fullscreen">`)
+	w.WriteString(`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`)
+	w.WriteString(`</button>`)
 	w.WriteString(`<button type="button" class="d2-zoom-in" aria-label="Zoom in">`)
 	w.WriteString(`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M11 8v6M8 11h6"/></svg>`)
 	w.WriteString(`</button>`)
@@ -294,4 +301,21 @@ func (e *codeBlockExtension) Extend(m goldmark.Markdown) {
 
 func NewCodeBlockExtension(style string) goldmark.Extender {
 	return &codeBlockExtension{style: style}
+}
+
+func newCodeBlockRenderer(style string) *codeBlockRenderer {
+	ruler, _ := textmeasure.NewRuler()
+	return &codeBlockRenderer{style: style, ruler: ruler}
+}
+
+type codeBlockExtensionWithRenderer struct {
+	renderer *codeBlockRenderer
+}
+
+func (e *codeBlockExtensionWithRenderer) Extend(m goldmark.Markdown) {
+	m.Renderer().AddOptions(
+		renderer.WithNodeRenderers(
+			util.Prioritized(e.renderer, 100),
+		),
+	)
 }

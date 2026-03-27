@@ -24,6 +24,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/", h.Index)
 	r.Get("/search", h.Search)
 	r.Get("/preview/{token}", h.Preview)
+	r.Get("/preview/{token}/events", h.PreviewSSE)
 	r.Get("/{slug}.md", h.RawMarkdown)
 	r.Get("/{slug}", h.PageOrCollection)
 	r.Get("/{collection}/{page}.md", h.RawCollectionMarkdown)

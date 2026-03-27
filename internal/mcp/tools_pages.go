@@ -196,12 +196,14 @@ func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		collectionID = &args.CollectionID
 	}
 
+	contentHTML, renderWarnings := renderContentWithErrors(args.Content)
+
 	page := &tenant.Page{
 		ID:           ulid.Make().String(),
 		Title:        args.Title,
 		Slug:         slug,
 		Content:      args.Content,
-		ContentHTML:  renderContent(args.Content),
+		ContentHTML:  contentHTML,
 		Excerpt:      excerpt,
 		Status:       "draft",
 		Tags:         string(tagsJSON),
@@ -209,19 +211,30 @@ func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		Position:     args.Position,
 	}
 
+	page.Version = 1
+
 	if err := db.CreatePage(ctx, page); err != nil {
 		return toolError(fmt.Sprintf("failed to create page: %v", err)), nil
 	}
+
+	db.SavePageVersion(ctx, page)
 
 	pt, err := db.CreatePreviewToken(ctx, page.ID, 24*time.Hour)
 	if err != nil {
 		return toolError("page created but failed to generate preview URL"), nil
 	}
 
-	s.Bus.Emit(events.Event{Type: events.PageCreated, TenantID: tenantID})
+	s.Bus.Emit(events.Event{Type: events.PageCreated, TenantID: tenantID, PageID: page.ID})
 
 	result := fmt.Sprintf("Page created as draft.\n\n**Title:** %s\n**ID:** %s\n**Slug:** %s\n**Preview:** %s\n\nUse publish_page to make it live.",
 		page.Title, page.ID, page.Slug, s.buildPreviewURL(tenantID, pt.Token))
+
+	if len(renderWarnings) > 0 {
+		result += "\n\n**Warnings:**\n"
+		for _, w := range renderWarnings {
+			result += "- " + w + "\n"
+		}
+	}
 
 	return toolResult(result), nil
 }
@@ -259,9 +272,10 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	if args.Title != nil {
 		page.Title = *args.Title
 	}
+	var renderWarnings []string
 	if args.Content != nil {
 		page.Content = *args.Content
-		page.ContentHTML = renderContent(*args.Content)
+		page.ContentHTML, renderWarnings = renderContentWithErrors(*args.Content)
 	}
 	if args.Excerpt != nil {
 		page.Excerpt = *args.Excerpt
@@ -284,11 +298,15 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		page.Position = *args.Position
 	}
 
+	page.Version++
+
 	if err := db.UpdatePage(ctx, page); err != nil {
 		return toolError(fmt.Sprintf("failed to update: %v", err)), nil
 	}
 
-	s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID})
+	db.SavePageVersion(ctx, page)
+
+	s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: page.ID})
 
 	pt, _ := db.CreatePreviewToken(ctx, page.ID, 24*time.Hour)
 	previewURL := ""
@@ -296,12 +314,19 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		previewURL = s.buildPreviewURL(tenantID, pt.Token)
 	}
 
-	result := fmt.Sprintf("Page updated!\n\n**Title:** %s\n**Status:** %s", page.Title, page.Status)
+	result := fmt.Sprintf("Page updated (v%d).\n\n**Title:** %s\n**Status:** %s", page.Version, page.Title, page.Status)
 	if page.Status == "published" {
 		result += fmt.Sprintf("\n**Live URL:** %s", s.buildPageURL(tenantID, page.CollectionID, page.Slug))
 	}
 	if previewURL != "" {
 		result += fmt.Sprintf("\n**Preview URL:** %s", previewURL)
+	}
+
+	if len(renderWarnings) > 0 {
+		result += "\n\n**Warnings:**\n"
+		for _, w := range renderWarnings {
+			result += "- " + w + "\n"
+		}
 	}
 
 	return toolResult(result), nil
@@ -329,7 +354,7 @@ func (s *Server) deletePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		return toolError(fmt.Sprintf("failed to delete: %v", err)), nil
 	}
 
-	s.Bus.Emit(events.Event{Type: events.PageDeleted, TenantID: tenantID})
+	s.Bus.Emit(events.Event{Type: events.PageDeleted, TenantID: tenantID, PageID: args.ID})
 	return toolResult("Page deleted."), nil
 }
 
@@ -364,7 +389,7 @@ func (s *Server) publishPage(ctx context.Context, req *mcp.CallToolRequest) (*mc
 		return toolError(fmt.Sprintf("failed to publish: %v", err)), nil
 	}
 
-	s.Bus.Emit(events.Event{Type: events.PagePublished, TenantID: tenantID})
+	s.Bus.Emit(events.Event{Type: events.PagePublished, TenantID: tenantID, PageID: page.ID})
 	liveURL := s.buildPageURL(tenantID, page.CollectionID, page.Slug)
 	return toolResult(fmt.Sprintf("Page published!\n\n**Live URL:** %s", liveURL)), nil
 }
@@ -399,7 +424,7 @@ func (s *Server) unpublishPage(ctx context.Context, req *mcp.CallToolRequest) (*
 		return toolError(fmt.Sprintf("failed to unpublish: %v", err)), nil
 	}
 
-	s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID})
+	s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: page.ID})
 	return toolResult("Page reverted to draft."), nil
 }
 
@@ -563,6 +588,10 @@ func renderContent(content string) string {
 		return content
 	}
 	return html
+}
+
+func renderContentWithErrors(content string) (string, []string) {
+	return markdown.RenderWithErrors(content)
 }
 
 func stripMarkdown(s string) string {

@@ -68,3 +68,32 @@ func RenderWithTheme(source, codeTheme string) (string, error) {
 	}
 	return buf.String(), nil
 }
+
+func RenderWithErrors(source string) (string, []string) {
+	var errs []string
+	cbr := newCodeBlockRenderer(DefaultCodeTheme)
+	cbr.errors = &errs
+
+	md := goldmark.New(
+		goldmark.WithExtensions(
+			extension.GFM,
+			extension.Footnote,
+			&codeBlockExtensionWithRenderer{cbr},
+			NewCalloutExtension(),
+			NewEmbedExtension(),
+		),
+		goldmark.WithParserOptions(
+			parser.WithAutoHeadingID(),
+		),
+		goldmark.WithRendererOptions(
+			html.WithHardWraps(),
+			html.WithUnsafe(),
+		),
+	)
+
+	var buf bytes.Buffer
+	if err := md.Convert([]byte(source), &buf); err != nil {
+		return source, []string{err.Error()}
+	}
+	return buf.String(), errs
+}

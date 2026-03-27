@@ -19,6 +19,7 @@ type Page struct {
 	Tags         string
 	CollectionID *string
 	Position     int
+	Version      int
 	PublishedAt  *time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -34,9 +35,9 @@ type PageFilter struct {
 
 func (db *DB) CreatePage(ctx context.Context, p *Page) error {
 	_, err := db.DB.ExecContext(ctx, `
-		INSERT INTO pages (id, title, slug, content, content_html, excerpt, status, tags, collection_id, position, published_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, p.ID, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Tags, p.CollectionID, p.Position, p.PublishedAt)
+		INSERT INTO pages (id, title, slug, content, content_html, excerpt, status, tags, collection_id, position, version, published_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, p.ID, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Tags, p.CollectionID, p.Position, p.Version, p.PublishedAt)
 	if err != nil {
 		return fmt.Errorf("create page: %w", err)
 	}
@@ -45,9 +46,9 @@ func (db *DB) CreatePage(ctx context.Context, p *Page) error {
 
 func (db *DB) UpdatePage(ctx context.Context, p *Page) error {
 	_, err := db.DB.ExecContext(ctx, `
-		UPDATE pages SET title=?, slug=?, content=?, content_html=?, excerpt=?, status=?, tags=?, collection_id=?, position=?, published_at=?, updated_at=datetime('now')
+		UPDATE pages SET title=?, slug=?, content=?, content_html=?, excerpt=?, status=?, tags=?, collection_id=?, position=?, version=?, published_at=?, updated_at=datetime('now')
 		WHERE id=?
-	`, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Tags, p.CollectionID, p.Position, p.PublishedAt, p.ID)
+	`, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Tags, p.CollectionID, p.Position, p.Version, p.PublishedAt, p.ID)
 	if err != nil {
 		return fmt.Errorf("update page: %w", err)
 	}
@@ -155,7 +156,7 @@ func (db *DB) ListCollectionPages(ctx context.Context, collectionID, sortOrder s
 
 func (db *DB) SearchPages(ctx context.Context, query string) ([]Page, error) {
 	rows, err := db.DB.QueryContext(ctx, `
-		SELECT p.id, p.title, p.slug, p.content, p.content_html, p.excerpt, p.status, p.tags, p.collection_id, p.position, p.published_at, p.created_at, p.updated_at
+		SELECT p.id, p.title, p.slug, p.content, p.content_html, p.excerpt, p.status, p.tags, p.collection_id, p.position, p.version, p.published_at, p.created_at, p.updated_at
 		FROM pages p
 		JOIN pages_fts ON posts_fts.rowid = p.rowid
 		WHERE pages_fts MATCH ?
@@ -190,7 +191,7 @@ func (db *DB) CountPages(ctx context.Context, status string) (int, error) {
 	return count, err
 }
 
-const pageSelect = `SELECT id, title, slug, content, content_html, excerpt, status, tags, collection_id, position, published_at, created_at, updated_at FROM pages`
+const pageSelect = `SELECT id, title, slug, content, content_html, excerpt, status, tags, collection_id, position, version, published_at, created_at, updated_at FROM pages`
 
 type scanner interface {
 	Scan(dest ...any) error
@@ -199,7 +200,7 @@ type scanner interface {
 func scanPage(row *sql.Row) (*Page, error) {
 	var p Page
 	err := row.Scan(&p.ID, &p.Title, &p.Slug, &p.Content, &p.ContentHTML,
-		&p.Excerpt, &p.Status, &p.Tags, &p.CollectionID, &p.Position, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+		&p.Excerpt, &p.Status, &p.Tags, &p.CollectionID, &p.Position, &p.Version, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -209,9 +210,49 @@ func scanPage(row *sql.Row) (*Page, error) {
 func scanPageRow(rows *sql.Rows) (*Page, error) {
 	var p Page
 	err := rows.Scan(&p.ID, &p.Title, &p.Slug, &p.Content, &p.ContentHTML,
-		&p.Excerpt, &p.Status, &p.Tags, &p.CollectionID, &p.Position, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+		&p.Excerpt, &p.Status, &p.Tags, &p.CollectionID, &p.Position, &p.Version, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return &p, nil
+}
+
+type PageVersion struct {
+	ID          int
+	PageID      string
+	Version     int
+	Title       string
+	Content     string
+	ContentHTML string
+	CreatedAt   time.Time
+}
+
+const maxVersions = 20
+
+func (db *DB) SavePageVersion(ctx context.Context, p *Page) error {
+	_, err := db.DB.ExecContext(ctx, `
+		INSERT INTO page_versions (page_id, version, title, content, content_html)
+		VALUES (?, ?, ?, ?, ?)
+	`, p.ID, p.Version, p.Title, p.Content, p.ContentHTML)
+	if err != nil {
+		return fmt.Errorf("save page version: %w", err)
+	}
+
+	_, _ = db.DB.ExecContext(ctx, `
+		DELETE FROM page_versions WHERE page_id = ? AND version <= (? - ?)
+	`, p.ID, p.Version, maxVersions)
+
+	return nil
+}
+
+func (db *DB) GetPageVersion(ctx context.Context, pageID string, version int) (*PageVersion, error) {
+	var v PageVersion
+	err := db.DB.QueryRowContext(ctx, `
+		SELECT id, page_id, version, title, content, content_html, created_at
+		FROM page_versions WHERE page_id = ? AND version = ?
+	`, pageID, version).Scan(&v.ID, &v.PageID, &v.Version, &v.Title, &v.Content, &v.ContentHTML, &v.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("get page version: %w", err)
+	}
+	return &v, nil
 }
