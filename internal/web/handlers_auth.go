@@ -380,7 +380,7 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 
 	cookie, err := r.Cookie("session")
 	if err != nil {
-
+		slog.Warn("oauth authorize: no session cookie", "err", err, "cookies", r.Header.Get("Cookie"))
 		loginURL := fmt.Sprintf("/auth/login?oauth=1&%s", r.URL.RawQuery)
 		http.Redirect(w, r, loginURL, http.StatusSeeOther)
 		return
@@ -388,6 +388,7 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 
 	sess, err := h.DB.GetSession(r.Context(), cookie.Value)
 	if err != nil {
+		slog.Warn("oauth authorize: session lookup failed", "err", err, "cookie_len", len(cookie.Value))
 		loginURL := fmt.Sprintf("/auth/login?oauth=1&%s", r.URL.RawQuery)
 		http.Redirect(w, r, loginURL, http.StatusSeeOther)
 		return
