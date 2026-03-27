@@ -11,14 +11,14 @@
         *{margin:0;padding:0;box-sizing:border-box}
         :root{
             --bg:#fafafa;--white:#fff;--fg:#0f0f0f;--fg2:#3f3f46;--muted:#71717a;
-            --faint:#a1a1aa;--border:#e4e4e7;--border2:#d4d4d8;--accent:#2563eb;
+            --faint:#a1a1aa;--border:#e4e4e7;--border2:#d4d4d8;--accent:#0f0f0f;
             --surface:#18181b;
             --sans:'Plus Jakarta Sans',system-ui,sans-serif;
             --mono:'JetBrains Mono',ui-monospace,monospace;
         }
         body{font-family:var(--sans);background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;line-height:1.7}
-        a{color:var(--accent);text-decoration:none}
-        a:hover{text-decoration:underline}
+        a{color:var(--fg);text-decoration:underline;text-decoration-color:var(--border2);text-underline-offset:2px}
+        a:hover{text-decoration-color:var(--fg)}
 
 
         .doc{max-width:640px;margin:0 auto;padding:3rem 2rem 5rem}
