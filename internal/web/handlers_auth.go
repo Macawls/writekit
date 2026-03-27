@@ -244,6 +244,7 @@ func (h *Handler) createSessionAndRedirect(w http.ResponseWriter, r *http.Reques
 		cookie.Domain = "." + h.Config.Host
 	}
 	http.SetCookie(w, cookie)
+	slog.Info("session cookie set", "session_prefix", sess.ID[:8], "domain", cookie.Domain, "secure", cookie.Secure)
 
 	if parts := strings.SplitN(state, "|", 2); len(parts) == 2 {
 		http.Redirect(w, r, "/oauth/authorize?"+parts[1], http.StatusSeeOther)
@@ -388,7 +389,7 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 
 	sess, err := h.DB.GetSession(r.Context(), cookie.Value)
 	if err != nil {
-		slog.Warn("oauth authorize: session lookup failed", "err", err, "cookie_len", len(cookie.Value))
+		slog.Warn("oauth authorize: session lookup failed", "err", err, "cookie_prefix", cookie.Value[:8])
 		loginURL := fmt.Sprintf("/auth/login?oauth=1&%s", r.URL.RawQuery)
 		http.Redirect(w, r, loginURL, http.StatusSeeOther)
 		return
