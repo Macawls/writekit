@@ -137,8 +137,9 @@ user, isNew, err := h.findOrCreateUser(r, providerName, info)
 		return
 	}
 
+	h.autoCreateTenant(r.Context(), user)
+
 	if isNew {
-		h.autoCreateTenant(r.Context(), user)
 		go func() {
 			if err := h.Email.SendWelcome(context.WithoutCancel(r.Context()), user.Email, user.Name); err != nil {
 				slog.Error("send welcome email", "err", err)
@@ -345,8 +346,9 @@ func (h *Handler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
 		h.DB.LinkAccount(r.Context(), user.ID, "email", ml.Email, ml.Email, true)
 	}
 
+	h.autoCreateTenant(r.Context(), user)
+
 	if isNew {
-		h.autoCreateTenant(r.Context(), user)
 		go func() {
 			if err := h.Email.SendWelcome(context.WithoutCancel(r.Context()), user.Email, user.Name); err != nil {
 				slog.Error("send welcome email", "err", err)
