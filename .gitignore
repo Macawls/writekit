@@ -9,8 +9,8 @@ screenshots/
 *.db-shm
 tmp/
 
-# React SPA
-ui/node_modules/
-ui/dist/*
-!ui/dist/.gitkeep
-admin/node_modules
+# Frontend apps
+apps/user/node_modules/
+apps/user/dist/*
+!apps/user/dist/.gitkeep
+apps/admin/node_modules/
