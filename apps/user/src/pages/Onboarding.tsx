@@ -68,7 +68,6 @@ export default function Onboarding({ user, site, onComplete }: Props) {
   const [step, setStep] = useState<Step>('welcome')
   const [visible, setVisible] = useState(false)
   const [slug, setSlug] = useState(site.ID)
-  const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [slugError, setSlugError] = useState<string | null>(null)
   const [client, setClient] = useState<Client>('Claude Code')
@@ -90,15 +89,12 @@ export default function Onboarding({ user, site, onComplete }: Props) {
   }
 
   const handleSlugSave = async () => {
-    if (slug === site.ID) {
-      setEditing(false)
-      return
-    }
+    if (slug === site.ID) return
     setSaving(true)
     setSlugError(null)
     try {
       await api.updateSlug(slug)
-      setEditing(false)
+      site.ID = slug
     } catch (err) {
       setSlugError(err instanceof Error ? err.message : 'Failed to update')
       setSlug(site.ID)
@@ -420,39 +416,26 @@ export default function Onboarding({ user, site, onComplete }: Props) {
             <h1>{firstName ? `Hey ${firstName}` : 'Welcome'}</h1>
             <p className="desc">Your site is ready.</p>
 
-            <div className="ob-site-url">
-              <a href={siteUrl} target="_blank" rel="noopener noreferrer">{slug}.{host}</a>
+            <div className="ob-slug-edit">
+              <input
+                type="text"
+                value={slug}
+                onChange={e => {
+                  setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
+                  setSlugError(null)
+                }}
+              />
+              <span className="suffix">.{host}</span>
             </div>
-
-            <div>
-              {!editing ? (
-                <button className="ob-edit-link" onClick={() => setEditing(true)}>
-                  Change subdomain
+            {slugError && <p className="ob-error">{slugError}</p>}
+            {slug !== site.ID && (
+              <div className="ob-slug-actions">
+                <button onClick={() => { setSlug(site.ID); setSlugError(null) }}>Reset</button>
+                <button className="save-btn" onClick={handleSlugSave} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save'}
                 </button>
-              ) : (
-                <>
-                  <div className="ob-slug-edit">
-                    <input
-                      type="text"
-                      value={slug}
-                      onChange={e => {
-                        setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
-                        setSlugError(null)
-                      }}
-                      autoFocus
-                    />
-                    <span className="suffix">.{host}</span>
-                  </div>
-                  {slugError && <p className="ob-error">{slugError}</p>}
-                  <div className="ob-slug-actions">
-                    <button onClick={() => { setSlug(site.ID); setEditing(false); setSlugError(null) }}>Cancel</button>
-                    <button className="save-btn" onClick={handleSlugSave} disabled={saving}>
-                      {saving ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+              </div>
+            )}
 
             <button className="ob-btn" onClick={() => transition('connect')}>
               Continue
@@ -511,10 +494,6 @@ export default function Onboarding({ user, site, onComplete }: Props) {
 
         {step === 'done' && (
           <>
-            <div className="ob-done-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            </div>
-
             <h1>You're all set</h1>
             <p className="desc">
               Start a conversation with your AI assistant and tell it what to write. It handles the rest.
