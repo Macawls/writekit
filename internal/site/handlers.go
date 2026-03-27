@@ -108,11 +108,13 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
+		slog.Warn("page: tenant not found", "err", err, "host", r.Host)
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
 
 	slug := chi.URLParam(r, "slug")
+	slog.Info("page request", "tenant", tenantID, "slug", slug)
 	settings, _ := db.GetSettings(r.Context())
 
 	collection, err := db.GetCollectionBySlug(r.Context(), slug)
@@ -129,7 +131,13 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page, err := db.GetStandalonePageBySlug(r.Context(), slug)
-	if err != nil || page.Status != "published" {
+	if err != nil {
+		slog.Warn("page not found", "tenant", tenantID, "slug", slug, "err", err)
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if page.Status != "published" {
+		slog.Warn("page not published", "tenant", tenantID, "slug", slug, "status", page.Status)
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
