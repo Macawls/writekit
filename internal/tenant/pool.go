@@ -129,6 +129,11 @@ func (p *Pool) Rename(oldID, newID string) error {
 	os.Rename(oldPath+"-wal", newPath+"-wal")
 	os.Rename(oldPath+"-shm", newPath+"-shm")
 
+	// Clean up any leftover files at old path
+	os.Remove(oldPath)
+	os.Remove(oldPath + "-wal")
+	os.Remove(oldPath + "-shm")
+
 	return nil
 }
 
