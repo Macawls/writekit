@@ -1,7 +1,7 @@
-ui/node_modules
-ui/dist
-admin/node_modules
-admin/dist
+apps/user/node_modules
+apps/user/dist
+apps/admin/node_modules
+apps/admin/dist
 data
 *.db
 *.db-wal

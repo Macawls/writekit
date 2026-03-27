@@ -403,48 +403,6 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
-func (h *Handler) OAuthAuthorizeSubmit(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("session")
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	sess, err := h.DB.GetSession(r.Context(), cookie.Value)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	authReq := &auth.AuthRequest{
-		ClientID:      r.FormValue("client_id"),
-		RedirectURI:   r.FormValue("redirect_uri"),
-		State:         r.FormValue("state"),
-		Scope:         r.FormValue("scope"),
-		CodeChallenge: r.FormValue("code_challenge"),
-		CodeMethod:    r.FormValue("code_challenge_method"),
-	}
-
-	if r.FormValue("action") == "deny" {
-		redirectURL := authReq.RedirectURI + "?error=access_denied"
-		if authReq.State != "" {
-			redirectURL += "&state=" + authReq.State
-		}
-		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-		return
-	}
-
-	code, err := h.MCPAuth.IssueAuthCode(r, sess.UserID, authReq)
-	if err != nil {
-		slog.Error("issue auth code failed", "err", err)
-		http.Error(w, "failed to issue code", http.StatusInternalServerError)
-		return
-	}
-
-	redirectURL := auth.BuildRedirectURL(authReq.RedirectURI, code, authReq.State)
-	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-}
-
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	h.Engine.Render(w, "landing.html", nil)
 }

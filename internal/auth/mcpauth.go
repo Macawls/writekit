@@ -12,33 +12,65 @@ import (
 	"strings"
 	"time"
 
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
+	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"writekit/internal/platform"
 )
+
+// authServerMeta represents RFC 8414 Authorization Server Metadata.
+// Defined locally because the SDK's oauthex.AuthServerMeta is behind a build tag.
+type authServerMeta struct {
+	Issuer                            string   `json:"issuer"`
+	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
+	TokenEndpoint                     string   `json:"token_endpoint"`
+	RegistrationEndpoint              string   `json:"registration_endpoint,omitempty"`
+	ResponseTypesSupported            []string `json:"response_types_supported"`
+	GrantTypesSupported               []string `json:"grant_types_supported,omitempty"`
+	CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported,omitempty"`
+	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+}
+
+// clientRegistrationRequest represents RFC 7591 Dynamic Client Registration request.
+// Defined locally because the SDK's oauthex.ClientRegistrationMetadata is behind a build tag.
+type clientRegistrationRequest struct {
+	RedirectURIs []string `json:"redirect_uris"`
+	ClientName   string   `json:"client_name,omitempty"`
+}
+
+// clientRegistrationResponse represents RFC 7591 Dynamic Client Registration response.
+type clientRegistrationResponse struct {
+	clientRegistrationRequest
+	ClientID              string `json:"client_id"`
+	ClientSecret          string `json:"client_secret,omitempty"`
+	ClientIDIssuedAt      int64  `json:"client_id_issued_at,omitempty"`
+	ClientSecretExpiresAt int64  `json:"client_secret_expires_at"`
+}
 
 type MCPAuth struct {
 	DB      *platform.DB
 	BaseURL string
 }
 
-func (m *MCPAuth) ProtectedResource(w http.ResponseWriter, r *http.Request) {
-	metadata := map[string]any{
-		"resource":              m.BaseURL + "/mcp",
-		"authorization_servers": []string{m.BaseURL},
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(metadata)
+// ProtectedResourceHandler returns an http.Handler that serves OAuth 2.0
+// protected resource metadata (RFC 9728) with CORS support via the SDK.
+func (m *MCPAuth) ProtectedResourceHandler() http.Handler {
+	return mcpauth.ProtectedResourceMetadataHandler(&oauthex.ProtectedResourceMetadata{
+		Resource:             m.BaseURL + "/mcp",
+		AuthorizationServers: []string{m.BaseURL},
+		ResourceName:         "WriteKit MCP",
+	})
 }
 
 func (m *MCPAuth) WellKnown(w http.ResponseWriter, r *http.Request) {
-	metadata := map[string]any{
-		"issuer":                 m.BaseURL,
-		"authorization_endpoint": m.BaseURL + "/oauth/authorize",
-		"token_endpoint":         m.BaseURL + "/oauth/token",
-		"registration_endpoint":  m.BaseURL + "/oauth/register",
-		"response_types_supported":             []string{"code"},
-		"grant_types_supported":                []string{"authorization_code", "refresh_token"},
-		"code_challenge_methods_supported":     []string{"S256"},
-		"token_endpoint_auth_methods_supported": []string{"none"},
+	metadata := &authServerMeta{
+		Issuer:                            m.BaseURL,
+		AuthorizationEndpoint:             m.BaseURL + "/oauth/authorize",
+		TokenEndpoint:                     m.BaseURL + "/oauth/token",
+		RegistrationEndpoint:              m.BaseURL + "/oauth/register",
+		ResponseTypesSupported:            []string{"code"},
+		GrantTypesSupported:               []string{"authorization_code", "refresh_token"},
+		CodeChallengeMethodsSupported:     []string{"S256"},
+		TokenEndpointAuthMethodsSupported: []string{"none"},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -46,31 +78,18 @@ func (m *MCPAuth) WellKnown(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *MCPAuth) Register(w http.ResponseWriter, r *http.Request) {
-	var reqBody map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+	var meta clientRegistrationRequest
+	if err := json.NewDecoder(r.Body).Decode(&meta); err != nil {
 		slog.Warn("oauth register: invalid request body", "err", err)
 		httpError(w, "invalid_client_metadata", http.StatusBadRequest)
 		return
 	}
 
-	redirectURIs, _ := reqBody["redirect_uris"].([]any)
-	if len(redirectURIs) == 0 {
+	if len(meta.RedirectURIs) == 0 {
 		slog.Warn("oauth register: missing redirect_uris")
 		httpError(w, "invalid_client_metadata", http.StatusBadRequest)
 		return
 	}
-
-	uris := make([]string, len(redirectURIs))
-	for i, u := range redirectURIs {
-		s, ok := u.(string)
-		if !ok {
-			httpError(w, "invalid_client_metadata", http.StatusBadRequest)
-			return
-		}
-		uris[i] = s
-	}
-
-	clientName, _ := reqBody["client_name"].(string)
 
 	clientID, _ := generateID()
 	clientSecret, _ := generateID()
@@ -78,8 +97,8 @@ func (m *MCPAuth) Register(w http.ResponseWriter, r *http.Request) {
 	client := &platform.OAuthClient{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		RedirectURIs: uris,
-		ClientName:   clientName,
+		RedirectURIs: meta.RedirectURIs,
+		ClientName:   meta.ClientName,
 		IsDynamic:    true,
 	}
 
@@ -89,21 +108,14 @@ func (m *MCPAuth) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("oauth client registered", "client_id", clientID, "client_name", clientName, "redirect_uris", uris)
+	slog.Info("oauth client registered", "client_id", clientID, "client_name", meta.ClientName, "redirect_uris", meta.RedirectURIs)
 
-	resp := map[string]any{
-		"client_id":                clientID,
-		"client_secret":            clientSecret,
-		"client_id_issued_at":      time.Now().Unix(),
-		"client_secret_expires_at": 0,
-	}
-	for k, v := range reqBody {
-		if _, exists := resp[k]; !exists {
-			resp[k] = v
-		}
-	}
-	if _, ok := resp["redirect_uris"]; !ok {
-		resp["redirect_uris"] = uris
+	resp := clientRegistrationResponse{
+		clientRegistrationRequest: meta,
+		ClientID:                  clientID,
+		ClientSecret:              clientSecret,
+		ClientIDIssuedAt:          time.Now().Unix(),
+		ClientSecretExpiresAt:     0,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

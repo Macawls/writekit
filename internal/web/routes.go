@@ -32,16 +32,10 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/auth/magic-link/verify", h.MagicLinkVerify)
 
 	r.Get("/.well-known/oauth-authorization-server", h.MCPAuth.WellKnown)
-	r.Get("/.well-known/oauth-protected-resource", h.MCPAuth.ProtectedResource)
+	r.Method("GET", "/.well-known/oauth-protected-resource", h.MCPAuth.ProtectedResourceHandler())
 	r.Post("/oauth/register", h.MCPAuth.Register)
 	r.Get("/oauth/authorize", h.OAuthAuthorize)
-	r.Post("/oauth/authorize", h.OAuthAuthorizeSubmit)
 	r.Post("/oauth/token", h.MCPAuth.TokenExchange)
-
-	r.Post("/register", h.MCPAuth.Register)
-	r.Get("/authorize", h.OAuthAuthorize)
-	r.Post("/authorize", h.OAuthAuthorizeSubmit)
-	r.Post("/token", h.MCPAuth.TokenExchange)
 
 	r.Group(func(r chi.Router) {
 		r.Use(auth.WebAuth(h.DB))

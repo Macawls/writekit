@@ -168,7 +168,7 @@ func spaRouter(apiHandler *api.Handler, appFS fs.FS, cfg *config.Config, platfor
 
 	apiHandler.Routes(r)
 
-	distFS, _ := fs.Sub(appFS, "ui/dist")
+	distFS, _ := fs.Sub(appFS, "apps/user/dist")
 	fileServer := http.FileServer(http.FS(distFS))
 
 	r.Handle("/assets/*", fileServer)
@@ -201,7 +201,7 @@ func adminSpaRouter(adminHandler *admin.Handler, adminFS fs.FS) http.Handler {
 
 	adminHandler.Routes(r)
 
-	distFS, _ := fs.Sub(adminFS, "admin/dist")
+	distFS, _ := fs.Sub(adminFS, "apps/admin/dist")
 	fileServer := http.FileServer(http.FS(distFS))
 
 	r.Handle("/assets/*", fileServer)

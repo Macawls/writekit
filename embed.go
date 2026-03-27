@@ -8,8 +8,8 @@ var TemplatesFS embed.FS
 //go:embed all:static
 var StaticFS embed.FS
 
-//go:embed all:ui/dist
+//go:embed all:apps/user/dist
 var AppFS embed.FS
 
-//go:embed all:admin/dist
+//go:embed all:apps/admin/dist
 var AdminFS embed.FS
