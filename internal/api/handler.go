@@ -34,9 +34,9 @@ func userFromContext(ctx context.Context) *platform.User {
 func (h *Handler) Routes(r chi.Router) {
 	r.Use(h.authMiddleware)
 	r.Get("/api/me", h.Me)
-	r.Post("/api/blog", h.CreateBlog)
-	r.Put("/api/blog/slug", h.UpdateSlug)
-	r.Get("/api/blog", h.GetBlog)
+	r.Post("/api/site", h.CreateSite)
+	r.Put("/api/site/slug", h.UpdateSlug)
+	r.Get("/api/site", h.GetSite)
 	r.Put("/api/me", h.UpdateProfile)
 	r.Post("/api/billing/checkout", h.BillingCheckout)
 	r.Post("/api/billing/portal", h.BillingPortal)
@@ -69,7 +69,7 @@ func (h *Handler) authMiddleware(next http.Handler) http.Handler {
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	user := userFromContext(r.Context())
-	blog, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
+	site, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
 	sub, _ := h.DB.GetSubscription(r.Context(), user.ID)
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -79,24 +79,24 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 			"name":       user.Name,
 			"avatar_url": user.AvatarURL,
 		},
-		"blog":         blog,
+		"site":         site,
 		"subscription": sub,
 	})
 }
 
-func (h *Handler) GetBlog(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetSite(w http.ResponseWriter, r *http.Request) {
 	user := userFromContext(r.Context())
-	blog, err := h.DB.GetTenantByUser(r.Context(), user.ID)
+	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no blog found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no site found"})
 		return
 	}
-	writeJSON(w, http.StatusOK, blog)
+	writeJSON(w, http.StatusOK, site)
 }
 
 var slugRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$`)
 
-func (h *Handler) CreateBlog(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 	user := userFromContext(r.Context())
 
 	var body struct {
@@ -124,7 +124,7 @@ func (h *Handler) CreateBlog(w http.ResponseWriter, r *http.Request) {
 
 	existing, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if existing != nil {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "you already have a blog"})
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "you already have a site"})
 		return
 	}
 
@@ -143,8 +143,8 @@ func (h *Handler) CreateBlog(w http.ResponseWriter, r *http.Request) {
 		slog.Error("init tenant db failed", "err", err)
 	}
 
-	blog, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
-	writeJSON(w, http.StatusCreated, blog)
+	site, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
+	writeJSON(w, http.StatusCreated, site)
 }
 
 func (h *Handler) UpdateSlug(w http.ResponseWriter, r *http.Request) {
@@ -170,7 +170,7 @@ func (h *Handler) UpdateSlug(w http.ResponseWriter, r *http.Request) {
 
 	existing, err := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no blog found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no site found"})
 		return
 	}
 
@@ -181,7 +181,7 @@ func (h *Handler) UpdateSlug(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.Pool.Rename(existing.ID, body.Slug); err != nil {
 		slog.Error("rename tenant db failed", "err", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to rename blog"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to rename site"})
 		return
 	}
 
@@ -193,8 +193,8 @@ func (h *Handler) UpdateSlug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blog, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
-	writeJSON(w, http.StatusOK, blog)
+	site, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
+	writeJSON(w, http.StatusOK, site)
 }
 
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {

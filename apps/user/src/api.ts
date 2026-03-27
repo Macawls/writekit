@@ -5,7 +5,7 @@ export interface User {
   avatar_url: string
 }
 
-export interface Blog {
+export interface Site {
   ID: string
   UserID: string
   Name: string
@@ -21,7 +21,7 @@ export interface Subscription {
 
 export interface MeResponse {
   user: User
-  blog: Blog | null
+  site: Site | null
   subscription: Subscription | null
 }
 
@@ -36,7 +36,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
   const res = await fetch(path, opts)
   if (res.status === 401) {
-    // Redirect to login on the main domain
     const host = window.location.hostname.replace(/^app\./, '')
     window.location.href = `${window.location.protocol}//${host}/auth/login`
     throw new Error('unauthorized')
@@ -50,8 +49,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   me: () => request<MeResponse>('GET', '/api/me'),
-  createBlog: (slug: string, name: string) => request<Blog>('POST', '/api/blog', { slug, name }),
-  updateSlug: (slug: string) => request<Blog>('PUT', '/api/blog/slug', { slug }),
+  createSite: (slug: string, name: string) => request<Site>('POST', '/api/site', { slug, name }),
+  updateSlug: (slug: string) => request<Site>('PUT', '/api/site/slug', { slug }),
   updateProfile: (name: string) => request<{ name: string }>('PUT', '/api/me', { name }),
   billingCheckout: () => request<{ url: string }>('POST', '/api/billing/checkout'),
   billingPortal: () => request<{ url: string }>('POST', '/api/billing/portal'),
