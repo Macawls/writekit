@@ -23,6 +23,16 @@ export interface MeResponse {
   user: User
   site: Site | null
   subscription: Subscription | null
+  role: string
+}
+
+export interface TeamMember {
+  user_id: string
+  email: string
+  name: string
+  avatar_url: string
+  role: string
+  created_at: string
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -54,4 +64,8 @@ export const api = {
   updateProfile: (name: string) => request<{ name: string }>('PUT', '/api/me', { name }),
   billingCheckout: () => request<{ url: string }>('POST', '/api/billing/checkout'),
   billingPortal: () => request<{ url: string }>('POST', '/api/billing/portal'),
+  listTeamMembers: () => request<TeamMember[]>('GET', '/api/team'),
+  inviteTeamMember: (email: string, role: string) => request<{ status: string }>('POST', '/api/team', { email, role }),
+  updateTeamMemberRole: (userId: string, role: string) => request<{ status: string }>('PUT', `/api/team/${userId}`, { role }),
+  removeTeamMember: (userId: string) => request<{ status: string }>('DELETE', `/api/team/${userId}`),
 }

@@ -31,6 +31,10 @@ Advanced features:
 
 Workflow: Create pages as drafts first, share the preview URL, then publish when ready. Use collections to group related pages (docs, tutorials, series, etc.).
 
+Visibility: Pages and collections can be public (default, visible to everyone), unlisted (accessible via URL but hidden from index/sitemap), or private (only visible to authenticated team members). Set visibility when creating or updating.
+
+Teams: Sites have team members with roles — owner (full control), editor (manage content), viewer (view private content). Use invite_member, remove_member, update_member_role, and list_members tools to manage the team.
+
 Important: Never ask the user for tenant_id. It is auto-resolved from their account. Only include tenant_id if the user explicitly tells you which site to target, or if a tool returns an error about multiple sites.`
 
 type Server struct {
@@ -59,6 +63,7 @@ func New(platformDB *platform.DB, pool *tenant.Pool, cfg *config.Config, bus *ev
 	s.registerPageTools(mcpServer)
 	s.registerCollectionTools(mcpServer)
 	s.registerSettingsTools(mcpServer)
+	s.registerTeamTools(mcpServer)
 	s.registerResources(mcpServer)
 	s.registerPrompts(mcpServer)
 
@@ -73,7 +78,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) resolveTenant(userID string, tenantID string) (*tenant.DB, string, error) {
-	tenants, err := s.PlatformDB.ListTenantsByUser(context.Background(), userID)
+	tenants, err := s.PlatformDB.ListTenantsByMembership(context.Background(), userID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -104,6 +109,27 @@ func (s *Server) resolveTenant(userID string, tenantID string) (*tenant.DB, stri
 		return nil, "", err
 	}
 	return db, selectedID, nil
+}
+
+var roleLevel = map[string]int{"viewer": 0, "editor": 1, "owner": 2}
+
+func hasMinRole(actual, required string) bool {
+	return roleLevel[actual] >= roleLevel[required]
+}
+
+func (s *Server) resolveTenantWithRole(ctx context.Context, userID, tenantID, minRole string) (*tenant.DB, string, error) {
+	db, tid, err := s.resolveTenant(userID, tenantID)
+	if err != nil {
+		return nil, "", err
+	}
+	member, err := s.PlatformDB.GetTeamMember(ctx, tid, userID)
+	if err != nil {
+		return nil, "", errTenantNotFound
+	}
+	if !hasMinRole(member.Role, minRole) {
+		return nil, "", &mcpError{msg: "you don't have permission for this action (requires " + minRole + " role)"}
+	}
+	return db, tid, nil
 }
 
 type mcpError struct {

@@ -1,7 +1,10 @@
 import { useState } from 'react'
-import { api, type Subscription } from '../api'
+import { useStore } from '@nanostores/react'
+import { $subscription } from '../stores/auth'
+import { api } from '../api'
 
-export default function Billing({ subscription }: { subscription: Subscription | null }) {
+export default function Billing() {
+  const subscription = useStore($subscription)
   const [loading, setLoading] = useState(false)
 
   const handleCheckout = async () => {
@@ -29,7 +32,7 @@ export default function Billing({ subscription }: { subscription: Subscription |
   return (
     <>
       <h2>Billing</h2>
-      <div className="card" style={{ marginTop: '1rem' }}>
+      <div className="card" style={{ marginTop: '1.5rem' }}>
         <h3>Subscription</h3>
         <p className="muted" style={{ marginTop: '0.5rem' }}>
           Status: <strong>{isActive ? 'Active' : 'Inactive'}</strong>

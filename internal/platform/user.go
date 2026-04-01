@@ -60,7 +60,7 @@ func (db *DB) DeleteUser(ctx context.Context, id string) ([]string, error) {
 
 	for _, table := range []string{
 		"oauth_refresh_tokens", "oauth_access_tokens", "oauth_codes",
-		"sessions", "subscriptions", "linked_accounts", "tenants",
+		"sessions", "subscriptions", "linked_accounts", "team_members", "tenants",
 	} {
 		if _, err := tx.Exec(ctx, fmt.Sprintf("DELETE FROM %s WHERE user_id = $1", table), id); err != nil {
 			return nil, fmt.Errorf("delete from %s: %w", table, err)

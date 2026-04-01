@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { api, type User } from '../api'
+import { useStore } from '@nanostores/react'
+import { $user, loadAuth } from '../stores/auth'
+import { api } from '../api'
 
-export default function Settings({ user, onUpdate }: { user: User; onUpdate: () => void }) {
-  const [name, setName] = useState(user.name)
+export default function Settings() {
+  const user = useStore($user)
+  const [name, setName] = useState(user?.name ?? '')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -15,7 +18,7 @@ export default function Settings({ user, onUpdate }: { user: User; onUpdate: () 
     try {
       await api.updateProfile(name)
       setSuccess('Profile updated!')
-      onUpdate()
+      loadAuth()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update profile')
     } finally {
@@ -23,10 +26,12 @@ export default function Settings({ user, onUpdate }: { user: User; onUpdate: () 
     }
   }
 
+  if (!user) return null
+
   return (
     <>
       <h2>Settings</h2>
-      <div className="card" style={{ marginTop: '1rem' }}>
+      <div className="card" style={{ marginTop: '1.5rem' }}>
         <h3>Profile</h3>
         <form onSubmit={handleSubmit} style={{ marginTop: '0.5rem' }}>
           <div className="form-group">

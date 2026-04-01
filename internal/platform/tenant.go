@@ -14,13 +14,27 @@ type Tenant struct {
 }
 
 func (db *DB) CreateTenant(ctx context.Context, t *Tenant) error {
-	_, err := db.Pool.Exec(ctx, `
+	tx, err := db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `
 		INSERT INTO tenants (id, user_id, name) VALUES ($1, $2, $3)
 	`, t.ID, t.UserID, t.Name)
 	if err != nil {
 		return fmt.Errorf("create tenant: %w", err)
 	}
-	return nil
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO team_members (tenant_id, user_id, role) VALUES ($1, $2, 'owner')
+	`, t.ID, t.UserID)
+	if err != nil {
+		return fmt.Errorf("add owner to team: %w", err)
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (db *DB) GetTenant(ctx context.Context, id string) (*Tenant, error) {

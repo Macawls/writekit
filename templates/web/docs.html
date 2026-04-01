@@ -206,6 +206,24 @@
 <h3>Collections</h3>
 <p>Collections group related pages together. A "docs" collection, a "blog" collection, a "recipes" collection — whatever you need. Collections can be ordered manually (for docs/tutorials) or by date (for blog-style content). Pages can also exist standalone, outside any collection.</p>
 
+<h3>Visibility</h3>
+<p>Pages and collections have a visibility setting:</p>
+<ul>
+    <li><strong>Public</strong> (default) — visible to everyone, shown in index, sitemap, and search</li>
+    <li><strong>Unlisted</strong> — accessible via direct URL but hidden from index, sitemap, and search</li>
+    <li><strong>Private</strong> — only visible to authenticated team members. Everyone else gets a 404.</li>
+</ul>
+<p>Visibility is independent of status. A page must be <em>published</em> to be visible at all — visibility controls <em>who</em> can see it. A private collection cascades: all pages inside it are treated as private.</p>
+
+<h3>Teams</h3>
+<p>Each site has a team with role-based access:</p>
+<ul>
+    <li><strong>Owner</strong> — full control: billing, settings, team management, and content</li>
+    <li><strong>Editor</strong> — can create, edit, publish, and delete pages and collections. Can view private content.</li>
+    <li><strong>Viewer</strong> — can view private content only. Read-only access.</li>
+</ul>
+<p>Invite team members by email using the <code>invite_member</code> tool or via the dashboard at <code>app.writekit.dev</code>.</p>
+
 <h3>URLs</h3>
 <ul>
     <li>Standalone page: <code>yourname.writekit.dev/{slug}</code></li>
@@ -255,6 +273,16 @@
     <div class="does">Full-text search across titles and content.</div>
 </div>
 
+<div class="prompt-card">
+    <div class="say">"Make my API docs collection private"</div>
+    <div class="does">Updates the collection visibility so only team members can see it.</div>
+</div>
+
+<div class="prompt-card">
+    <div class="say">"Invite josh@example.com as an editor"</div>
+    <div class="does">Adds the user to your site team with editor permissions.</div>
+</div>
+
 <h2>MCP tools</h2>
 
 <p>These tools are available to your AI assistant when connected.</p>
@@ -289,6 +317,15 @@
     <tr><th>Tool</th><th>Description</th></tr>
     <tr><td><code>get_settings</code></td><td>Get current site settings</td></tr>
     <tr><td><code>update_settings</code></td><td>Update site title, description</td></tr>
+</table>
+
+<h3>Teams</h3>
+<table>
+    <tr><th>Tool</th><th>Description</th></tr>
+    <tr><td><code>list_members</code></td><td>List all team members and their roles</td></tr>
+    <tr><td><code>invite_member</code></td><td>Add a user to the team by email (owner only)</td></tr>
+    <tr><td><code>remove_member</code></td><td>Remove a team member (owner only)</td></tr>
+    <tr><td><code>update_member_role</code></td><td>Change a member's role (owner only)</td></tr>
 </table>
 
 <h2>MCP resources</h2>

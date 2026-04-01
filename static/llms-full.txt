@@ -58,12 +58,12 @@ Add to `.vscode/mcp.json`:
 
 | Tool | Description | Required params | Optional params |
 |------|-------------|-----------------|-----------------|
-| `create_page` | Create a new draft page | title, content (markdown) | excerpt, tags[], slug, collection_id, position, tenant_id |
-| `update_page` | Partial update of a page | id | title, content, excerpt, tags[], slug, collection_id, position, tenant_id |
+| `create_page` | Create a new draft page | title, content (markdown) | excerpt, tags[], slug, collection_id, position, visibility (public/unlisted/private), tenant_id |
+| `update_page` | Partial update of a page | id | title, content, excerpt, tags[], slug, collection_id, position, visibility, tenant_id |
 | `delete_page` | Permanently delete a page | id | tenant_id |
 | `publish_page` | Publish a draft (sets status=published) | id | tenant_id |
 | `unpublish_page` | Revert to draft | id | tenant_id |
-| `list_pages` | List pages with filters | — | status, tag, collection_id, limit, tenant_id |
+| `list_pages` | List pages with filters | — | status, visibility, tag, collection_id, limit, tenant_id |
 | `get_page` | Get full page with markdown content | id OR slug | tenant_id |
 | `append_to_page` | Append content to end of page (avoids re-sending full content) | id, content | tenant_id |
 | `search_pages` | Full-text search (FTS5) | query | tenant_id |
@@ -72,8 +72,8 @@ Add to `.vscode/mcp.json`:
 
 | Tool | Description | Required params | Optional params |
 |------|-------------|-----------------|-----------------|
-| `create_collection` | Create a page grouping | title | description, slug, sort_order (manual/date), tenant_id |
-| `update_collection` | Partial update | id | title, description, slug, sort_order, tenant_id |
+| `create_collection` | Create a page grouping | title | description, slug, sort_order (manual/date), visibility (public/unlisted/private), tenant_id |
+| `update_collection` | Partial update | id | title, description, slug, sort_order, visibility, tenant_id |
 | `delete_collection` | Delete (pages become standalone) | id | tenant_id |
 | `list_collections` | List with page counts | — | tenant_id |
 | `get_collection` | Get details and pages | id OR slug | tenant_id |
@@ -85,6 +85,15 @@ Add to `.vscode/mcp.json`:
 |------|-------------|-----------------|-----------------|
 | `get_settings` | Get site settings | — | tenant_id |
 | `update_settings` | Update site title/description | — | title, description, code_theme, tenant_id |
+
+### Teams
+
+| Tool | Description | Required params | Optional params |
+|------|-------------|-----------------|-----------------|
+| `list_members` | List all team members | — | tenant_id |
+| `invite_member` | Add user to team by email (owner only) | email, role (editor/viewer) | tenant_id |
+| `remove_member` | Remove team member (owner only) | email | tenant_id |
+| `update_member_role` | Change member role (owner only) | email, role (owner/editor/viewer) | tenant_id |
 
 ## MCP Prompts
 
@@ -105,6 +114,29 @@ Add to `.vscode/mcp.json`:
 ## Tenant resolution
 
 If a user has one site, it's selected automatically. If multiple sites exist, pass `tenant_id` on each tool call.
+
+## Teams and Roles
+
+Sites have team members with roles:
+- **owner**: Full control — billing, settings, team management, content
+- **editor**: Create, edit, publish pages and collections. Can view private content.
+- **viewer**: Can view private content only. Read-only access via MCP tools.
+
+Write operations (create/update/delete/publish) require editor or owner role. Team management and subdomain changes require owner role.
+
+## Visibility
+
+Pages and collections have a `visibility` setting orthogonal to status:
+- **public** (default): Visible to everyone. Shown in index, sitemap, search results.
+- **unlisted**: Accessible via direct URL but hidden from index, sitemap, and search.
+- **private**: Only visible to authenticated team members. Returns 404 for everyone else.
+
+Visibility is independent of status (draft/published):
+- A draft page is never visible regardless of visibility setting.
+- A published + public page is visible to everyone.
+- A published + private page is only visible to team members.
+
+A private collection cascades: all pages inside it are treated as private regardless of their individual visibility setting.
 
 ## Content format
 
@@ -176,6 +208,10 @@ Every page update creates a version snapshot. The last 20 versions are kept per 
 - "List all my collections"
 - "Change my site title to 'Acme Docs'"
 - "Search my pages for anything about authentication"
+- "Make my API docs collection private"
+- "Invite josh@example.com as an editor on my site"
+- "List my team members"
+- "Create an unlisted page with the release notes"
 
 ## Links
 

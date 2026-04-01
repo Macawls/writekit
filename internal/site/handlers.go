@@ -8,9 +8,31 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"writekit/internal/auth"
 	"writekit/internal/events"
 	"writekit/internal/tenant"
 )
+
+func (h *Handler) isTeamMember(r *http.Request, tenantID string) bool {
+	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		return false
+	}
+	member, err := h.PlatformDB.GetTeamMember(r.Context(), tenantID, user.ID)
+	return err == nil && member != nil
+}
+
+// canView checks if the current request can view content with the given visibility.
+func (h *Handler) canView(r *http.Request, tenantID, visibility string) bool {
+	switch visibility {
+	case "public", "unlisted":
+		return true
+	case "private":
+		return h.isTeamMember(r, tenantID)
+	default:
+		return true
+	}
+}
 
 func (h *Handler) TenantRobotsTxt(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -24,7 +46,8 @@ func (h *Handler) TenantSitemap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pages, _ := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", Limit: 1000})
+	// Only public published pages in sitemap
+	pages, _ := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", Visibility: "public", Limit: 1000})
 	baseURL := fmt.Sprintf("https://%s.%s", tenantID, h.Config.Host)
 
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
@@ -37,6 +60,10 @@ func (h *Handler) TenantSitemap(w http.ResponseWriter, r *http.Request) {
 		if p.CollectionID != nil && *p.CollectionID != "" {
 			col, err := db.GetCollection(r.Context(), *p.CollectionID)
 			if err == nil {
+				// Skip pages in non-public collections
+				if col.Visibility != "public" {
+					continue
+				}
 				loc = baseURL + "/" + col.Slug + "/" + p.Slug
 			}
 		}
@@ -86,8 +113,38 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 	settings, _ := db.GetSettings(r.Context())
 
-	collectionData := make([]map[string]any, len(collections))
-	for i, c := range collections {
+	isMember := h.isTeamMember(r, tenantID)
+
+	// Filter collections: hide unlisted + private (show private only if team member)
+	var visibleCollections []tenant.Collection
+	for _, c := range collections {
+		switch c.Visibility {
+		case "public":
+			visibleCollections = append(visibleCollections, c)
+		case "private":
+			if isMember {
+				visibleCollections = append(visibleCollections, c)
+			}
+		// unlisted: hidden from index
+		}
+	}
+
+	// Filter pages: hide unlisted + private (show private only if team member)
+	var visiblePages []tenant.Page
+	for _, p := range pages {
+		switch p.Visibility {
+		case "public":
+			visiblePages = append(visiblePages, p)
+		case "private":
+			if isMember {
+				visiblePages = append(visiblePages, p)
+			}
+		// unlisted: hidden from index
+		}
+	}
+
+	collectionData := make([]map[string]any, len(visibleCollections))
+	for i, c := range visibleCollections {
 		count, _ := db.CountCollectionPages(r.Context(), c.ID)
 		collectionData[i] = map[string]any{
 			"Collection": c,
@@ -97,7 +154,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 
 	h.Engine.Render(w, "index.html", map[string]any{
 		"Collections":     collectionData,
-		"Pages":           pages,
+		"Pages":           visiblePages,
 		"Settings":        settings,
 		"TenantID":        tenantID,
 		"Host":            h.Config.Host,
@@ -119,10 +176,30 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 
 	collection, err := db.GetCollectionBySlug(r.Context(), slug)
 	if err == nil {
+		// Check collection visibility
+		if !h.canView(r, tenantID, collection.Visibility) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
 		pages, _ := db.ListCollectionPages(r.Context(), collection.ID, collection.SortOrder)
+
+		// Filter pages by visibility within the collection
+		isMember := h.isTeamMember(r, tenantID)
+		var visiblePages []tenant.Page
+		for _, p := range pages {
+			switch p.Visibility {
+			case "public", "unlisted":
+				visiblePages = append(visiblePages, p)
+			case "private":
+				if isMember {
+					visiblePages = append(visiblePages, p)
+				}
+			}
+		}
+
 		h.Engine.Render(w, "collection.html", map[string]any{
 			"Collection": collection,
-			"Pages":      pages,
+			"Pages":      visiblePages,
 			"Settings":   settings,
 			"TenantID":   tenantID,
 			"Host":       h.Config.Host,
@@ -138,6 +215,10 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 	}
 	if page.Status != "published" {
 		slog.Warn("page not published", "tenant", tenantID, "slug", slug, "status", page.Status)
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if !h.canView(r, tenantID, page.Visibility) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -168,8 +249,20 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Private collection cascades — all pages are private
+	if !h.canView(r, tenantID, collection.Visibility) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
 	page, err := db.GetPageInCollection(r.Context(), collection.ID, pageSlug)
 	if err != nil || page.Status != "published" {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	// Check page-level visibility too
+	if !h.canView(r, tenantID, page.Visibility) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -188,7 +281,7 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RawMarkdown(w http.ResponseWriter, r *http.Request) {
-	db, _, err := h.getTenantDB(r)
+	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
@@ -200,13 +293,17 @@ func (h *Handler) RawMarkdown(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
+	if !h.canView(r, tenantID, page.Visibility) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.Write([]byte(page.Content))
 }
 
 func (h *Handler) RawCollectionMarkdown(w http.ResponseWriter, r *http.Request) {
-	db, _, err := h.getTenantDB(r)
+	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
@@ -220,9 +317,17 @@ func (h *Handler) RawCollectionMarkdown(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
+	if !h.canView(r, tenantID, collection.Visibility) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
 
 	page, err := db.GetPageInCollection(r.Context(), collection.ID, pageSlug)
 	if err != nil || page.Status != "published" {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if !h.canView(r, tenantID, page.Visibility) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -241,7 +346,20 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	var pages []tenant.Page
 	if q != "" {
-		pages, _ = db.SearchPages(r.Context(), q)
+		results, _ := db.SearchPages(r.Context(), q)
+		isMember := h.isTeamMember(r, tenantID)
+		// Filter search results: never include unlisted, include private only for members
+		for _, p := range results {
+			switch p.Visibility {
+			case "public":
+				pages = append(pages, p)
+			case "private":
+				if isMember {
+					pages = append(pages, p)
+				}
+			// unlisted: never in search results
+			}
+		}
 	}
 
 	settings, _ := db.GetSettings(r.Context())
@@ -347,4 +465,3 @@ func (h *Handler) PreviewSSE(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
-

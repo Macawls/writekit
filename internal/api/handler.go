@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -40,6 +41,10 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Put("/api/me", h.UpdateProfile)
 	r.Post("/api/billing/checkout", h.BillingCheckout)
 	r.Post("/api/billing/portal", h.BillingPortal)
+	r.Get("/api/team", h.ListTeamMembers)
+	r.Post("/api/team", h.InviteTeamMember)
+	r.Put("/api/team/{userId}", h.UpdateTeamMemberRole)
+	r.Delete("/api/team/{userId}", h.RemoveTeamMember)
 }
 
 func (h *Handler) authMiddleware(next http.Handler) http.Handler {
@@ -72,6 +77,13 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	site, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
 	sub, _ := h.DB.GetSubscription(r.Context(), user.ID)
 
+	var role string
+	if site != nil {
+		if member, err := h.DB.GetTeamMember(r.Context(), site.ID, user.ID); err == nil {
+			role = member.Role
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"user": map[string]any{
 			"id":         user.ID,
@@ -81,6 +93,7 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		},
 		"site":         site,
 		"subscription": sub,
+		"role":         role,
 	})
 }
 
@@ -270,6 +283,133 @@ func (h *Handler) BillingPortal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"url": sess.URL})
+}
+
+func (h *Handler) requireOwner(r *http.Request) (*platform.Tenant, error) {
+	user := userFromContext(r.Context())
+	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("no site found")
+	}
+	member, err := h.DB.GetTeamMember(r.Context(), site.ID, user.ID)
+	if err != nil || member.Role != "owner" {
+		return nil, fmt.Errorf("owner access required")
+	}
+	return site, nil
+}
+
+func (h *Handler) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
+	user := userFromContext(r.Context())
+	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no site found"})
+		return
+	}
+
+	members, err := h.DB.ListTeamMembers(r.Context(), site.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list members"})
+		return
+	}
+
+	type memberResp struct {
+		UserID    string `json:"user_id"`
+		Email     string `json:"email"`
+		Name      string `json:"name"`
+		AvatarURL string `json:"avatar_url"`
+		Role      string `json:"role"`
+		CreatedAt string `json:"created_at"`
+	}
+	result := make([]memberResp, len(members))
+	for i, m := range members {
+		result[i] = memberResp{
+			UserID:    m.UserID,
+			Email:     m.Email,
+			Name:      m.Name,
+			AvatarURL: m.AvatarURL,
+			Role:      m.Role,
+			CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		}
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) InviteTeamMember(w http.ResponseWriter, r *http.Request) {
+	site, err := h.requireOwner(r)
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return
+	}
+
+	var body struct {
+		Email string `json:"email"`
+		Role  string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if body.Role != "editor" && body.Role != "viewer" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "role must be editor or viewer"})
+		return
+	}
+
+	invitee, err := h.DB.GetUserByEmail(r.Context(), body.Email)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no WriteKit account found for this email"})
+		return
+	}
+
+	if err := h.DB.AddTeamMember(r.Context(), site.ID, invitee.ID, body.Role); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to add member"})
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
+	site, err := h.requireOwner(r)
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return
+	}
+
+	userID := chi.URLParam(r, "userId")
+	var body struct {
+		Role string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if body.Role != "owner" && body.Role != "editor" && body.Role != "viewer" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid role"})
+		return
+	}
+
+	if err := h.DB.UpdateTeamMemberRole(r.Context(), site.ID, userID, body.Role); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
+	site, err := h.requireOwner(r)
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return
+	}
+
+	userID := chi.URLParam(r, "userId")
+	if err := h.DB.RemoveTeamMember(r.Context(), site.ID, userID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

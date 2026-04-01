@@ -96,7 +96,7 @@ func (s *Server) updateSettings(ctx context.Context, req *mcpsdk.CallToolRequest
 	json.Unmarshal(raw, &args)
 
 	tenantID, _ := args["tenant_id"].(string)
-	db, _, err := s.resolveTenant(user.ID, tenantID)
+	db, _, err := s.resolveTenantWithRole(ctx, user.ID, tenantID, "editor")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
@@ -146,7 +146,7 @@ func (s *Server) renameSubdomain(ctx context.Context, req *mcpsdk.CallToolReques
 		return toolError("this subdomain is reserved"), nil
 	}
 
-	_, oldID, err := s.resolveTenant(user.ID, args.TenantID)
+	_, oldID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "owner")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}

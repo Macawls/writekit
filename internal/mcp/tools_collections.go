@@ -24,6 +24,7 @@ func (s *Server) registerCollectionTools(mcpServer *mcp.Server) {
 				"description": map[string]any{"type": "string", "description": "Short description of the collection"},
 				"slug":        map[string]any{"type": "string", "description": "URL slug (auto-generated from title if omitted)"},
 				"sort_order":  map[string]any{"type": "string", "enum": []string{"manual", "date"}, "description": "How pages are ordered: 'manual' (by position) or 'date' (by publish date). Default: manual"},
+				"visibility":  map[string]any{"type": "string", "enum": []string{"public", "unlisted", "private"}, "description": "Collection visibility: public (default), unlisted (URL only), private (team members only). A private collection hides all its pages."},
 				"tenant_id":   map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"title"},
@@ -32,7 +33,7 @@ func (s *Server) registerCollectionTools(mcpServer *mcp.Server) {
 
 	mcpServer.AddTool(&mcp.Tool{
 		Name:        "update_collection",
-		Description: "Update a collection's title, description, slug, or sort order.",
+		Description: "Update a collection's title, description, slug, sort order, or visibility.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -41,6 +42,7 @@ func (s *Server) registerCollectionTools(mcpServer *mcp.Server) {
 				"description": map[string]any{"type": "string", "description": "New description"},
 				"slug":        map[string]any{"type": "string", "description": "New URL slug"},
 				"sort_order":  map[string]any{"type": "string", "enum": []string{"manual", "date"}, "description": "New sort order"},
+				"visibility":  map[string]any{"type": "string", "enum": []string{"public", "unlisted", "private"}, "description": "New visibility"},
 				"tenant_id":   map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"id"},
@@ -110,12 +112,13 @@ func (s *Server) createCollection(ctx context.Context, req *mcp.CallToolRequest)
 		Description string `json:"description"`
 		Slug        string `json:"slug"`
 		SortOrder   string `json:"sort_order"`
+		Visibility  string `json:"visibility"`
 		TenantID    string `json:"tenant_id"`
 	}
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
 
-	db, tenantID, err := s.resolveTenant(user.ID, args.TenantID)
+	db, tenantID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "editor")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
@@ -138,11 +141,17 @@ func (s *Server) createCollection(ctx context.Context, req *mcp.CallToolRequest)
 		sortOrder = "manual"
 	}
 
+	visibility := args.Visibility
+	if visibility == "" {
+		visibility = "public"
+	}
+
 	collection := &tenant.Collection{
 		ID:          ulid.Make().String(),
 		Title:       args.Title,
 		Slug:        slug,
 		Description: args.Description,
+		Visibility:  visibility,
 		SortOrder:   sortOrder,
 	}
 
@@ -152,8 +161,8 @@ func (s *Server) createCollection(ctx context.Context, req *mcp.CallToolRequest)
 
 	s.Bus.Emit(events.Event{Type: events.CollectionCreated, TenantID: tenantID})
 
-	return toolResult(fmt.Sprintf("Collection created.\n\n**Title:** %s\n**ID:** %s\n**Slug:** %s\n**Sort order:** %s",
-		collection.Title, collection.ID, collection.Slug, collection.SortOrder)), nil
+	return toolResult(fmt.Sprintf("Collection created.\n\n**Title:** %s\n**ID:** %s\n**Slug:** %s\n**Visibility:** %s\n**Sort order:** %s",
+		collection.Title, collection.ID, collection.Slug, collection.Visibility, collection.SortOrder)), nil
 }
 
 func (s *Server) updateCollection(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -168,12 +177,13 @@ func (s *Server) updateCollection(ctx context.Context, req *mcp.CallToolRequest)
 		Description *string `json:"description"`
 		Slug        *string `json:"slug"`
 		SortOrder   *string `json:"sort_order"`
+		Visibility  *string `json:"visibility"`
 		TenantID    string  `json:"tenant_id"`
 	}
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
 
-	db, tenantID, err := s.resolveTenant(user.ID, args.TenantID)
+	db, tenantID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "editor")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
@@ -195,13 +205,16 @@ func (s *Server) updateCollection(ctx context.Context, req *mcp.CallToolRequest)
 	if args.SortOrder != nil {
 		collection.SortOrder = *args.SortOrder
 	}
+	if args.Visibility != nil {
+		collection.Visibility = *args.Visibility
+	}
 
 	if err := db.UpdateCollection(ctx, collection); err != nil {
 		return toolError(fmt.Sprintf("failed to update: %v", err)), nil
 	}
 
 	s.Bus.Emit(events.Event{Type: events.CollectionUpdated, TenantID: tenantID})
-	return toolResult(fmt.Sprintf("Collection updated.\n\n**Title:** %s\n**Slug:** %s", collection.Title, collection.Slug)), nil
+	return toolResult(fmt.Sprintf("Collection updated.\n\n**Title:** %s\n**Slug:** %s\n**Visibility:** %s", collection.Title, collection.Slug, collection.Visibility)), nil
 }
 
 func (s *Server) deleteCollection(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -217,7 +230,7 @@ func (s *Server) deleteCollection(ctx context.Context, req *mcp.CallToolRequest)
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
 
-	db, tenantID, err := s.resolveTenant(user.ID, args.TenantID)
+	db, tenantID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "editor")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
@@ -260,8 +273,8 @@ func (s *Server) listCollections(ctx context.Context, req *mcp.CallToolRequest) 
 	sb.WriteString(fmt.Sprintf("Found %d collection(s):\n\n", len(collections)))
 	for _, c := range collections {
 		count, _ := db.CountCollectionPages(ctx, c.ID)
-		sb.WriteString(fmt.Sprintf("- **%s** (ID: %s)\n  Slug: %s | Sort: %s | Pages: %d\n",
-			c.Title, c.ID, c.Slug, c.SortOrder, count))
+		sb.WriteString(fmt.Sprintf("- **%s** (ID: %s)\n  Slug: %s | Sort: %s | Visibility: %s | Pages: %d\n",
+			c.Title, c.ID, c.Slug, c.SortOrder, c.Visibility, count))
 		if c.Description != "" {
 			sb.WriteString(fmt.Sprintf("  %s\n", c.Description))
 		}
@@ -306,13 +319,13 @@ func (s *Server) getCollection(ctx context.Context, req *mcp.CallToolRequest) (*
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("**%s**\nID: %s\nSlug: %s\nSort: %s\n", collection.Title, collection.ID, collection.Slug, collection.SortOrder))
+	sb.WriteString(fmt.Sprintf("**%s**\nID: %s\nSlug: %s\nVisibility: %s\nSort: %s\n", collection.Title, collection.ID, collection.Slug, collection.Visibility, collection.SortOrder))
 	if collection.Description != "" {
 		sb.WriteString(fmt.Sprintf("Description: %s\n", collection.Description))
 	}
 	sb.WriteString(fmt.Sprintf("\n%d page(s):\n\n", len(pages)))
 	for i, p := range pages {
-		sb.WriteString(fmt.Sprintf("%d. **%s** (ID: %s, Status: %s)\n", i+1, p.Title, p.ID, p.Status))
+		sb.WriteString(fmt.Sprintf("%d. **%s** (ID: %s, Status: %s, Visibility: %s)\n", i+1, p.Title, p.ID, p.Status, p.Visibility))
 	}
 
 	return toolResult(sb.String()), nil
@@ -332,7 +345,7 @@ func (s *Server) reorderPages(ctx context.Context, req *mcp.CallToolRequest) (*m
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
 
-	db, tenantID, err := s.resolveTenant(user.ID, args.TenantID)
+	db, tenantID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "editor")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}

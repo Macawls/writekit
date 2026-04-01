@@ -19,14 +19,14 @@ https://writekit.dev/mcp
 ### create_page
 Create a new page (starts as draft).
 - Required: title (string), content (string, rich markdown)
-- Optional: excerpt (string), tags (string[]), slug (string), collection_id (string), position (int), tenant_id (string)
+- Optional: excerpt (string), tags (string[]), slug (string), collection_id (string), position (int), visibility (public|unlisted|private, default public), tenant_id (string)
 - Returns: page ID, slug, preview URL
 - Content supports: GFM, tables, footnotes, syntax-highlighted code blocks, callout blocks, media embeds, D2 diagrams, images, raw HTML
 
 ### update_page
 Update an existing page. Partial updates — only send fields to change.
 - Required: id (string)
-- Optional: title, content, excerpt, tags, slug, collection_id, position, tenant_id
+- Optional: title, content, excerpt, tags, slug, collection_id, position, visibility (public|unlisted|private), tenant_id
 - Returns: updated page info, preview URL
 
 ### delete_page
@@ -47,7 +47,7 @@ Revert a published page to draft.
 
 ### list_pages
 List pages with optional filters.
-- Optional: status (draft|published), tag (string), collection_id (string, use "standalone" for uncollected pages), limit (int), tenant_id
+- Optional: status (draft|published), visibility (public|unlisted|private), tag (string), collection_id (string, use "standalone" for uncollected pages), limit (int), tenant_id
 - Returns: titles, slugs, statuses, tags, collection info, published dates
 
 ### get_page
@@ -69,12 +69,12 @@ Full-text search across page titles and content (FTS5).
 ### create_collection
 Create a new collection to group pages.
 - Required: title (string)
-- Optional: description (string), slug (string), sort_order ("manual"|"date", default "manual"), tenant_id
+- Optional: description (string), slug (string), sort_order ("manual"|"date", default "manual"), visibility (public|unlisted|private, default public), tenant_id
 
 ### update_collection
 Update a collection. Partial — only send fields to change.
 - Required: id (string)
-- Optional: title, description, slug, sort_order, tenant_id
+- Optional: title, description, slug, sort_order, visibility (public|unlisted|private), tenant_id
 
 ### delete_collection
 Delete a collection. Pages in the collection become standalone.
@@ -103,6 +103,27 @@ Get all site settings (title, description, code_theme).
 Update site settings. Partial — only send keys to change.
 - Optional: title (string), description (string), code_theme (string), tenant_id
 
+## Teams
+
+### list_members
+List all team members for a site.
+- Optional: tenant_id
+
+### invite_member
+Add a user to the site team by email. They must have a WriteKit account. Requires owner role.
+- Required: email (string), role (editor|viewer)
+- Optional: tenant_id
+
+### remove_member
+Remove a team member. Cannot remove the last owner. Requires owner role.
+- Required: email (string)
+- Optional: tenant_id
+
+### update_member_role
+Change a team member's role. Cannot demote the last owner. Requires owner role.
+- Required: email (string), role (owner|editor|viewer)
+- Optional: tenant_id
+
 ## Prompts
 
 ### write_page
@@ -122,6 +143,24 @@ Generate a well-structured page about a topic.
 ## Tenant resolution
 
 If a user has one site, it's selected automatically. If multiple sites exist, pass tenant_id on each tool call.
+
+## Roles
+
+Sites have team members with roles:
+- **owner**: Full control — billing, settings, team management, content
+- **editor**: Create, edit, publish pages and collections. Can view private content.
+- **viewer**: Can view private content only.
+
+Write operations (create/update/delete/publish) require editor role. Team management and site settings require owner role.
+
+## Visibility
+
+Pages and collections have a visibility setting:
+- **public** (default): Shown everywhere — index, sitemap, search
+- **unlisted**: Accessible via direct URL but hidden from index, sitemap, and search
+- **private**: Only visible to authenticated team members. Returns 404 for everyone else.
+
+A private collection hides all its pages regardless of their individual visibility.
 
 ## Content format
 

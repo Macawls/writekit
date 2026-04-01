@@ -43,6 +43,7 @@ Returns: The created page with a preview URL you can share.`,
 				"slug":          map[string]any{"type": "string", "description": "URL slug (auto-generated from title if omitted)"},
 				"collection_id": map[string]any{"type": "string", "description": "Collection ID to add this page to (optional)"},
 				"position":      map[string]any{"type": "integer", "description": "Position within collection (for manual ordering)"},
+				"visibility":    map[string]any{"type": "string", "enum": []string{"public", "unlisted", "private"}, "description": "Page visibility: public (default, shown everywhere), unlisted (accessible via URL only), private (team members only)"},
 				"tenant_id":     map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"title", "content"},
@@ -65,6 +66,7 @@ After updating, a new preview URL is generated so you can verify changes.`,
 				"slug":          map[string]any{"type": "string", "description": "New URL slug"},
 				"collection_id": map[string]any{"type": "string", "description": "Move to a collection (use empty string to make standalone)"},
 				"position":      map[string]any{"type": "integer", "description": "New position within collection"},
+				"visibility":    map[string]any{"type": "string", "enum": []string{"public", "unlisted", "private"}, "description": "Page visibility: public, unlisted, or private"},
 				"tenant_id":     map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"id"},
@@ -131,6 +133,7 @@ After updating, a new preview URL is generated so you can verify changes.`,
 			"type": "object",
 			"properties": map[string]any{
 				"status":        map[string]any{"type": "string", "enum": []string{"draft", "published"}, "description": "Filter by status"},
+				"visibility":    map[string]any{"type": "string", "enum": []string{"public", "unlisted", "private"}, "description": "Filter by visibility"},
 				"tag":           map[string]any{"type": "string", "description": "Filter by tag"},
 				"collection_id": map[string]any{"type": "string", "description": "Filter by collection ID. Use 'standalone' for pages not in any collection."},
 				"limit":         map[string]any{"type": "integer", "description": "Max results (default 50)"},
@@ -180,12 +183,13 @@ func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		Slug         string   `json:"slug"`
 		CollectionID string   `json:"collection_id"`
 		Position     int      `json:"position"`
+		Visibility   string   `json:"visibility"`
 		TenantID     string   `json:"tenant_id"`
 	}
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
 
-	db, tenantID, err := s.resolveTenant(user.ID, args.TenantID)
+	db, tenantID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "editor")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
@@ -212,6 +216,11 @@ func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 
 	contentHTML, renderWarnings := renderContentWithErrors(args.Content)
 
+	visibility := args.Visibility
+	if visibility == "" {
+		visibility = "public"
+	}
+
 	page := &tenant.Page{
 		ID:           ulid.Make().String(),
 		Title:        args.Title,
@@ -220,6 +229,7 @@ func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		ContentHTML:  contentHTML,
 		Excerpt:      excerpt,
 		Status:       "draft",
+		Visibility:   visibility,
 		Tags:         string(tagsJSON),
 		CollectionID: collectionID,
 		Position:     args.Position,
@@ -268,12 +278,13 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		Slug         *string  `json:"slug"`
 		CollectionID *string  `json:"collection_id"`
 		Position     *int     `json:"position"`
+		Visibility   *string  `json:"visibility"`
 		TenantID     string   `json:"tenant_id"`
 	}
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
 
-	db, tenantID, err := s.resolveTenant(user.ID, args.TenantID)
+	db, tenantID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "editor")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
@@ -310,6 +321,9 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	}
 	if args.Position != nil {
 		page.Position = *args.Position
+	}
+	if args.Visibility != nil {
+		page.Visibility = *args.Visibility
 	}
 
 	page.Version++
@@ -359,7 +373,7 @@ func (s *Server) deletePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
 
-	db, tenantID, err := s.resolveTenant(user.ID, args.TenantID)
+	db, tenantID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "editor")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
@@ -385,7 +399,7 @@ func (s *Server) publishPage(ctx context.Context, req *mcp.CallToolRequest) (*mc
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
 
-	db, tenantID, err := s.resolveTenant(user.ID, args.TenantID)
+	db, tenantID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "editor")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
@@ -421,7 +435,7 @@ func (s *Server) unpublishPage(ctx context.Context, req *mcp.CallToolRequest) (*
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
 
-	db, tenantID, err := s.resolveTenant(user.ID, args.TenantID)
+	db, tenantID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "editor")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
@@ -456,7 +470,7 @@ func (s *Server) appendToPage(ctx context.Context, req *mcp.CallToolRequest) (*m
 	raw, _ := json.Marshal(req.Params.Arguments)
 	json.Unmarshal(raw, &args)
 
-	db, tenantID, err := s.resolveTenant(user.ID, args.TenantID)
+	db, tenantID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "editor")
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
@@ -500,6 +514,7 @@ func (s *Server) listPages(ctx context.Context, req *mcp.CallToolRequest) (*mcp.
 
 	var args struct {
 		Status       string `json:"status"`
+		Visibility   string `json:"visibility"`
 		Tag          string `json:"tag"`
 		CollectionID string `json:"collection_id"`
 		Limit        int    `json:"limit"`
@@ -513,7 +528,7 @@ func (s *Server) listPages(ctx context.Context, req *mcp.CallToolRequest) (*mcp.
 		return toolError(err.Error()), nil
 	}
 
-	filter := tenant.PageFilter{Status: args.Status, Tag: args.Tag, Limit: args.Limit}
+	filter := tenant.PageFilter{Status: args.Status, Visibility: args.Visibility, Tag: args.Tag, Limit: args.Limit}
 	if args.CollectionID == "standalone" {
 		empty := ""
 		filter.CollectionID = &empty
@@ -533,8 +548,8 @@ func (s *Server) listPages(ctx context.Context, req *mcp.CallToolRequest) (*mcp.
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Found %d page(s):\n\n", len(pages)))
 	for _, p := range pages {
-		sb.WriteString(fmt.Sprintf("- **%s** (ID: %s)\n  Slug: %s | Status: %s | Tags: %s\n",
-			p.Title, p.ID, p.Slug, p.Status, p.Tags))
+		sb.WriteString(fmt.Sprintf("- **%s** (ID: %s)\n  Slug: %s | Status: %s | Visibility: %s | Tags: %s\n",
+			p.Title, p.ID, p.Slug, p.Status, p.Visibility, p.Tags))
 		if p.CollectionID != nil {
 			sb.WriteString(fmt.Sprintf("  Collection: %s\n", *p.CollectionID))
 		}
@@ -576,8 +591,8 @@ func (s *Server) getPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Ca
 		return toolError("page not found"), nil
 	}
 
-	result := fmt.Sprintf("**%s**\nID: %s\nSlug: %s\nStatus: %s\nTags: %s\nCreated: %s\n\n---\n\n%s",
-		page.Title, page.ID, page.Slug, page.Status, page.Tags,
+	result := fmt.Sprintf("**%s**\nID: %s\nSlug: %s\nStatus: %s\nVisibility: %s\nTags: %s\nCreated: %s\n\n---\n\n%s",
+		page.Title, page.ID, page.Slug, page.Status, page.Visibility, page.Tags,
 		page.CreatedAt.Format("2006-01-02 15:04"), page.Content)
 
 	return toolResult(result), nil

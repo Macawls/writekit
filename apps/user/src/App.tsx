@@ -1,51 +1,40 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, type MeResponse } from './api'
+import { useStore } from '@nanostores/react'
+import { $user, $site, $loading, $error, loadAuth } from './stores/auth'
+import { $route } from './stores/router'
+import Layout from './components/Layout'
 import Onboarding from './pages/Onboarding'
-import Dashboard from './pages/Dashboard'
-
-type View = 'loading' | 'onboarding' | 'dashboard'
+import Site from './pages/Site'
+import Team from './pages/Team'
+import Settings from './pages/Settings'
+import Billing from './pages/Billing'
 
 const ONBOARDED_KEY = 'writekit_onboarded'
 const POLL_INTERVAL = 2000
 const MAX_RETRIES = 7
 
+function Router() {
+  const route = useStore($route)
+  switch (route) {
+    case 'site': return <Site />
+    case 'team': return <Team />
+    case 'settings': return <Settings />
+    case 'billing': return <Billing />
+    default: return <Site />
+  }
+}
+
 export default function App() {
-  const [view, setView] = useState<View>('loading')
-  const [data, setData] = useState<MeResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const user = useStore($user)
+  const site = useStore($site)
+  const loading = useStore($loading)
+  const error = useStore($error)
+  const [view, setView] = useState<'loading' | 'onboarding' | 'dashboard'>('loading')
   const retriesRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const load = async () => {
-    try {
-      const me = await api.me()
-      setData(me)
-
-      if (!me.site) {
-        if (retriesRef.current < MAX_RETRIES) {
-          retriesRef.current++
-          timerRef.current = setTimeout(load, POLL_INTERVAL)
-        } else {
-          setError('Site setup is taking longer than expected. Please refresh the page.')
-        }
-        return
-      }
-
-      if (!localStorage.getItem(ONBOARDED_KEY)) {
-        setView('onboarding')
-      } else {
-        setView('dashboard')
-      }
-    } catch (e) {
-      if (e instanceof Error && e.message !== 'unauthorized') {
-        setError(e.message)
-      }
-    }
-  }
-
-  const completeOnboarding = () => {
-    localStorage.setItem(ONBOARDED_KEY, '1')
-    setView('dashboard')
+    await loadAuth()
   }
 
   useEffect(() => {
@@ -53,40 +42,66 @@ export default function App() {
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [])
 
+  // Poll for site creation if needed
+  useEffect(() => {
+    if (loading) return
+
+    if (!user) {
+      setView('loading')
+      return
+    }
+
+    if (!site) {
+      if (retriesRef.current < MAX_RETRIES) {
+        retriesRef.current++
+        timerRef.current = setTimeout(load, POLL_INTERVAL)
+      }
+      return
+    }
+
+    if (!localStorage.getItem(ONBOARDED_KEY)) {
+      setView('onboarding')
+    } else {
+      setView('dashboard')
+    }
+  }, [user, site, loading])
+
+  const completeOnboarding = () => {
+    localStorage.setItem(ONBOARDED_KEY, '1')
+    setView('dashboard')
+  }
+
   if (error) {
     return (
-      <div className="container">
+      <div className="centered">
         <p className="error">{error}</p>
       </div>
     )
   }
 
-  if (view === 'loading' || !data) {
+  if (view === 'loading' || loading || !user) {
     return (
-      <div className="container">
+      <div className="centered">
         <p className="muted">Loading...</p>
       </div>
     )
   }
 
-  if (view === 'onboarding' && data.site) {
-    return <Onboarding user={data.user} site={data.site} onComplete={completeOnboarding} />
-  }
-
-  if (!data.site) {
+  if (!site) {
     return (
-      <div className="container">
+      <div className="centered">
         <p className="muted">Setting up your site...</p>
       </div>
     )
   }
 
+  if (view === 'onboarding') {
+    return <Onboarding user={user} site={site} onComplete={completeOnboarding} />
+  }
+
   return (
-    <Dashboard
-      user={data.user}
-      site={data.site}
-      subscription={data.subscription}
-      onUpdate={load}
-    />
+    <Layout>
+      <Router />
+    </Layout>
   )
 }

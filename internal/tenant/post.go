@@ -16,6 +16,7 @@ type Page struct {
 	ContentHTML  string
 	Excerpt      string
 	Status       string
+	Visibility   string
 	Tags         string
 	CollectionID *string
 	Position     int
@@ -27,6 +28,7 @@ type Page struct {
 
 type PageFilter struct {
 	Status       string
+	Visibility   string
 	Tag          string
 	CollectionID *string
 	Limit        int
@@ -34,10 +36,13 @@ type PageFilter struct {
 }
 
 func (db *DB) CreatePage(ctx context.Context, p *Page) error {
+	if p.Visibility == "" {
+		p.Visibility = "public"
+	}
 	_, err := db.DB.ExecContext(ctx, `
-		INSERT INTO pages (id, title, slug, content, content_html, excerpt, status, tags, collection_id, position, version, published_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, p.ID, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Tags, p.CollectionID, p.Position, p.Version, p.PublishedAt)
+		INSERT INTO pages (id, title, slug, content, content_html, excerpt, status, visibility, tags, collection_id, position, version, published_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, p.ID, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Visibility, p.Tags, p.CollectionID, p.Position, p.Version, p.PublishedAt)
 	if err != nil {
 		return fmt.Errorf("create page: %w", err)
 	}
@@ -46,9 +51,9 @@ func (db *DB) CreatePage(ctx context.Context, p *Page) error {
 
 func (db *DB) UpdatePage(ctx context.Context, p *Page) error {
 	_, err := db.DB.ExecContext(ctx, `
-		UPDATE pages SET title=?, slug=?, content=?, content_html=?, excerpt=?, status=?, tags=?, collection_id=?, position=?, version=?, published_at=?, updated_at=datetime('now')
+		UPDATE pages SET title=?, slug=?, content=?, content_html=?, excerpt=?, status=?, visibility=?, tags=?, collection_id=?, position=?, version=?, published_at=?, updated_at=datetime('now')
 		WHERE id=?
-	`, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Tags, p.CollectionID, p.Position, p.Version, p.PublishedAt, p.ID)
+	`, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Visibility, p.Tags, p.CollectionID, p.Position, p.Version, p.PublishedAt, p.ID)
 	if err != nil {
 		return fmt.Errorf("update page: %w", err)
 	}
@@ -87,6 +92,10 @@ func (db *DB) ListPages(ctx context.Context, f PageFilter) ([]Page, error) {
 	if f.Status != "" {
 		where = append(where, "status = ?")
 		args = append(args, f.Status)
+	}
+	if f.Visibility != "" {
+		where = append(where, "visibility = ?")
+		args = append(args, f.Visibility)
 	}
 	if f.Tag != "" {
 		where = append(where, "tags LIKE ?")
@@ -156,7 +165,7 @@ func (db *DB) ListCollectionPages(ctx context.Context, collectionID, sortOrder s
 
 func (db *DB) SearchPages(ctx context.Context, query string) ([]Page, error) {
 	rows, err := db.DB.QueryContext(ctx, `
-		SELECT p.id, p.title, p.slug, p.content, p.content_html, p.excerpt, p.status, p.tags, p.collection_id, p.position, p.version, p.published_at, p.created_at, p.updated_at
+		SELECT p.id, p.title, p.slug, p.content, p.content_html, p.excerpt, p.status, p.visibility, p.tags, p.collection_id, p.position, p.version, p.published_at, p.created_at, p.updated_at
 		FROM pages p
 		JOIN pages_fts ON posts_fts.rowid = p.rowid
 		WHERE pages_fts MATCH ?
@@ -191,7 +200,7 @@ func (db *DB) CountPages(ctx context.Context, status string) (int, error) {
 	return count, err
 }
 
-const pageSelect = `SELECT id, title, slug, content, content_html, excerpt, status, tags, collection_id, position, version, published_at, created_at, updated_at FROM pages`
+const pageSelect = `SELECT id, title, slug, content, content_html, excerpt, status, visibility, tags, collection_id, position, version, published_at, created_at, updated_at FROM pages`
 
 type scanner interface {
 	Scan(dest ...any) error
@@ -200,7 +209,7 @@ type scanner interface {
 func scanPage(row *sql.Row) (*Page, error) {
 	var p Page
 	err := row.Scan(&p.ID, &p.Title, &p.Slug, &p.Content, &p.ContentHTML,
-		&p.Excerpt, &p.Status, &p.Tags, &p.CollectionID, &p.Position, &p.Version, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+		&p.Excerpt, &p.Status, &p.Visibility, &p.Tags, &p.CollectionID, &p.Position, &p.Version, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +219,7 @@ func scanPage(row *sql.Row) (*Page, error) {
 func scanPageRow(rows *sql.Rows) (*Page, error) {
 	var p Page
 	err := rows.Scan(&p.ID, &p.Title, &p.Slug, &p.Content, &p.ContentHTML,
-		&p.Excerpt, &p.Status, &p.Tags, &p.CollectionID, &p.Position, &p.Version, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+		&p.Excerpt, &p.Status, &p.Visibility, &p.Tags, &p.CollectionID, &p.Position, &p.Version, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
