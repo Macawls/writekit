@@ -84,12 +84,10 @@
 <script>
 (function(){
     if(!/logged_in=1/.test(document.cookie))return;
-    fetch('/auth/me',{credentials:'include'}).then(function(r){
-        if(!r.ok)return;
-        return r.json();
-    }).then(function(u){
-        if(!u)return;
+
+    function renderProfile(u){
         var wrap=document.getElementById('wk-avatar-wrap');
+        if(wrap.children.length)return;
         if(u.avatar_url){
             var img=document.createElement('img');
             img.className='avatar';img.src=u.avatar_url;img.alt=u.name||'';
@@ -112,6 +110,20 @@
             e.stopPropagation();dd.classList.toggle('open');
         });
         document.addEventListener('click',function(){dd.classList.remove('open')});
+    }
+
+    // Render immediately from cache to prevent flicker
+    var cached=sessionStorage.getItem('wk_user');
+    if(cached){try{renderProfile(JSON.parse(cached))}catch(e){}}
+
+    // Fetch fresh data in background
+    fetch('/auth/me',{credentials:'include'}).then(function(r){
+        if(!r.ok){sessionStorage.removeItem('wk_user');return}
+        return r.json();
+    }).then(function(u){
+        if(!u)return;
+        sessionStorage.setItem('wk_user',JSON.stringify(u));
+        renderProfile(u);
     });
 })();
 </script>
