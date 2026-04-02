@@ -55,7 +55,13 @@ func (db *DB) migrate() (bool, error) {
 		}
 
 		if _, err := db.DB.Exec(string(content)); err != nil {
-			return false, fmt.Errorf("apply migration %s: %w", f, err)
+			// Tolerate "duplicate column name" errors from ALTER TABLE
+			// to handle migrations that were partially applied before being split.
+			if strings.Contains(err.Error(), "duplicate column name") {
+				slog.Warn("migration has duplicate column (already applied), skipping", "file", f, "err", err)
+			} else {
+				return false, fmt.Errorf("apply migration %s: %w", f, err)
+			}
 		}
 
 		if _, err := db.DB.Exec("INSERT INTO schema_migrations (version) VALUES (?)", f); err != nil {
