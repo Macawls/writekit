@@ -69,8 +69,7 @@
             box-shadow:0 1px 2px rgba(0,0,0,.02),0 8px 32px rgba(0,0,0,.06);
             border-color:var(--border2);
         }
-        .cmd-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        @media(min-width:601px){.cmd-text{overflow:visible}}
+        .cmd-text{white-space:nowrap;overflow-x:auto;min-width:0}
         .cmd-text .d{color:var(--faint);user-select:none;margin-right:.3em}
         .cmd-text .dim{color:var(--muted)}
         .cmd-cp{
