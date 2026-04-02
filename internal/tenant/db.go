@@ -87,8 +87,8 @@ func (db *DB) rerenderPages() error {
 		if err := rows.Scan(&id, &content); err != nil {
 			continue
 		}
-		html, err := markdown.Render(content)
-		if err != nil {
+		html, ok := safeRender(id, content)
+		if !ok {
 			continue
 		}
 		if _, err := db.DB.ExecContext(context.Background(),
@@ -101,6 +101,20 @@ func (db *DB) rerenderPages() error {
 
 	slog.Info("re-rendered pages after migration", "tenant", db.TenantID, "count", updated)
 	return rows.Err()
+}
+
+func safeRender(pageID, content string) (html string, ok bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Warn("panic rendering page during migration", "id", pageID, "panic", r)
+			ok = false
+		}
+	}()
+	rendered, err := markdown.Render(content)
+	if err != nil {
+		return "", false
+	}
+	return rendered, true
 }
 
 func (db *DB) Close() {
