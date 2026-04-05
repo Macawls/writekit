@@ -165,7 +165,8 @@ input, textarea, select { font-family: var(--sans); font-size: .9rem; }
 .preview-toast.show { opacity: 1; transform: translateY(0); }
 
 /* Visibility badges */
-.visibility-badge { display: inline-block; font-size: .65rem; font-weight: 600; font-family: var(--sans); padding: .1rem .4rem; border-radius: 4px; vertical-align: middle; text-transform: capitalize; letter-spacing: .02em; }
+.visibility-badge { display: inline-flex; align-items: center; gap: .2rem; font-size: .68rem; font-weight: 600; font-family: var(--sans); padding: .15rem .4rem .15rem .3rem; border-radius: 4px; vertical-align: middle; text-transform: capitalize; letter-spacing: .02em; margin-left: .4rem; }
+.visibility-badge svg { flex-shrink: 0; }
 .visibility-unlisted { background: #fef3c7; color: #92400e; }
 .visibility-private { background: #fee2e2; color: #991b1b; }
 
