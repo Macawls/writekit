@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -297,10 +298,10 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	if args.Title != nil {
 		page.Title = *args.Title
 	}
-	var renderWarnings []string
-	if args.Content != nil {
+	contentChanged := false
+	if args.Content != nil && *args.Content != page.Content {
+		contentChanged = true
 		page.Content = *args.Content
-		page.ContentHTML, renderWarnings = renderContentWithErrors(*args.Content)
 	}
 	if args.Excerpt != nil {
 		page.Excerpt = *args.Excerpt
@@ -328,13 +329,35 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 
 	page.Version++
 
+	// If content changed, save with stale HTML now — render asynchronously
 	if err := db.UpdatePage(ctx, page); err != nil {
 		return toolError(fmt.Sprintf("failed to update: %v", err)), nil
 	}
 
-	db.SavePageVersion(ctx, page)
+	// Emit immediate "content saved" event so preview shows loading state
+	if contentChanged {
+		s.Bus.Emit(events.Event{Type: events.PageContentSaved, TenantID: tenantID, PageID: page.ID})
+	}
 
-	s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: page.ID})
+	// Background: render HTML, update DB, save version, emit "updated"
+	go func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		if contentChanged {
+			html, warnings := renderContentWithErrors(page.Content)
+			page.ContentHTML = html
+			if err := db.UpdatePageContentHTML(bgCtx, page.ID, html); err != nil {
+				log.Printf("background render failed for page %s: %v", page.ID, err)
+			}
+			if len(warnings) > 0 {
+				log.Printf("render warnings for page %s: %v", page.ID, warnings)
+			}
+		}
+
+		db.SavePageVersion(bgCtx, page)
+		s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: page.ID})
+	}()
 
 	pt, _ := db.CreatePreviewToken(ctx, page.ID, 24*time.Hour)
 	previewURL := ""
@@ -348,13 +371,6 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	}
 	if previewURL != "" {
 		result += fmt.Sprintf("\n**Preview URL:** %s", previewURL)
-	}
-
-	if len(renderWarnings) > 0 {
-		result += "\n\n**Warnings:**\n"
-		for _, w := range renderWarnings {
-			result += "- " + w + "\n"
-		}
 	}
 
 	return toolResult(result), nil
@@ -481,16 +497,29 @@ func (s *Server) appendToPage(ctx context.Context, req *mcp.CallToolRequest) (*m
 	}
 
 	page.Content = page.Content + "\n\n" + args.Content
-	page.ContentHTML, _ = renderContentWithErrors(page.Content)
 	page.Version++
 
 	if err := db.UpdatePage(ctx, page); err != nil {
 		return toolError(fmt.Sprintf("failed to append: %v", err)), nil
 	}
 
-	db.SavePageVersion(ctx, page)
+	s.Bus.Emit(events.Event{Type: events.PageContentSaved, TenantID: tenantID, PageID: page.ID})
 
-	s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: page.ID})
+	go func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		html, warnings := renderContentWithErrors(page.Content)
+		page.ContentHTML = html
+		if err := db.UpdatePageContentHTML(bgCtx, page.ID, html); err != nil {
+			log.Printf("background render failed for page %s: %v", page.ID, err)
+		}
+		if len(warnings) > 0 {
+			log.Printf("render warnings for page %s: %v", page.ID, warnings)
+		}
+		db.SavePageVersion(bgCtx, page)
+		s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: page.ID})
+	}()
 
 	pt, _ := db.CreatePreviewToken(ctx, page.ID, 24*time.Hour)
 	previewURL := ""

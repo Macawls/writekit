@@ -58,6 +58,7 @@ func (b *Bus) Emit(e Event) {
 const (
 	PageCreated       = "page.created"
 	PageUpdated       = "page.updated"
+	PageContentSaved  = "page.content_saved"
 	PageDeleted       = "page.deleted"
 	PagePublished     = "page.published"
 CollectionCreated = "collection.created"

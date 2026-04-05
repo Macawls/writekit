@@ -444,25 +444,38 @@ func (h *Handler) PreviewSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 
 	pageID := pt.PageID
-	ch := make(chan struct{}, 1)
+	type sseEvent struct {
+		kind string // "saving" or "rendered"
+	}
+	ch := make(chan sseEvent, 2)
 
-	subID := h.Bus.On(events.PageUpdated, func(e events.Event) {
+	contentSubID := h.Bus.On(events.PageContentSaved, func(e events.Event) {
 		if e.PageID == pageID {
 			select {
-			case ch <- struct{}{}:
+			case ch <- sseEvent{kind: "saving"}:
 			default:
 			}
 		}
 	})
-	defer h.Bus.Off(events.PageUpdated, subID)
+	defer h.Bus.Off(events.PageContentSaved, contentSubID)
+
+	updatedSubID := h.Bus.On(events.PageUpdated, func(e events.Event) {
+		if e.PageID == pageID {
+			select {
+			case ch <- sseEvent{kind: "rendered"}:
+			default:
+			}
+		}
+	})
+	defer h.Bus.Off(events.PageUpdated, updatedSubID)
 
 	ctx := r.Context()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ch:
-			fmt.Fprintf(w, "data: updated\n\n")
+		case evt := <-ch:
+			fmt.Fprintf(w, "data: %s\n\n", evt.kind)
 			flusher.Flush()
 		}
 	}

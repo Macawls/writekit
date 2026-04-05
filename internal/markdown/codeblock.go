@@ -2,10 +2,13 @@ package markdown
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"html"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alecthomas/chroma/v2"
@@ -24,6 +27,9 @@ import (
 	"oss.terrastruct.com/d2/d2themes/d2themescatalog"
 	"oss.terrastruct.com/d2/lib/textmeasure"
 )
+
+// d2Cache stores rendered D2 SVGs keyed by sha256 hash of the source code.
+var d2Cache sync.Map
 
 var languageIcons = map[string]string{
 	"javascript": "javascript",
@@ -251,7 +257,17 @@ func (r *codeBlockRenderer) renderD2Diagram(w util.BufWriter, code string) (ast.
 	return ast.WalkSkipChildren, nil
 }
 
+func d2CacheKey(code string) string {
+	h := sha256.Sum256([]byte(code))
+	return hex.EncodeToString(h[:])
+}
+
 func (r *codeBlockRenderer) renderD2(code string) (string, error) {
+	key := d2CacheKey(code)
+	if cached, ok := d2Cache.Load(key); ok {
+		return cached.(string), nil
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -283,7 +299,9 @@ func (r *codeBlockRenderer) renderD2(code string) (string, error) {
 		return "", fmt.Errorf("render error: %w", err)
 	}
 
-	return string(svg), nil
+	result := string(svg)
+	d2Cache.Store(key, result)
+	return result, nil
 }
 
 type codeBlockExtension struct {

@@ -60,6 +60,14 @@ func (db *DB) UpdatePage(ctx context.Context, p *Page) error {
 	return nil
 }
 
+func (db *DB) UpdatePageContentHTML(ctx context.Context, id string, html string) error {
+	_, err := db.DB.ExecContext(ctx, `UPDATE pages SET content_html=?, updated_at=datetime('now') WHERE id=?`, html, id)
+	if err != nil {
+		return fmt.Errorf("update page content_html: %w", err)
+	}
+	return nil
+}
+
 func (db *DB) DeletePage(ctx context.Context, id string) error {
 	_, err := db.DB.ExecContext(ctx, `DELETE FROM pages WHERE id = ?`, id)
 	return err

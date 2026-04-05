@@ -4,16 +4,25 @@
 <div class="preview-banner">
     This is a preview. This page is not yet published.
 </div>
+<div id="preview-loader" class="preview-loader"></div>
 <div id="preview-toast" class="preview-toast">Page updated</div>
 <script>
 (function(){
     var token = "{{.PreviewToken}}";
     if (!token) return;
     var toast = document.getElementById("preview-toast");
+    var loader = document.getElementById("preview-loader");
+    var content = document.querySelector(".post-content");
     var es = new EventSource("/preview/" + token + "/events");
-    es.onmessage = function() {
-        toast.classList.add("show");
-        setTimeout(function(){ location.reload(); }, 800);
+    es.onmessage = function(e) {
+        var msg = e.data;
+        if (msg === "saving") {
+            loader.classList.add("active");
+            if (content) content.style.opacity = "0.6";
+        } else if (msg === "rendered") {
+            toast.classList.add("show");
+            setTimeout(function(){ location.reload(); }, 600);
+        }
     };
     es.onerror = function() { setTimeout(function(){ es.close(); }, 30000); };
 })();
