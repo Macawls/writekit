@@ -339,7 +339,7 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	pt, _ := db.CreatePreviewToken(ctx, page.ID, 24*time.Hour)
 	previewURL := ""
 	if pt != nil {
-		previewURL = s.buildPreviewURL(tenantID, pt.Token)
+		previewURL = fmt.Sprintf("%s?v=%d", s.buildPreviewURL(tenantID, pt.Token), page.Version)
 	}
 
 	result := fmt.Sprintf("Page updated (v%d).\n\n**Title:** %s\n**Status:** %s", page.Version, page.Title, page.Status)

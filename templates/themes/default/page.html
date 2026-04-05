@@ -4,12 +4,17 @@
 <div class="preview-banner">
     This is a preview. This page is not yet published.
 </div>
+<div id="preview-toast" class="preview-toast">Page updated</div>
 <script>
 (function(){
     var token = "{{.PreviewToken}}";
     if (!token) return;
+    var toast = document.getElementById("preview-toast");
     var es = new EventSource("/preview/" + token + "/events");
-    es.onmessage = function() { location.reload(); };
+    es.onmessage = function() {
+        toast.classList.add("show");
+        setTimeout(function(){ location.reload(); }, 800);
+    };
     es.onerror = function() { setTimeout(function(){ es.close(); }, 30000); };
 })();
 </script>
