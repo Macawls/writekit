@@ -161,6 +161,13 @@ input, textarea, select { font-family: var(--sans); font-size: .9rem; }
 
 /* Preview banner */
 .preview-banner { background: #fef3c7; border: 1px solid #f59e0b; padding: .6rem .85rem; border-radius: var(--radius); margin-bottom: 1.5rem; font-size: .82rem; font-family: var(--sans); }
+.preview-toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--surface); color: #fff; font-family: var(--sans); font-size: .82rem; font-weight: 500; padding: .6rem 1rem; border-radius: var(--radius); opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; pointer-events: none; z-index: 9999; }
+.preview-toast.show { opacity: 1; transform: translateY(0); }
+
+/* Visibility badges */
+.visibility-badge { display: inline-block; font-size: .65rem; font-weight: 600; font-family: var(--sans); padding: .1rem .4rem; border-radius: 4px; vertical-align: middle; text-transform: capitalize; letter-spacing: .02em; }
+.visibility-unlisted { background: #fef3c7; color: #92400e; }
+.visibility-private { background: #fee2e2; color: #991b1b; }
 
 /* Auth */
 .auth-page { max-width: 400px; margin: 4rem auto; text-align: center; }

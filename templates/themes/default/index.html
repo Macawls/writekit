@@ -4,7 +4,7 @@
 <section class="collections">
     {{range .Collections}}
     <div class="collection-item">
-        <h2><a href="/{{.Collection.Slug}}">{{.Collection.Title}}</a></h2>
+        <h2><a href="/{{.Collection.Slug}}">{{.Collection.Title}}</a>{{if and $.IsMember (ne .Collection.Visibility "public")}} <span class="visibility-badge visibility-{{.Collection.Visibility}}" title="{{if eq .Collection.Visibility "unlisted"}}Hidden from index and sitemap, accessible via URL{{else if eq .Collection.Visibility "private"}}Only visible to team members{{end}}">{{.Collection.Visibility}}</span>{{end}}</h2>
         {{if .Collection.Description}}<p>{{.Collection.Description}}</p>{{end}}
         <span class="meta">{{.PageCount}} page{{if ne .PageCount 1}}s{{end}}</span>
     </div>
@@ -18,7 +18,7 @@
     <ul class="post-list">
         {{range .Pages}}
         <li class="post-item">
-            <h2><a href="/{{.Slug}}">{{.Title}}</a></h2>
+            <h2><a href="/{{.Slug}}">{{.Title}}</a>{{if and $.IsMember (ne .Visibility "public")}} <span class="visibility-badge visibility-{{.Visibility}}" title="{{if eq .Visibility "unlisted"}}Hidden from index and sitemap, accessible via URL{{else if eq .Visibility "private"}}Only visible to team members{{end}}">{{.Visibility}}</span>{{end}}</h2>
             <div class="post-meta">
                 {{if .PublishedAt}}{{.PublishedAt.Format "January 2, 2006"}}{{end}}
             </div>

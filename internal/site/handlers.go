@@ -159,6 +159,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		"TenantID":        tenantID,
 		"Host":            h.Config.Host,
 		"PageDescription": settings["description"],
+		"IsMember":        isMember,
 	})
 }
 
@@ -203,6 +204,7 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 			"Settings":   settings,
 			"TenantID":   tenantID,
 			"Host":       h.Config.Host,
+			"IsMember":   isMember,
 		})
 		return
 	}
