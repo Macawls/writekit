@@ -31,7 +31,7 @@ Advanced features:
 
 Workflow: Create pages as drafts first, share the preview URL, then publish when ready. Use collections to group related pages (docs, tutorials, series, etc.).
 
-Visibility: Pages and collections can be public (default, visible to everyone), unlisted (accessible via URL but hidden from index/sitemap), or private (only visible to authenticated team members). Set visibility when creating or updating.
+Visibility: Pages and collections can be public (default, visible to everyone), unlisted (accessible via URL but hidden from index/sitemap), or private (only visible to authenticated team members). Always ask the user whether content should be public, unlisted, or private before creating or publishing — never assume a visibility level.
 
 Teams: Sites have team members with roles — owner (full control), editor (manage content), viewer (view private content). Use invite_member, remove_member, update_member_role, and list_members tools to manage the team.
 
