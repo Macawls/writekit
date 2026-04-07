@@ -173,6 +173,7 @@ input, textarea, select { font-family: var(--sans); font-size: .9rem; }
 .visibility-badge svg { flex-shrink: 0; }
 .visibility-unlisted { background: #fef3c7; color: #92400e; }
 .visibility-private { background: #fee2e2; color: #991b1b; }
+.visibility-draft { background: #e0e7ff; color: #3730a3; }
 
 /* Auth */
 .auth-page { max-width: 400px; margin: 4rem auto; text-align: center; }

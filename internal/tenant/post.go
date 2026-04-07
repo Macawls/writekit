@@ -147,14 +147,19 @@ func (db *DB) ListPages(ctx context.Context, f PageFilter) ([]Page, error) {
 	return pages, nil
 }
 
-func (db *DB) ListCollectionPages(ctx context.Context, collectionID, sortOrder string) ([]Page, error) {
+func (db *DB) ListCollectionPages(ctx context.Context, collectionID, sortOrder string, includeDrafts bool) ([]Page, error) {
 	order := "position ASC"
 	if sortOrder == "date" {
 		order = "COALESCE(published_at, created_at) DESC"
 	}
 
+	statusFilter := " AND status = 'published'"
+	if includeDrafts {
+		statusFilter = ""
+	}
+
 	rows, err := db.DB.QueryContext(ctx,
-		pageSelect+" WHERE collection_id = ? AND status = 'published' ORDER BY "+order, collectionID)
+		pageSelect+" WHERE collection_id = ?"+statusFilter+" ORDER BY "+order, collectionID)
 	if err != nil {
 		return nil, fmt.Errorf("list collection pages: %w", err)
 	}

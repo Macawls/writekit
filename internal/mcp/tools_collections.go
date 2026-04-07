@@ -313,7 +313,7 @@ func (s *Server) getCollection(ctx context.Context, req *mcp.CallToolRequest) (*
 		return toolError("collection not found"), nil
 	}
 
-	pages, err := db.ListCollectionPages(ctx, collection.ID, collection.SortOrder)
+	pages, err := db.ListCollectionPages(ctx, collection.ID, collection.SortOrder, true)
 	if err != nil {
 		return toolError(fmt.Sprintf("failed to list pages: %v", err)), nil
 	}

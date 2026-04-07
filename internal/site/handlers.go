@@ -115,6 +115,15 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 
 	isMember := h.isTeamMember(r, tenantID)
 
+	// Include draft pages for team members
+	if isMember {
+		drafts, err := db.ListPages(r.Context(), tenant.PageFilter{Status: "draft", CollectionID: &standalone, Limit: 20})
+		if err != nil {
+			slog.Error("list draft pages", "tenant", tenantID, "err", err)
+		}
+		pages = append(drafts, pages...)
+	}
+
 	// Filter collections: hide unlisted + private (show private only if team member)
 	var visibleCollections []tenant.Collection
 	for _, c := range collections {
@@ -182,10 +191,10 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		pages, _ := db.ListCollectionPages(r.Context(), collection.ID, collection.SortOrder)
+		isMember := h.isTeamMember(r, tenantID)
+		pages, _ := db.ListCollectionPages(r.Context(), collection.ID, collection.SortOrder, isMember)
 
 		// Filter pages by visibility within the collection
-		isMember := h.isTeamMember(r, tenantID)
 		var visiblePages []tenant.Page
 		for _, p := range pages {
 			switch p.Visibility {
@@ -216,9 +225,11 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if page.Status != "published" {
-		slog.Warn("page not published", "tenant", tenantID, "slug", slug, "status", page.Status)
-		http.Error(w, "not found", http.StatusNotFound)
-		return
+		if !h.isTeamMember(r, tenantID) {
+			slog.Warn("page not published", "tenant", tenantID, "slug", slug, "status", page.Status)
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
 	}
 	if !h.canView(r, tenantID, page.Visibility) {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -258,7 +269,11 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page, err := db.GetPageInCollection(r.Context(), collection.ID, pageSlug)
-	if err != nil || page.Status != "published" {
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if page.Status != "published" && !h.isTeamMember(r, tenantID) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
