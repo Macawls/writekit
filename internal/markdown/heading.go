@@ -41,10 +41,13 @@ func (r *headingRenderer) renderHeading(w util.BufWriter, source []byte, node as
 			if idStr != "" {
 				w.WriteString(`<a class="heading-anchor" href="#`)
 				w.WriteString(idStr)
-				w.WriteString(`">#</a>`)
+				w.WriteString(`">`)
 			}
 		}
 	} else {
+		if _, ok := n.AttributeString("id"); ok {
+			w.WriteString("</a>")
+		}
 		w.WriteString("</h")
 		w.WriteByte("0123456"[n.Level])
 		w.WriteString(">\n")
