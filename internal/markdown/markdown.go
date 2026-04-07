@@ -43,6 +43,7 @@ func getRenderer(codeTheme string) goldmark.Markdown {
 			NewCodeBlockExtension(codeTheme),
 			NewCalloutExtension(),
 			NewEmbedExtension(),
+			NewHeadingExtension(),
 		),
 		goldmark.WithParserOptions(
 			parser.WithAutoHeadingID(),
@@ -81,6 +82,7 @@ func RenderWithErrors(source string) (string, []string) {
 			&codeBlockExtensionWithRenderer{cbr},
 			NewCalloutExtension(),
 			NewEmbedExtension(),
+			NewHeadingExtension(),
 		),
 		goldmark.WithParserOptions(
 			parser.WithAutoHeadingID(),
