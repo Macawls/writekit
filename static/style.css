@@ -127,7 +127,7 @@ nav a:hover { color: var(--fg); text-decoration: none; }
 }
 .d2-diagram.fullscreen .d2-viewport > svg { width: auto; height: auto; max-width: none; max-height: none; }
 .d2-diagram.fullscreen .d2-viewport.dragging { cursor: grabbing; }
-.d2-diagram.fullscreen .d2-viewport rect:first-of-type { fill: transparent !important; }
+.d2-diagram.fullscreen .d2-viewport > svg > svg > rect:first-of-type { fill: transparent !important; }
 .d2-diagram.fullscreen .d2-controls {
   top: 1rem; right: 1rem;
 }
