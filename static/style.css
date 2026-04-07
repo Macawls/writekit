@@ -60,7 +60,8 @@ nav a:hover { color: var(--fg); text-decoration: none; }
 .post-content h2 { font-size: 1.3rem; font-weight: 700; }
 .post-content h3 { font-size: 1.1rem; font-weight: 600; }
 .post-content h4, .post-content h5, .post-content h6 { margin-top: 1.5rem; margin-bottom: .5rem; }
-.heading-anchor { opacity: 0; color: var(--muted); text-decoration: none; margin-right: .35rem; transition: opacity .15s; }
+.post-content h1, .post-content h2, .post-content h3, .post-content h4, .post-content h5, .post-content h6 { position: relative; }
+.heading-anchor { position: absolute; right: 100%; padding-right: .4rem; opacity: 0; color: var(--muted); text-decoration: none; transition: opacity .15s; }
 .post-content h1:hover .heading-anchor, .post-content h2:hover .heading-anchor, .post-content h3:hover .heading-anchor, .post-content h4:hover .heading-anchor, .post-content h5:hover .heading-anchor, .post-content h6:hover .heading-anchor { opacity: 1; }
 .post-content p { margin-bottom: var(--paragraph-spacing); }
 .post-content pre { background: var(--bg2); border: 1px solid var(--border); padding: 1rem; border-radius: var(--radius); overflow-x: auto; margin-bottom: var(--content-spacing); font-family: var(--mono); font-size: .875rem; line-height: 1.7; }
