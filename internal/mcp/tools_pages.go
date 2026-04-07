@@ -29,9 +29,31 @@ func (s *Server) registerPageTools(mcpServer *mcp.Server) {
 - Code blocks with language tags (` + "```go, ```python" + `) — renders with syntax highlighting, language icon, and copy button
 - Callout blocks: > [!NOTE], > [!TIP], > [!WARNING], > [!DANGER] for styled alert boxes
 - Media embeds: <embed src="url" /> for YouTube, Spotify, SoundCloud, Twitter/X, GitHub Gists
-- D2 diagrams: ` + "```d2" + ` code blocks for architecture/flow diagrams
+- D2 diagrams: ` + "```d2" + ` code blocks (see D2 reference below)
 - Tables (GFM), ordered/unordered lists, task lists, horizontal rules, footnotes ([^1])
 - Raw HTML for advanced layouts
+
+**D2 diagram reference** — rendered server-side to SVG with NeutralGrey theme, dagre auto-layout, and interactive zoom/pan/fullscreen. Compilation errors are returned as warnings so you can fix them.
+
+Key syntax:
+- Containers (nesting): server: { api: API; db: Database }
+- Shapes: shape: cylinder (DB), queue, cloud, package, diamond, person, hexagon
+- Data shapes: shape: sql_table, class (with typed fields/methods)
+- Connections: a -> b: label, a <-> b (bidirectional), a -- b (undirected)
+- Classes (reusable styles): classes: { svc: { style.fill: "#3498DB"; style.stroke: "#2E5C8A" } } then node.class: svc
+- Styles: style.fill, style.stroke, style.stroke-width, style.border-radius, style.shadow, style.3d, style.opacity, style.font-size, style.text-transform, style.stroke-dash
+- Icons: icon: https://icons.terrastruct.com/... or any SVG URL
+- Tooltips: tooltip: "hover text"
+- Direction: direction: right (or down, left, up)
+- Grid layout: grid-rows: N, grid-columns: N, grid-gap: N for structured layouts
+- Sequence diagrams: shape: sequence_diagram with actor -> actor: message syntax
+
+Best practices for professional diagrams:
+- Always group related components into containers — flat diagrams look amateur
+- Label every connection with the protocol, data, or relationship it represents
+- Use classes for consistent styling across similar elements (services, databases, etc.)
+- Use appropriate shapes: cylinder for databases, cloud for external services, package for modules
+- Keep it focused — one diagram per concept, don't try to show everything
 
 Returns: The created page with a preview URL you can share.`,
 		InputSchema: map[string]any{

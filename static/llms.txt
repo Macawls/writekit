@@ -202,12 +202,38 @@ Use `<embed src="url" />` for rich media:
 - GitHub Gists — loaded dynamically
 
 ### D2 diagrams
-Use `d2` code blocks for architecture and flow diagrams:
+Use `d2` fenced code blocks for architecture and flow diagrams. Rendered server-side to SVG with NeutralGrey theme, dagre auto-layout, and interactive zoom/pan/fullscreen. D2 compilation errors are surfaced as warnings so the AI can fix them.
+
+Key syntax:
+- Containers: `server: { api: API; db: Database }` — group related components
+- Shapes: `shape: cylinder` (DB), `queue`, `cloud`, `package`, `diamond`, `person`, `sql_table`, `class`
+- Connections: `a -> b: label`, `a <-> b` (bidirectional), `a -- b` (undirected)
+- Classes: `classes: { svc: { style.fill: "#3498DB" } }` then `node.class: svc`
+- Styles: `style.fill`, `style.stroke`, `style.stroke-width`, `style.border-radius`, `style.shadow`, `style.3d`, `style.opacity`
+- Icons: `icon: https://icons.terrastruct.com/...`
+- Grid layout: `grid-rows: N`, `grid-columns: N` for structured layouts
+- Sequence diagrams: `shape: sequence_diagram`
+- Direction: `direction: right` (or down, left, up)
+
+Example:
 ```d2
-client -> server: HTTP request
-server -> db: query
-db -> server: results
-server -> client: JSON response
+classes: {
+  svc: { style.fill: "#3498DB"; style.stroke: "#2E5C8A"; style.font-color: "#fff" }
+  store: { shape: cylinder; style.fill: "#2ECC71"; style.stroke: "#27AE60"; style.font-color: "#fff" }
+}
+
+frontend: Web App { class: svc }
+backend: {
+  api: API Gateway { class: svc }
+  auth: Auth Service { class: svc }
+  api -> auth: validate token
+}
+db: PostgreSQL { class: store }
+cache: Redis { class: store; shape: queue }
+
+frontend -> backend.api: REST/JSON
+backend.api -> db: SQL
+backend.api -> cache: session data
 ```
 
 ## Site URLs

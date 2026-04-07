@@ -10,7 +10,5 @@ screenshots/
 tmp/
 
 # Frontend apps
-apps/user/node_modules/
-apps/user/dist/*
-!apps/user/dist/.gitkeep
-apps/admin/node_modules/
+apps/*/node_modules/
+apps/*/dist/
