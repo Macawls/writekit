@@ -110,7 +110,8 @@ nav a:hover { color: var(--fg); text-decoration: none; }
 
 /* D2 Diagrams */
 .d2-diagram { margin: var(--content-spacing) 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; position: relative; }
-.d2-viewport { overflow: auto; padding: 1rem; }
+.d2-viewport { overflow: hidden; padding: 1rem; cursor: grab; }
+.d2-viewport.dragging { cursor: grabbing; }
 .d2-controls { position: absolute; top: .5rem; right: .5rem; display: flex; gap: .25rem; z-index: 1; }
 .d2-controls button { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 4px; cursor: pointer; color: var(--muted); display: flex; align-items: center; }
 .d2-controls button:hover { color: var(--fg); background: var(--bg2); }
@@ -119,20 +120,22 @@ nav a:hover { color: var(--fg); text-decoration: none; }
 .d2-diagram.fullscreen {
   position: fixed; inset: 0; z-index: 9999; margin: 0;
   border-radius: 0; border: none;
-  background: rgba(0,0,0,.9);
+  background: var(--bg);
 }
 .d2-diagram.fullscreen .d2-viewport {
-  height: 100vh; cursor: grab;
+  width: 100vw; height: 100vh; overflow: hidden; cursor: grab; padding: 0;
 }
+.d2-diagram.fullscreen .d2-viewport > svg { width: auto; height: auto; max-width: none; max-height: none; }
 .d2-diagram.fullscreen .d2-viewport.dragging { cursor: grabbing; }
+.d2-diagram.fullscreen .d2-viewport rect:first-of-type { fill: transparent !important; }
 .d2-diagram.fullscreen .d2-controls {
   top: 1rem; right: 1rem;
 }
 .d2-diagram.fullscreen .d2-controls button {
-  background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.2); color: rgba(255,255,255,.7);
+  background: rgba(0,0,0,.05); border-color: rgba(0,0,0,.15); color: rgba(0,0,0,.5);
 }
 .d2-diagram.fullscreen .d2-controls button:hover {
-  background: rgba(255,255,255,.2); color: #fff;
+  background: rgba(0,0,0,.1); color: rgba(0,0,0,.8);
 }
 
 /* Forms & Buttons */

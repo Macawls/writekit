@@ -59,37 +59,64 @@
         document.querySelectorAll('.d2-diagram').forEach(function(diagram) {
             var viewport = diagram.querySelector('.d2-viewport');
             if (!viewport) return;
-            var scale = 1, panX = 0, panY = 0, dragging = false, startX, startY;
+            var svg = viewport.querySelector(':scope > svg');
+            if (!svg) return;
 
-            function applyTransform() {
-                viewport.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
-                viewport.style.transformOrigin = 'top left';
+            var scale = 1, panX = 0, panY = 0, dragging = false, startX, startY;
+            var vb = svg.viewBox.baseVal;
+            var naturalW = vb.width || svg.getAttribute('width') || 600;
+            var naturalH = vb.height || svg.getAttribute('height') || 400;
+            var origWidth = svg.getAttribute('width');
+            var origHeight = svg.getAttribute('height');
+
+            function centerSvg() {
+                var vw = viewport.clientWidth, vh = viewport.clientHeight;
+                panX = (vw - naturalW * scale) / 2;
+                panY = (vh - naturalH * scale) / 2;
             }
-            function resetView() { scale = 1; panX = 0; panY = 0; viewport.style.transform = ''; }
+            function applyTransform() {
+                svg.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
+                svg.style.transformOrigin = '0 0';
+            }
+            function resetView() { scale = 1; panX = 0; panY = 0; svg.style.transform = ''; svg.style.transformOrigin = ''; }
+            function restoreDimensions() {
+                if (origWidth) svg.setAttribute('width', origWidth); else svg.removeAttribute('width');
+                if (origHeight) svg.setAttribute('height', origHeight); else svg.removeAttribute('height');
+            }
 
             var zoomIn = diagram.querySelector('.d2-zoom-in');
             var zoomOut = diagram.querySelector('.d2-zoom-out');
             var reset = diagram.querySelector('.d2-reset');
             var fs = diagram.querySelector('.d2-fullscreen');
 
-            if (zoomIn) zoomIn.addEventListener('click', function() { scale = Math.min(scale * 1.25, 5); applyTransform(); });
-            if (zoomOut) zoomOut.addEventListener('click', function() { scale = Math.max(scale / 1.25, 0.1); applyTransform(); });
+            function zoomTo(newScale) {
+                var vw = viewport.clientWidth, vh = viewport.clientHeight, prev = scale;
+                scale = newScale;
+                var r = scale / prev;
+                panX = vw / 2 - r * (vw / 2 - panX); panY = vh / 2 - r * (vh / 2 - panY);
+                applyTransform();
+            }
+
+            if (zoomIn) zoomIn.addEventListener('click', function() { zoomTo(Math.min(scale * 1.25, 5)); });
+            if (zoomOut) zoomOut.addEventListener('click', function() { zoomTo(Math.max(scale / 1.25, 0.1)); });
             if (reset) reset.addEventListener('click', resetView);
 
             if (fs) fs.addEventListener('click', function() {
                 var isFs = diagram.classList.toggle('fullscreen');
-                if (!isFs) resetView();
+                if (isFs) {
+                    svg.setAttribute('width', naturalW); svg.setAttribute('height', naturalH);
+                    scale = 1;
+                    requestAnimationFrame(function() { centerSvg(); applyTransform(); });
+                } else { restoreDimensions(); resetView(); }
             });
 
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape' && diagram.classList.contains('fullscreen')) {
-                    diagram.classList.remove('fullscreen');
-                    resetView();
+                    diagram.classList.remove('fullscreen'); restoreDimensions(); resetView();
                 }
             });
 
             viewport.addEventListener('mousedown', function(e) {
-                if (!diagram.classList.contains('fullscreen')) return;
                 dragging = true; startX = e.clientX - panX; startY = e.clientY - panY;
                 viewport.classList.add('dragging');
             });
@@ -98,15 +125,16 @@
                 panX = e.clientX - startX; panY = e.clientY - startY;
                 applyTransform();
             });
-            document.addEventListener('mouseup', function() {
-                dragging = false; viewport.classList.remove('dragging');
-            });
+            document.addEventListener('mouseup', function() { dragging = false; viewport.classList.remove('dragging'); });
 
             viewport.addEventListener('wheel', function(e) {
-                if (!diagram.classList.contains('fullscreen')) return;
                 e.preventDefault();
-                var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+                var rect = viewport.getBoundingClientRect();
+                var mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
+                var prev = scale, factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
                 scale = Math.min(Math.max(scale * factor, 0.1), 5);
+                var r = scale / prev;
+                panX = mouseX - r * (mouseX - panX); panY = mouseY - r * (mouseY - panY);
                 applyTransform();
             }, { passive: false });
         });
