@@ -116,16 +116,28 @@
                 }
             });
 
+            var dragStartX, dragStartY, didDrag;
             viewport.addEventListener('mousedown', function(e) {
-                dragging = true; startX = e.clientX - panX; startY = e.clientY - panY;
+                dragging = true; didDrag = false;
+                dragStartX = e.clientX; dragStartY = e.clientY;
+                startX = e.clientX - panX; startY = e.clientY - panY;
                 viewport.classList.add('dragging');
             });
             document.addEventListener('mousemove', function(e) {
                 if (!dragging) return;
+                if (Math.abs(e.clientX - dragStartX) > 3 || Math.abs(e.clientY - dragStartY) > 3) didDrag = true;
                 panX = e.clientX - startX; panY = e.clientY - startY;
                 applyTransform();
             });
             document.addEventListener('mouseup', function() { dragging = false; viewport.classList.remove('dragging'); });
+
+            viewport.addEventListener('click', function() {
+                if (didDrag || diagram.classList.contains('fullscreen')) return;
+                diagram.classList.add('fullscreen');
+                svg.setAttribute('width', naturalW); svg.setAttribute('height', naturalH);
+                scale = 1;
+                requestAnimationFrame(function() { centerSvg(); applyTransform(); });
+            });
 
             viewport.addEventListener('wheel', function(e) {
                 e.preventDefault();

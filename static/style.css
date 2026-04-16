@@ -113,7 +113,7 @@ nav a:hover { color: var(--fg); text-decoration: none; }
 
 /* D2 Diagrams */
 .d2-diagram { margin: var(--content-spacing) 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; position: relative; }
-.d2-viewport { overflow: hidden; padding: 1rem; cursor: grab; }
+.d2-viewport { overflow: hidden; padding: 1rem; cursor: pointer; }
 .d2-viewport.dragging { cursor: grabbing; }
 .d2-controls { position: absolute; top: .5rem; right: .5rem; display: flex; gap: .25rem; z-index: 1; }
 .d2-controls button { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 4px; cursor: pointer; color: var(--muted); display: flex; align-items: center; }
