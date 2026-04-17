@@ -237,6 +237,37 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
 }
 .remove-btn:hover { color: #ef4444; background: #fef2f2; }
 
+/* Graph */
+.graph-page {
+  display: flex; flex-direction: column;
+  height: calc(100vh - 1rem);
+  margin: -1.5rem -2rem;
+  padding: 0;
+}
+
+.graph-header {
+  padding: 1.25rem 2rem 0.75rem; border-bottom: 1px solid var(--border);
+  background: var(--white);
+}
+.graph-header h1 { font-size: 1.1rem; font-weight: 600; margin-bottom: .15rem; }
+.graph-header .muted { font-size: .8rem; color: var(--muted); }
+.graph-notice {
+  margin-top: .5rem; font-size: .75rem; color: var(--muted);
+  background: #fef9c3; color: #713f12; padding: .35rem .6rem;
+  border-radius: 6px; display: inline-block;
+}
+
+.graph-canvas {
+  flex: 1; position: relative; overflow: hidden;
+  background: var(--bg); cursor: grab;
+}
+
+.graph-label {
+  font-family: var(--sans); font-size: 11px; color: var(--muted);
+  font-weight: 500; user-select: none; white-space: nowrap;
+  transform: translateY(4px); pointer-events: none;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar { display: none; }
@@ -244,4 +275,6 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
   .content { margin-left: 0; padding: 1.5rem 1rem; max-width: 100%; }
   .invite-row { flex-direction: column; }
   .invite-row input, .invite-row select { width: 100%; }
+  .graph-page { margin: -1.5rem -1rem; }
+  .graph-header { padding: 1rem 1rem 0.5rem; }
 }

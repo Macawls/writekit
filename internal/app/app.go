@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -16,6 +17,7 @@ import (
 	"writekit/internal/site"
 	"writekit/internal/config"
 	"writekit/internal/email"
+	"writekit/internal/embedding"
 	"writekit/internal/events"
 	mcpserver "writekit/internal/mcp"
 	"writekit/internal/platform"
@@ -30,6 +32,8 @@ type App struct {
 	PlatformDB *platform.DB
 	Pool       *tenant.Pool
 	Bus        *events.Bus
+	Embedder   *embedding.Client
+	Worker     *EmbeddingWorker
 	Router     http.Handler
 }
 
@@ -88,10 +92,14 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		PlatformDB: platformDB,
 	}
 
+	embedClient := embedding.NewClient(cfg.OllamaHost, cfg.EmbeddingModel)
+
 	apiHandler := &api.Handler{
-		DB:     platformDB,
-		Pool:   pool,
-		Config: cfg,
+		DB:       platformDB,
+		Pool:     pool,
+		Config:   cfg,
+		Embedder: embedClient,
+		Bus:      bus,
 	}
 
 	adminHandler := &admin.Handler{
@@ -103,11 +111,15 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 
 	router := buildRouter(cfg, webHandler, siteHandler, apiHandler, adminHandler, mcpSrv, platformDB, staticFS, appFS, adminFS)
 
+	worker := NewEmbeddingWorker(pool, bus, embedClient)
+
 	return &App{
 		Config:     cfg,
 		PlatformDB: platformDB,
 		Pool:       pool,
 		Bus:        bus,
+		Embedder:   embedClient,
+		Worker:     worker,
 		Router:     router,
 	}
 }
@@ -229,6 +241,7 @@ func (a *App) ListenAddr() string {
 }
 
 func (a *App) Run() error {
+	a.Worker.Start(context.Background())
 	addr := a.ListenAddr()
 	slog.Info("starting server", "addr", addr, "host", a.Config.Host)
 	return http.ListenAndServe(addr, a.Router)

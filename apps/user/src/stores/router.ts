@@ -1,12 +1,13 @@
 import { atom } from 'nanostores'
 
-export type Route = 'site' | 'team' | 'settings' | 'billing'
+export type Route = 'site' | 'team' | 'settings' | 'billing' | 'graph'
 
 const pathToRoute: Record<string, Route> = {
   '/': 'site',
   '/team': 'team',
   '/settings': 'settings',
   '/billing': 'billing',
+  '/graph': 'graph',
 }
 
 const routeToPath: Record<Route, string> = {
@@ -14,6 +15,7 @@ const routeToPath: Record<Route, string> = {
   team: '/team',
   settings: '/settings',
   billing: '/billing',
+  graph: '/graph',
 }
 
 function getRouteFromPath(): Route {

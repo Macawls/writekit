@@ -35,6 +35,9 @@ type Config struct {
 	MaxPoolSize int
 
 	AdminEmails []string
+
+	OllamaHost     string
+	EmbeddingModel string
 }
 
 func Load() (*Config, error) {
@@ -80,6 +83,9 @@ func Load() (*Config, error) {
 		SESRegion: getenv("SES_REGION", ""),
 
 		MaxPoolSize: maxPool,
+
+		OllamaHost:     getenv("OLLAMA_HOST", ""),
+		EmbeddingModel: getenv("EMBEDDING_MODEL", ""),
 	}
 
 	if cfg.DatabaseURL == "" {

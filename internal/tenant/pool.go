@@ -160,6 +160,19 @@ func (p *Pool) DataDir() string {
 	return p.dataDir
 }
 
+// ActiveTenants returns tenant IDs currently held in the pool. Safe snapshot;
+// callers can iterate without holding the pool lock. Used by the embedding
+// worker's reconciliation sweep.
+func (p *Pool) ActiveTenants() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	ids := make([]string, 0, len(p.dbs))
+	for id := range p.dbs {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 func (p *Pool) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()

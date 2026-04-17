@@ -9,13 +9,17 @@
   },
   "dependencies": {
     "@nanostores/react": "^1.1.0",
+    "d3-force": "^3.0.0",
     "nanostores": "^1.2.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "three": "^0.184.0"
   },
   "devDependencies": {
+    "@types/d3-force": "^3.0.10",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
+    "@types/three": "^0.184.0",
     "@vitejs/plugin-react-swc": "^4.3.0",
     "typescript": "~5.8.3",
     "vite": "^6.3.2"

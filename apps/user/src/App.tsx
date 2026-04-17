@@ -8,6 +8,7 @@ import Site from './pages/Site'
 import Team from './pages/Team'
 import Settings from './pages/Settings'
 import Billing from './pages/Billing'
+import Graph from './pages/Graph'
 
 const ONBOARDED_KEY = 'writekit_onboarded'
 const POLL_INTERVAL = 2000
@@ -20,6 +21,7 @@ function Router() {
     case 'team': return <Team />
     case 'settings': return <Settings />
     case 'billing': return <Billing />
+    case 'graph': return <Graph />
     default: return <Site />
   }
 }
