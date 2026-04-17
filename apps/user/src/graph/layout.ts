@@ -8,6 +8,8 @@ export interface SimNode {
   y: number
   vx: number
   vy: number
+  fx?: number | null
+  fy?: number | null
 }
 
 export interface SimLink {
