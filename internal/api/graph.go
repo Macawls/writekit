@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"math"
 	"net/http"
 	"sort"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"writekit/internal/events"
+	"writekit/internal/httplog"
 	"writekit/internal/tenant"
 )
 
@@ -49,21 +51,25 @@ type graphResponse struct {
 }
 
 func (h *Handler) Graph(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	user := userFromContext(r.Context())
 	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if err != nil {
+		log.Warn("graph: tenant lookup failed", "user_id", user.ID, "err", err)
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no site found"})
 		return
 	}
 
 	db, err := h.Pool.Get(site.ID)
 	if err != nil {
+		log.Error("graph: open tenant db", "tenant", site.ID, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to open tenant db"})
 		return
 	}
 
 	pages, err := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", Limit: graphMaxPages})
 	if err != nil {
+		log.Error("graph: list pages", "tenant", site.ID, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list pages"})
 		return
 	}
@@ -91,7 +97,9 @@ func (h *Handler) Graph(w http.ResponseWriter, r *http.Request) {
 	if h.Embedder.Enabled() && model != "" {
 		resp.Model = model
 		embeddings, err := db.ListPageEmbeddings(r.Context(), model)
-		if err == nil && len(embeddings) > 1 {
+		if err != nil {
+			log.Warn("graph: list embeddings", "tenant", site.ID, "model", model, "err", err)
+		} else if len(embeddings) > 1 {
 			normalize(embeddings)
 			resp.Edges = computeEdges(embeddings)
 		}
@@ -106,6 +114,12 @@ func (h *Handler) Graph(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) triggerBackfill(tenantID, model string) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("goroutine panic", "where", "graph backfill", "panic", r)
+		}
+	}()
+
 	if h.Bus == nil {
 		return
 	}
@@ -120,10 +134,12 @@ func (h *Handler) triggerBackfill(tenantID, model string) {
 
 	db, err := h.Pool.Get(tenantID)
 	if err != nil {
+		slog.Warn("graph backfill: open tenant db", "tenant", tenantID, "err", err)
 		return
 	}
 	ids, err := db.ListStalePageIDs(context.Background(), model)
 	if err != nil {
+		slog.Warn("graph backfill: list stale page ids", "tenant", tenantID, "err", err)
 		return
 	}
 	for _, id := range ids {

@@ -19,6 +19,7 @@ import (
 	"writekit/internal/email"
 	"writekit/internal/embedding"
 	"writekit/internal/events"
+	"writekit/internal/httplog"
 	mcpserver "writekit/internal/mcp"
 	"writekit/internal/platform"
 	"writekit/internal/render"
@@ -126,9 +127,10 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 
 func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.Handler, apiHandler *api.Handler, adminHandler *admin.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB, staticFS, appFS, adminFS fs.FS) http.Handler {
 	root := chi.NewRouter()
-	root.Use(chimw.Logger)
-	root.Use(chimw.Recoverer)
 	root.Use(chimw.RealIP)
+	root.Use(httplog.RequestIDMiddleware)
+	root.Use(httplog.Recoverer)
+	root.Use(httplog.Access)
 
 	fileServer := http.FileServer(http.FS(staticFS))
 	root.Handle("/static/*", http.StripPrefix("/static/", fileServer))
@@ -154,6 +156,7 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.
 		case strings.HasSuffix(host, "."+cfg.Host):
 			siteR.ServeHTTP(w, r)
 		default:
+			httplog.FromContext(r.Context()).Warn("unknown host, returning 404", "host", host)
 			http.NotFound(w, r)
 		}
 	})
@@ -186,16 +189,19 @@ func spaRouter(apiHandler *api.Handler, appFS fs.FS, cfg *config.Config, platfor
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("session")
 		if err != nil {
+			httplog.FromContext(r.Context()).Debug("spa: no session cookie, redirecting", "err", err)
 			http.Redirect(w, r, cfg.BaseURL, http.StatusSeeOther)
 			return
 		}
 		if _, err := platformDB.GetSession(r.Context(), cookie.Value); err != nil {
+			httplog.FromContext(r.Context()).Debug("spa: invalid session, redirecting", "err", err)
 			http.Redirect(w, r, cfg.BaseURL, http.StatusSeeOther)
 			return
 		}
 
 		f, err := distFS.Open("index.html")
 		if err != nil {
+			httplog.FromContext(r.Context()).Error("open user spa index", "err", err)
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
@@ -219,6 +225,7 @@ func adminSpaRouter(adminHandler *admin.Handler, adminFS fs.FS) http.Handler {
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		f, err := distFS.Open("index.html")
 		if err != nil {
+			httplog.FromContext(r.Context()).Error("open admin spa index", "err", err)
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
@@ -243,6 +250,18 @@ func (a *App) ListenAddr() string {
 func (a *App) Run() error {
 	a.Worker.Start(context.Background())
 	addr := a.ListenAddr()
-	slog.Info("starting server", "addr", addr, "host", a.Config.Host)
-	return http.ListenAndServe(addr, a.Router)
+	slog.Info("server starting",
+		"addr", addr,
+		"host", a.Config.Host,
+		"dev", a.Config.Dev,
+		"base_url", a.Config.BaseURL,
+		"stripe_configured", a.Config.StripeSecretKey != "",
+		"email_configured", a.Config.SESFrom != "",
+		"embedding_configured", a.Embedder.Enabled(),
+	)
+	if err := http.ListenAndServe(addr, a.Router); err != nil {
+		slog.Error("http listen", "addr", addr, "err", err)
+		return err
+	}
+	return nil
 }

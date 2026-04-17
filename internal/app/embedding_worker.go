@@ -51,16 +51,29 @@ func (w *EmbeddingWorker) Start(ctx context.Context) {
 	slog.Info("embedding worker starting", "model", w.client.Model(), "workers", embedWorkerCount, "sweep", embedSweepInterval)
 
 	for range embedWorkerCount {
-		go w.runWorker(ctx)
+		go func() {
+			defer recoverGoroutine("embedding worker")
+			w.runWorker(ctx)
+		}()
 	}
 
 	for _, ev := range []string{events.PageCreated, events.PageUpdated, events.PageContentSaved, events.PagePublished} {
 		w.bus.On(ev, func(e events.Event) {
+			defer recoverGoroutine("embedding event handler")
 			w.enqueue(e.TenantID, e.PageID)
 		})
 	}
 
-	go w.runSweeper(ctx)
+	go func() {
+		defer recoverGoroutine("embedding sweeper")
+		w.runSweeper(ctx)
+	}()
+}
+
+func recoverGoroutine(name string) {
+	if r := recover(); r != nil {
+		slog.Error("goroutine panic", "where", name, "panic", r)
+	}
 }
 
 func (w *EmbeddingWorker) enqueue(tenantID, pageID string) {

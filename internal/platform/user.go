@@ -30,10 +30,12 @@ func (db *DB) GetUser(ctx context.Context, id string) (*User, error) {
 }
 
 func (db *DB) UpdateUser(ctx context.Context, id, name string) error {
-	_, err := db.Pool.Exec(ctx, `
+	if _, err := db.Pool.Exec(ctx, `
 		UPDATE users SET name = $2, updated_at = NOW() WHERE id = $1
-	`, id, name)
-	return err
+	`, id, name); err != nil {
+		return fmt.Errorf("update user %s: %w", id, err)
+	}
+	return nil
 }
 
 func (db *DB) DeleteUser(ctx context.Context, id string) ([]string, error) {

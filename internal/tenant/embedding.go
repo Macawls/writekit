@@ -35,8 +35,10 @@ func (db *DB) UpsertPageEmbedding(ctx context.Context, pageID, model string, vec
 }
 
 func (db *DB) DeletePageEmbedding(ctx context.Context, pageID string) error {
-	_, err := db.DB.ExecContext(ctx, `DELETE FROM page_embeddings WHERE page_id = ?`, pageID)
-	return err
+	if _, err := db.DB.ExecContext(ctx, `DELETE FROM page_embeddings WHERE page_id = ?`, pageID); err != nil {
+		return fmt.Errorf("delete page embedding %s: %w", pageID, err)
+	}
+	return nil
 }
 
 func (db *DB) ListPageEmbeddings(ctx context.Context, model string) ([]PageEmbedding, error) {

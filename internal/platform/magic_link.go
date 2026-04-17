@@ -59,6 +59,8 @@ func (db *DB) ConsumeMagicLink(ctx context.Context, token string) (*MagicLink, e
 
 
 func (db *DB) CleanExpiredMagicLinks(ctx context.Context) error {
-	_, err := db.Pool.Exec(ctx, `DELETE FROM magic_links WHERE expires_at < NOW()`)
-	return err
+	if _, err := db.Pool.Exec(ctx, `DELETE FROM magic_links WHERE expires_at < NOW()`); err != nil {
+		return fmt.Errorf("clean expired magic links: %w", err)
+	}
+	return nil
 }

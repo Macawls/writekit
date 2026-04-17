@@ -26,7 +26,7 @@ func (db *DB) GetSettings(ctx context.Context) (map[string]string, error) {
 func (db *DB) UpdateSettings(ctx context.Context, updates map[string]string) error {
 	tx, err := db.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback()
 

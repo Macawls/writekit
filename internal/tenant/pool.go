@@ -61,6 +61,7 @@ func (p *Pool) Get(tenantID string) (*DB, error) {
 
 	db, err := p.open(tenantID)
 	if err != nil {
+		slog.Error("tenant pool: open failed", "tenant", tenantID, "err", err)
 		return nil, err
 	}
 
@@ -129,18 +130,23 @@ func (p *Pool) Rename(oldID, newID string) error {
 	newPath := filepath.Join(p.dataDir, newID+".db")
 
 	if err := os.Rename(oldPath, newPath); err != nil {
-		return fmt.Errorf("rename tenant db: %w", err)
+		slog.Error("rename tenant db file", "old", oldID, "new", newID, "err", err)
+		return fmt.Errorf("rename tenant db %s -> %s: %w", oldID, newID, err)
 	}
 
-	// Also rename WAL and SHM files if they exist
-	os.Rename(oldPath+"-wal", newPath+"-wal")
-	os.Rename(oldPath+"-shm", newPath+"-shm")
+	if err := os.Rename(oldPath+"-wal", newPath+"-wal"); err != nil && !os.IsNotExist(err) {
+		slog.Warn("rename wal file", "old", oldID, "err", err)
+	}
+	if err := os.Rename(oldPath+"-shm", newPath+"-shm"); err != nil && !os.IsNotExist(err) {
+		slog.Warn("rename shm file", "old", oldID, "err", err)
+	}
 
 	// Clean up any leftover files at old path
 	os.Remove(oldPath)
 	os.Remove(oldPath + "-wal")
 	os.Remove(oldPath + "-shm")
 
+	slog.Info("renamed tenant db", "old", oldID, "new", newID)
 	return nil
 }
 
@@ -158,8 +164,10 @@ func (p *Pool) Delete(tenantID string) error {
 	os.Remove(dbPath + "-wal")
 	os.Remove(dbPath + "-shm")
 	if err := os.Remove(dbPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("delete tenant db: %w", err)
+		slog.Error("delete tenant db file", "tenant", tenantID, "err", err)
+		return fmt.Errorf("delete tenant db %s: %w", tenantID, err)
 	}
+	slog.Info("deleted tenant db", "tenant", tenantID)
 	return nil
 }
 

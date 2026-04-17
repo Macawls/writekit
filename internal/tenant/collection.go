@@ -90,8 +90,10 @@ func (db *DB) ListCollections(ctx context.Context) ([]Collection, error) {
 
 func (db *DB) CountCollectionPages(ctx context.Context, collectionID string) (int, error) {
 	var count int
-	err := db.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pages WHERE collection_id = ?`, collectionID).Scan(&count)
-	return count, err
+	if err := db.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pages WHERE collection_id = ?`, collectionID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count collection pages (collection=%s): %w", collectionID, err)
+	}
+	return count, nil
 }
 
 func (db *DB) IsSlugAvailable(ctx context.Context, slug string) (bool, error) {
@@ -104,7 +106,7 @@ func (db *DB) IsSlugAvailable(ctx context.Context, slug string) (bool, error) {
 		)
 	`, slug, slug).Scan(&count)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("check slug availability (%s): %w", slug, err)
 	}
 	return count == 0, nil
 }

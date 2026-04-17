@@ -15,6 +15,7 @@ import (
 	"writekit/internal/config"
 	"writekit/internal/embedding"
 	"writekit/internal/events"
+	"writekit/internal/httplog"
 	"writekit/internal/platform"
 	"writekit/internal/tenant"
 )
@@ -54,38 +55,52 @@ func (h *Handler) Routes(r chi.Router) {
 
 func (h *Handler) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log := httplog.FromContext(r.Context())
 		cookie, err := r.Cookie("session")
 		if err != nil {
+			log.Debug("api auth: missing session cookie", "err", err)
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			return
 		}
 
 		sess, err := h.DB.GetSession(r.Context(), cookie.Value)
 		if err != nil {
+			log.Debug("api auth: invalid session", "err", err)
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			return
 		}
 
 		user, err := h.DB.GetUser(r.Context(), sess.UserID)
 		if err != nil {
+			log.Warn("api auth: session ok but user lookup failed", "user_id", sess.UserID, "err", err)
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), userContextKey, user)
+		ctx := httplog.WithFields(r.Context(), "user_id", user.ID)
+		ctx = context.WithValue(ctx, userContextKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	user := userFromContext(r.Context())
-	site, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
-	sub, _ := h.DB.GetSubscription(r.Context(), user.ID)
+	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
+	if err != nil {
+		log.Debug("me: no tenant for user", "user_id", user.ID, "err", err)
+	}
+	sub, err := h.DB.GetSubscription(r.Context(), user.ID)
+	if err != nil {
+		log.Debug("me: no subscription for user", "user_id", user.ID, "err", err)
+	}
 
 	var role string
 	if site != nil {
 		if member, err := h.DB.GetTeamMember(r.Context(), site.ID, user.ID); err == nil {
 			role = member.Role
+		} else {
+			log.Warn("me: get team member failed", "tenant", site.ID, "user_id", user.ID, "err", err)
 		}
 	}
 
@@ -106,6 +121,7 @@ func (h *Handler) GetSite(w http.ResponseWriter, r *http.Request) {
 	user := userFromContext(r.Context())
 	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if err != nil {
+		httplog.FromContext(r.Context()).Debug("get site: no tenant", "user_id", user.ID, "err", err)
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no site found"})
 		return
 	}
@@ -115,6 +131,7 @@ func (h *Handler) GetSite(w http.ResponseWriter, r *http.Request) {
 var slugRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$`)
 
 func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	user := userFromContext(r.Context())
 
 	var body struct {
@@ -122,6 +139,7 @@ func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		log.Warn("create site: decode body", "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
@@ -152,26 +170,34 @@ func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 		Name:   body.Name,
 	})
 	if err != nil {
-		slog.Error("create tenant failed", "err", err)
+		log.Error("create tenant failed", "slug", body.Slug, "user_id", user.ID, "err", err)
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "slug is already taken"})
 		return
 	}
 
 	if _, err := h.Pool.Get(body.Slug); err != nil {
-		slog.Error("init tenant db failed", "err", err)
+		log.Error("init tenant db failed", "slug", body.Slug, "err", err)
 	}
 
-	site, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
+	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
+	if err != nil {
+		log.Error("create site: reload after create", "user_id", user.ID, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load site"})
+		return
+	}
+	log.Info("site created", "slug", body.Slug, "user_id", user.ID)
 	writeJSON(w, http.StatusCreated, site)
 }
 
 func (h *Handler) UpdateSlug(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	user := userFromContext(r.Context())
 
 	var body struct {
 		Slug string `json:"slug"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		log.Warn("update slug: decode body", "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
@@ -188,6 +214,7 @@ func (h *Handler) UpdateSlug(w http.ResponseWriter, r *http.Request) {
 
 	existing, err := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if err != nil {
+		log.Warn("update slug: no existing tenant", "user_id", user.ID, "err", err)
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no site found"})
 		return
 	}
@@ -198,30 +225,39 @@ func (h *Handler) UpdateSlug(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.Pool.Rename(existing.ID, body.Slug); err != nil {
-		slog.Error("rename tenant db failed", "err", err)
+		log.Error("rename tenant db failed", "old", existing.ID, "new", body.Slug, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to rename site"})
 		return
 	}
 
 	if err := h.DB.RenameTenant(r.Context(), existing.ID, body.Slug); err != nil {
-		slog.Error("rename tenant failed", "err", err)
-		// Try to rollback the file rename
-		h.Pool.Rename(body.Slug, existing.ID)
+		log.Error("rename tenant row failed, rolling back file rename", "old", existing.ID, "new", body.Slug, "err", err)
+		if rbErr := h.Pool.Rename(body.Slug, existing.ID); rbErr != nil {
+			log.Error("rollback tenant rename failed", "new", body.Slug, "old", existing.ID, "err", rbErr)
+		}
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "slug is already taken"})
 		return
 	}
 
-	site, _ := h.DB.GetTenantByUser(r.Context(), user.ID)
+	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
+	if err != nil {
+		log.Error("update slug: reload after rename", "user_id", user.ID, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load site"})
+		return
+	}
+	log.Info("tenant renamed", "old", existing.ID, "new", body.Slug, "user_id", user.ID)
 	writeJSON(w, http.StatusOK, site)
 }
 
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	user := userFromContext(r.Context())
 
 	var body struct {
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		log.Warn("update profile: decode body", "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
@@ -232,6 +268,7 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.DB.UpdateUser(r.Context(), user.ID, body.Name); err != nil {
+		log.Error("update user", "user_id", user.ID, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update profile"})
 		return
 	}
@@ -257,7 +294,7 @@ func (h *Handler) BillingCheckout(w http.ResponseWriter, r *http.Request) {
 
 	sess, err := checkout.New(params)
 	if err != nil {
-		slog.Error("create checkout session", "err", err)
+		httplog.FromContext(r.Context()).Error("stripe: create checkout session", "user_id", user.ID, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create checkout"})
 		return
 	}
@@ -266,9 +303,11 @@ func (h *Handler) BillingCheckout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) BillingPortal(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	user := userFromContext(r.Context())
 	sub, err := h.DB.GetSubscription(r.Context(), user.ID)
 	if err != nil {
+		log.Warn("billing portal: no subscription", "user_id", user.ID, "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no subscription found"})
 		return
 	}
@@ -282,7 +321,7 @@ func (h *Handler) BillingPortal(w http.ResponseWriter, r *http.Request) {
 
 	sess, err := billingportal.New(params)
 	if err != nil {
-		slog.Error("create portal session", "err", err)
+		log.Error("stripe: create portal session", "user_id", user.ID, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create portal"})
 		return
 	}
@@ -304,15 +343,18 @@ func (h *Handler) requireOwner(r *http.Request) (*platform.Tenant, error) {
 }
 
 func (h *Handler) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	user := userFromContext(r.Context())
 	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if err != nil {
+		log.Warn("list team members: no tenant", "user_id", user.ID, "err", err)
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no site found"})
 		return
 	}
 
 	members, err := h.DB.ListTeamMembers(r.Context(), site.ID)
 	if err != nil {
+		log.Error("list team members", "tenant", site.ID, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list members"})
 		return
 	}
@@ -340,8 +382,10 @@ func (h *Handler) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) InviteTeamMember(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	site, err := h.requireOwner(r)
 	if err != nil {
+		log.Warn("invite: owner check failed", "err", err)
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 		return
 	}
@@ -351,6 +395,7 @@ func (h *Handler) InviteTeamMember(w http.ResponseWriter, r *http.Request) {
 		Role  string `json:"role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		log.Warn("invite: decode body", "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
@@ -361,21 +406,26 @@ func (h *Handler) InviteTeamMember(w http.ResponseWriter, r *http.Request) {
 
 	invitee, err := h.DB.GetUserByEmail(r.Context(), body.Email)
 	if err != nil {
+		log.Info("invite: invitee not found", "email", body.Email, "err", err)
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no WriteKit account found for this email"})
 		return
 	}
 
 	if err := h.DB.AddTeamMember(r.Context(), site.ID, invitee.ID, body.Role); err != nil {
+		log.Error("invite: add team member", "tenant", site.ID, "invitee", invitee.ID, "role", body.Role, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to add member"})
 		return
 	}
 
+	log.Info("team member added", "tenant", site.ID, "user_id", invitee.ID, "role", body.Role)
 	writeJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
 }
 
 func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	site, err := h.requireOwner(r)
 	if err != nil {
+		log.Warn("update role: owner check failed", "err", err)
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 		return
 	}
@@ -385,6 +435,7 @@ func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 		Role string `json:"role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		log.Warn("update role: decode body", "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
@@ -394,31 +445,39 @@ func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.DB.UpdateTeamMemberRole(r.Context(), site.ID, userID, body.Role); err != nil {
+		log.Warn("update team member role", "tenant", site.ID, "target", userID, "role", body.Role, "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
+	log.Info("team member role updated", "tenant", site.ID, "target", userID, "role", body.Role)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	site, err := h.requireOwner(r)
 	if err != nil {
+		log.Warn("remove member: owner check failed", "err", err)
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 		return
 	}
 
 	userID := chi.URLParam(r, "userId")
 	if err := h.DB.RemoveTeamMember(r.Context(), site.ID, userID); err != nil {
+		log.Warn("remove team member", "tenant", site.ID, "target", userID, "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
+	log.Info("team member removed", "tenant", site.ID, "target", userID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Error("write json response", "err", err)
+	}
 }

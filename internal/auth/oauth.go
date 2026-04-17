@@ -68,7 +68,11 @@ type OAuthUserInfo struct {
 }
 
 func (p *OAuthProvider) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
-	return p.Config.Exchange(ctx, code)
+	tok, err := p.Config.Exchange(ctx, code)
+	if err != nil {
+		return nil, fmt.Errorf("%s oauth exchange: %w", p.Name, err)
+	}
+	return tok, nil
 }
 
 func (p *OAuthProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (*OAuthUserInfo, error) {
@@ -89,13 +93,17 @@ func (p *OAuthProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (*
 func getGoogleUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("google userinfo request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("google userinfo unexpected status: %d", resp.StatusCode)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		return nil, fmt.Errorf("google userinfo read: %w", err)
 	}
 	var data struct {
 		ID      string `json:"id"`
@@ -104,7 +112,7 @@ func getGoogleUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 		Picture string `json:"picture"`
 	}
 	if err := json.Unmarshal(body, &data); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("google userinfo decode: %w", err)
 	}
 
 	return &OAuthUserInfo{
@@ -119,13 +127,17 @@ func getGoogleUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 func getGithubUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 	resp, err := client.Get("https://api.github.com/user")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("github user request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github user unexpected status: %d", resp.StatusCode)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		return nil, fmt.Errorf("github user read: %w", err)
 	}
 	var data struct {
 		ID        int    `json:"id"`
@@ -135,7 +147,7 @@ func getGithubUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 		AvatarURL string `json:"avatar_url"`
 	}
 	if err := json.Unmarshal(body, &data); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("github user decode: %w", err)
 	}
 
 	name := data.Name
@@ -160,13 +172,13 @@ func getGithubUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 func getGithubPrimaryEmail(client *http.Client) (string, error) {
 	resp, err := client.Get("https://api.github.com/user/emails")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("github emails request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("read response: %w", err)
+		return "", fmt.Errorf("github emails read: %w", err)
 	}
 	var emails []struct {
 		Email    string `json:"email"`
@@ -174,7 +186,7 @@ func getGithubPrimaryEmail(client *http.Client) (string, error) {
 		Verified bool   `json:"verified"`
 	}
 	if err := json.Unmarshal(body, &emails); err != nil {
-		return "", err
+		return "", fmt.Errorf("github emails decode: %w", err)
 	}
 
 	for _, e := range emails {
@@ -188,13 +200,17 @@ func getGithubPrimaryEmail(client *http.Client) (string, error) {
 func getDiscordUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 	resp, err := client.Get("https://discord.com/api/users/@me")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("discord user request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("discord user unexpected status: %d", resp.StatusCode)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		return nil, fmt.Errorf("discord user read: %w", err)
 	}
 	var data struct {
 		ID            string `json:"id"`
@@ -205,7 +221,7 @@ func getDiscordUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 		Avatar        string `json:"avatar"`
 	}
 	if err := json.Unmarshal(body, &data); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("discord user decode: %w", err)
 	}
 
 	name := data.GlobalName

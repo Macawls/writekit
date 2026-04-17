@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"writekit/internal/config"
 	"writekit/internal/email"
+	"writekit/internal/httplog"
 	"writekit/internal/platform"
 	"writekit/internal/tenant"
 )
@@ -55,19 +56,23 @@ func (h *Handler) isAdminEmail(email string) bool {
 
 func (h *Handler) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log := httplog.FromContext(r.Context())
 		cookie, err := r.Cookie("admin_session")
 		if err != nil {
+			log.Debug("admin auth: missing cookie", "err", err)
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 
 		sess, err := h.DB.GetAdminSession(r.Context(), cookie.Value)
 		if err != nil {
+			log.Warn("admin auth: invalid session", "err", err)
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), adminEmailKey, sess.Email)
+		ctx := httplog.WithFields(r.Context(), "admin_email", sess.Email)
+		ctx = context.WithValue(ctx, adminEmailKey, sess.Email)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -75,27 +80,32 @@ func (h *Handler) authMiddleware(next http.Handler) http.Handler {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Error("admin: write json response", "err", err)
+	}
 }
 
 func (h *Handler) AuthSend(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	var body struct {
 		Email string `json:"email"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		log.Warn("admin auth send: decode body", "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
 
 	email := strings.TrimSpace(strings.ToLower(body.Email))
 	if !h.isAdminEmail(email) {
+		log.Warn("admin auth send: non-admin email attempted", "email", email)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
 		return
 	}
 
 	ml, err := h.DB.CreateMagicLink(r.Context(), email)
 	if err != nil {
-		slog.Error("create admin magic link", "err", err)
+		log.Error("create admin magic link", "email", email, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to send"})
 		return
 	}
@@ -107,9 +117,10 @@ func (h *Handler) AuthSend(w http.ResponseWriter, r *http.Request) {
 		link = fmt.Sprintf("https://admin.%s/admin/api/auth/verify?token=%s", h.Config.Host, ml.Token)
 	}
 
+	log.Info("admin magic link created", "email", email)
 	go func() {
 		if err := h.Email.SendMagicLink(context.WithoutCancel(r.Context()), email, link); err != nil {
-			slog.Error("send admin magic link email", "err", err)
+			slog.Error("send admin magic link email", "email", email, "err", err)
 		}
 	}()
 
@@ -117,29 +128,34 @@ func (h *Handler) AuthSend(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AuthVerify(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	token := r.URL.Query().Get("token")
 	if token == "" {
+		log.Debug("admin verify: missing token")
 		http.Error(w, "missing token", http.StatusBadRequest)
 		return
 	}
 
 	ml, err := h.DB.ConsumeMagicLink(r.Context(), token)
 	if err != nil {
+		log.Warn("admin verify: invalid magic link", "err", err)
 		http.Redirect(w, r, "/?error=invalid", http.StatusSeeOther)
 		return
 	}
 
 	if !h.isAdminEmail(ml.Email) {
+		log.Warn("admin verify: magic link for non-admin email", "email", ml.Email)
 		http.Redirect(w, r, "/?error=unauthorized", http.StatusSeeOther)
 		return
 	}
 
 	sess, err := h.DB.CreateAdminSession(r.Context(), ml.Email)
 	if err != nil {
-		slog.Error("create admin session", "err", err)
+		log.Error("create admin session", "email", ml.Email, "err", err)
 		http.Error(w, "failed to create session", http.StatusInternalServerError)
 		return
 	}
+	log.Info("admin signed in", "email", ml.Email)
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "admin_session",
@@ -160,7 +176,9 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("admin_session"); err == nil {
-		h.DB.DeleteAdminSession(r.Context(), cookie.Value)
+		if derr := h.DB.DeleteAdminSession(r.Context(), cookie.Value); derr != nil {
+			httplog.FromContext(r.Context()).Warn("admin logout: delete session", "err", derr)
+		}
 	}
 
 	http.SetCookie(w, &http.Cookie{
@@ -178,11 +196,24 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	log := httplog.FromContext(ctx)
 
-	totalUsers, _ := h.DB.CountUsers(ctx)
-	totalTenants, _ := h.DB.CountTenants(ctx)
-	activeSubs, _ := h.DB.CountActiveSubscriptions(ctx)
-	recentUsers, _ := h.DB.ListUsers(ctx, 10, 0)
+	totalUsers, err := h.DB.CountUsers(ctx)
+	if err != nil {
+		log.Warn("admin stats: count users", "err", err)
+	}
+	totalTenants, err := h.DB.CountTenants(ctx)
+	if err != nil {
+		log.Warn("admin stats: count tenants", "err", err)
+	}
+	activeSubs, err := h.DB.CountActiveSubscriptions(ctx)
+	if err != nil {
+		log.Warn("admin stats: count active subs", "err", err)
+	}
+	recentUsers, err := h.DB.ListUsers(ctx, 10, 0)
+	if err != nil {
+		log.Warn("admin stats: list recent users", "err", err)
+	}
 
 	totalStorage, tenantSizes := h.calcStorage(ctx)
 
@@ -205,6 +236,7 @@ type tenantStorage struct {
 func (h *Handler) calcStorage(ctx context.Context) (int64, []tenantStorage) {
 	tenants, err := h.DB.ListAllTenants(ctx)
 	if err != nil {
+		httplog.FromContext(ctx).Warn("admin stats: list all tenants", "err", err)
 		return 0, nil
 	}
 
@@ -233,6 +265,7 @@ func (h *Handler) calcStorage(ctx context.Context) (int64, []tenantStorage) {
 
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	log := httplog.FromContext(ctx)
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1
@@ -250,11 +283,15 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	} else {
 		users, err = h.DB.ListUsers(ctx, perPage, (page-1)*perPage)
 		if err == nil {
-			total, _ = h.DB.CountUsers(ctx)
+			total, err = h.DB.CountUsers(ctx)
+			if err != nil {
+				log.Warn("admin list users: count", "err", err)
+			}
 		}
 	}
 
 	if err != nil {
+		log.Error("admin list users", "q", q, "page", page, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list users"})
 		return
 	}
@@ -273,17 +310,28 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	log := httplog.FromContext(ctx)
 	id := chi.URLParam(r, "id")
 
 	user, err := h.DB.GetUser(ctx, id)
 	if err != nil {
+		log.Info("admin get user: not found", "user_id", id, "err", err)
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
 		return
 	}
 
-	tenant, _ := h.DB.GetTenantByUser(ctx, user.ID)
-	accounts, _ := h.DB.ListLinkedAccounts(ctx, user.ID)
-	subscription, _ := h.DB.GetSubscription(ctx, user.ID)
+	tenant, err := h.DB.GetTenantByUser(ctx, user.ID)
+	if err != nil {
+		log.Debug("admin get user: no tenant", "user_id", user.ID, "err", err)
+	}
+	accounts, err := h.DB.ListLinkedAccounts(ctx, user.ID)
+	if err != nil {
+		log.Warn("admin get user: list linked accounts", "user_id", user.ID, "err", err)
+	}
+	subscription, err := h.DB.GetSubscription(ctx, user.ID)
+	if err != nil {
+		log.Debug("admin get user: no subscription", "user_id", user.ID, "err", err)
+	}
 
 	if accounts == nil {
 		accounts = []platform.LinkedAccount{}
@@ -299,19 +347,22 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	log := httplog.FromContext(ctx)
 	id := chi.URLParam(r, "id")
 
 	tenantIDs, err := h.DB.DeleteUser(ctx, id)
 	if err != nil {
+		log.Error("admin delete user", "user_id", id, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete user"})
 		return
 	}
 
 	for _, tid := range tenantIDs {
 		if err := h.Pool.Delete(tid); err != nil {
-			slog.Error("delete tenant db", "tenant", tid, "err", err)
+			log.Error("admin delete tenant db", "tenant", tid, "err", err)
 		}
 	}
 
+	log.Info("admin deleted user", "user_id", id, "tenants", tenantIDs)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }

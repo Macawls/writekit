@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -370,10 +370,10 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 			html, warnings := renderContentWithErrors(page.Content)
 			page.ContentHTML = html
 			if err := db.UpdatePageContentHTML(bgCtx, page.ID, html); err != nil {
-				log.Printf("background render failed for page %s: %v", page.ID, err)
+				slog.Error("mcp: background render failed", "page_id", page.ID, "err", err)
 			}
 			if len(warnings) > 0 {
-				log.Printf("render warnings for page %s: %v", page.ID, warnings)
+				slog.Warn("mcp: render warnings", "page_id", page.ID, "warnings", warnings)
 			}
 		}
 
@@ -534,10 +534,10 @@ func (s *Server) appendToPage(ctx context.Context, req *mcp.CallToolRequest) (*m
 		html, warnings := renderContentWithErrors(page.Content)
 		page.ContentHTML = html
 		if err := db.UpdatePageContentHTML(bgCtx, page.ID, html); err != nil {
-			log.Printf("background render failed for page %s: %v", page.ID, err)
+			slog.Error("mcp: background render failed", "page_id", page.ID, "err", err)
 		}
 		if len(warnings) > 0 {
-			log.Printf("render warnings for page %s: %v", page.ID, warnings)
+			slog.Warn("mcp: render warnings", "page_id", page.ID, "warnings", warnings)
 		}
 		db.SavePageVersion(bgCtx, page)
 		s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: page.ID})

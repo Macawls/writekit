@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"net/http"
 
 	"writekit/internal/config"
@@ -80,6 +82,7 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) resolveTenant(userID string, tenantID string) (*tenant.DB, string, error) {
 	tenants, err := s.PlatformDB.ListTenantsByMembership(context.Background(), userID)
 	if err != nil {
+		slog.Error("mcp resolve tenant: list memberships", "user_id", userID, "err", err)
 		return nil, "", err
 	}
 
@@ -96,6 +99,7 @@ func (s *Server) resolveTenant(userID string, tenantID string) (*tenant.DB, stri
 			}
 		}
 		if selectedID == "" {
+			slog.Warn("mcp resolve tenant: requested tenant not in memberships", "user_id", userID, "requested", tenantID)
 			return nil, "", errTenantNotFound
 		}
 	} else if len(tenants) == 1 {
@@ -106,6 +110,7 @@ func (s *Server) resolveTenant(userID string, tenantID string) (*tenant.DB, stri
 
 	db, err := s.Pool.Get(selectedID)
 	if err != nil {
+		slog.Error("mcp resolve tenant: open tenant db", "tenant", selectedID, "err", err)
 		return nil, "", err
 	}
 	return db, selectedID, nil
@@ -124,9 +129,11 @@ func (s *Server) resolveTenantWithRole(ctx context.Context, userID, tenantID, mi
 	}
 	member, err := s.PlatformDB.GetTeamMember(ctx, tid, userID)
 	if err != nil {
+		slog.Warn("mcp resolve tenant: team member lookup failed", "tenant", tid, "user_id", userID, "err", err)
 		return nil, "", errTenantNotFound
 	}
 	if !hasMinRole(member.Role, minRole) {
+		slog.Info("mcp: permission denied", "tenant", tid, "user_id", userID, "role", member.Role, "required", minRole)
 		return nil, "", &mcpError{msg: "you don't have permission for this action (requires " + minRole + " role)"}
 	}
 	return db, tid, nil
@@ -171,12 +178,28 @@ func (s *Server) buildPreviewURL(tenantID, token string) string {
 	return "https://" + tenantID + "." + s.Config.Host + "/preview/" + token
 }
 
+// toolError returns an MCP tool-level error with the given user-facing message.
+// Every tool failure passes through here — we log at Warn so operators can see
+// what tool calls are failing and why, correlated by request ID if the SDK
+// propagates one.
 func toolError(msg string) *mcp.CallToolResult {
-	r := &mcp.CallToolResult{
+	slog.Warn("mcp tool error", "msg", msg)
+	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: msg}},
 		IsError: true,
 	}
-	return r
+}
+
+// toolErrorf formats and returns an MCP tool error, and separately records
+// the underlying Go error at Warn so the raw context isn't lost behind the
+// user-facing message.
+func toolErrorf(err error, format string, args ...any) *mcp.CallToolResult {
+	msg := fmt.Sprintf(format, args...)
+	slog.Warn("mcp tool error", "msg", msg, "err", err)
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: msg}},
+		IsError: true,
+	}
 }
 
 func toolResult(text string) *mcp.CallToolResult {

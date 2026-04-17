@@ -69,8 +69,10 @@ func (db *DB) UpdatePageContentHTML(ctx context.Context, id string, html string)
 }
 
 func (db *DB) DeletePage(ctx context.Context, id string) error {
-	_, err := db.DB.ExecContext(ctx, `DELETE FROM pages WHERE id = ?`, id)
-	return err
+	if _, err := db.DB.ExecContext(ctx, `DELETE FROM pages WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("delete page %s: %w", id, err)
+	}
+	return nil
 }
 
 func (db *DB) GetPage(ctx context.Context, id string) (*Page, error) {
@@ -206,11 +208,15 @@ func (db *DB) CountPages(ctx context.Context, status string) (int, error) {
 	query := "SELECT COUNT(*) FROM pages"
 	if status != "" {
 		query += " WHERE status = ?"
-		err := db.DB.QueryRowContext(ctx, query, status).Scan(&count)
-		return count, err
+		if err := db.DB.QueryRowContext(ctx, query, status).Scan(&count); err != nil {
+			return 0, fmt.Errorf("count pages (status=%q): %w", status, err)
+		}
+		return count, nil
 	}
-	err := db.DB.QueryRowContext(ctx, query).Scan(&count)
-	return count, err
+	if err := db.DB.QueryRowContext(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count pages: %w", err)
+	}
+	return count, nil
 }
 
 const pageSelect = `SELECT id, title, slug, content, content_html, excerpt, status, visibility, tags, collection_id, position, version, published_at, created_at, updated_at FROM pages`

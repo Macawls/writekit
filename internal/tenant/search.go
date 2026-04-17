@@ -18,7 +18,7 @@ type PreviewToken struct {
 func (db *DB) CreatePreviewToken(ctx context.Context, postID string, duration time.Duration) (*PreviewToken, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generate preview token: %w", err)
 	}
 	token := hex.EncodeToString(b)
 	expiresAt := time.Now().Add(duration)
@@ -48,6 +48,8 @@ func (db *DB) GetPreviewToken(ctx context.Context, token string) (*PreviewToken,
 }
 
 func (db *DB) CleanExpiredTokens(ctx context.Context) error {
-	_, err := db.DB.ExecContext(ctx, `DELETE FROM preview_tokens WHERE expires_at < datetime('now')`)
-	return err
+	if _, err := db.DB.ExecContext(ctx, `DELETE FROM preview_tokens WHERE expires_at < datetime('now')`); err != nil {
+		return fmt.Errorf("clean expired preview tokens: %w", err)
+	}
+	return nil
 }

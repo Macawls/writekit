@@ -31,20 +31,26 @@ func (db *DB) ListUsers(ctx context.Context, limit, offset int) ([]User, error) 
 
 func (db *DB) CountUsers(ctx context.Context) (int, error) {
 	var count int
-	err := db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&count)
-	return count, err
+	if err := db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count users: %w", err)
+	}
+	return count, nil
 }
 
 func (db *DB) CountTenants(ctx context.Context) (int, error) {
 	var count int
-	err := db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM tenants`).Scan(&count)
-	return count, err
+	if err := db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM tenants`).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count tenants: %w", err)
+	}
+	return count, nil
 }
 
 func (db *DB) CountActiveSubscriptions(ctx context.Context) (int, error) {
 	var count int
-	err := db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM subscriptions WHERE status = 'active'`).Scan(&count)
-	return count, err
+	if err := db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM subscriptions WHERE status = 'active'`).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count active subscriptions: %w", err)
+	}
+	return count, nil
 }
 
 func (db *DB) SearchUsers(ctx context.Context, query string) ([]User, error) {
@@ -133,6 +139,8 @@ func (db *DB) GetAdminSession(ctx context.Context, token string) (*AdminSession,
 }
 
 func (db *DB) DeleteAdminSession(ctx context.Context, token string) error {
-	_, err := db.Pool.Exec(ctx, `DELETE FROM admin_sessions WHERE token = $1`, token)
-	return err
+	if _, err := db.Pool.Exec(ctx, `DELETE FROM admin_sessions WHERE token = $1`, token); err != nil {
+		return fmt.Errorf("delete admin session: %w", err)
+	}
+	return nil
 }

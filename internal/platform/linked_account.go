@@ -137,8 +137,10 @@ func (db *DB) UnlinkAccount(ctx context.Context, userID, accountID string) error
 
 func (db *DB) HasLinkedProvider(ctx context.Context, userID, provider string) (bool, error) {
 	var exists bool
-	err := db.Pool.QueryRow(ctx, `
+	if err := db.Pool.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM linked_accounts WHERE user_id = $1 AND provider = $2)
-	`, userID, provider).Scan(&exists)
-	return exists, err
+	`, userID, provider).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check linked provider: %w", err)
+	}
+	return exists, nil
 }

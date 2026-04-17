@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
+	"writekit/internal/httplog"
 	"writekit/internal/platform"
 )
 
@@ -29,27 +30,35 @@ func TenantsFromContext(ctx context.Context) []platform.Tenant {
 func WebAuth(db *platform.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log := httplog.FromContext(r.Context())
 			cookie, err := r.Cookie("session")
 			if err != nil {
+				log.Debug("web auth: missing session cookie", "err", err)
 				http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
 				return
 			}
 
 			sess, err := db.GetSession(r.Context(), cookie.Value)
 			if err != nil {
+				log.Debug("web auth: invalid session", "err", err)
 				http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
 				return
 			}
 
 			user, err := db.GetUser(r.Context(), sess.UserID)
 			if err != nil {
+				log.Warn("web auth: session ok but user lookup failed", "user_id", sess.UserID, "err", err)
 				http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
 				return
 			}
 
-			tenants, _ := db.ListTenantsByMembership(r.Context(), user.ID)
+			tenants, err := db.ListTenantsByMembership(r.Context(), user.ID)
+			if err != nil {
+				log.Warn("web auth: list memberships failed", "user_id", user.ID, "err", err)
+			}
 
-			ctx := context.WithValue(r.Context(), userContextKey, user)
+			ctx := httplog.WithFields(r.Context(), "user_id", user.ID)
+			ctx = context.WithValue(ctx, userContextKey, user)
 			ctx = context.WithValue(ctx, tenantContextKey, tenants)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -84,8 +93,10 @@ func BearerAuth(db *platform.DB, baseURL string) func(http.Handler) http.Handler
 	resourceMeta := baseURL + "/.well-known/oauth-protected-resource"
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log := httplog.FromContext(r.Context())
 			auth := r.Header.Get("Authorization")
 			if !strings.HasPrefix(auth, "Bearer ") {
+				log.Debug("bearer auth: missing or malformed Authorization header")
 				w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+resourceMeta+`"`)
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
@@ -94,6 +105,7 @@ func BearerAuth(db *platform.DB, baseURL string) func(http.Handler) http.Handler
 
 			at, err := db.GetAccessToken(r.Context(), token)
 			if err != nil {
+				log.Warn("bearer auth: invalid access token", "err", err)
 				w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token", resource_metadata="`+resourceMeta+`"`)
 				http.Error(w, "invalid token", http.StatusUnauthorized)
 				return
@@ -101,13 +113,18 @@ func BearerAuth(db *platform.DB, baseURL string) func(http.Handler) http.Handler
 
 			user, err := db.GetUser(r.Context(), at.UserID)
 			if err != nil {
+				log.Error("bearer auth: token references missing user", "user_id", at.UserID, "err", err)
 				http.Error(w, "user not found", http.StatusUnauthorized)
 				return
 			}
 
-			tenants, _ := db.ListTenantsByMembership(r.Context(), user.ID)
+			tenants, err := db.ListTenantsByMembership(r.Context(), user.ID)
+			if err != nil {
+				log.Warn("bearer auth: list memberships failed", "user_id", user.ID, "err", err)
+			}
 
-			ctx := context.WithValue(r.Context(), userContextKey, user)
+			ctx := httplog.WithFields(r.Context(), "user_id", user.ID)
+			ctx = context.WithValue(ctx, userContextKey, user)
 			ctx = context.WithValue(ctx, tenantContextKey, tenants)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

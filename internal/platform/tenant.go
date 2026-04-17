@@ -94,6 +94,8 @@ func (db *DB) RenameTenant(ctx context.Context, oldID, newID string) error {
 }
 
 func (db *DB) DeleteTenant(ctx context.Context, id string) error {
-	_, err := db.Pool.Exec(ctx, `DELETE FROM tenants WHERE id = $1`, id)
-	return err
+	if _, err := db.Pool.Exec(ctx, `DELETE FROM tenants WHERE id = $1`, id); err != nil {
+		return fmt.Errorf("delete tenant %s: %w", id, err)
+	}
+	return nil
 }

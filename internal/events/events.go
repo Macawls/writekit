@@ -1,6 +1,9 @@
 package events
 
-import "sync"
+import (
+	"log/slog"
+	"sync"
+)
 
 type Event struct {
 	Type     string
@@ -51,7 +54,14 @@ func (b *Bus) Emit(e Event) {
 	subs := b.handlers[e.Type]
 	b.mu.RUnlock()
 	for _, s := range subs {
-		go s.handler(e)
+		go func(h Handler) {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("event handler panic", "type", e.Type, "tenant", e.TenantID, "page_id", e.PageID, "panic", r)
+				}
+			}()
+			h(e)
+		}(s.handler)
 	}
 }
 

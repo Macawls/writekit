@@ -20,7 +20,7 @@ const sessionDuration = 30 * 24 * time.Hour
 func (db *DB) CreateSession(ctx context.Context, userID string) (*Session, error) {
 	id, err := generateToken(32)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generate session token: %w", err)
 	}
 
 	expiresAt := time.Now().Add(sessionDuration)
@@ -49,13 +49,17 @@ func (db *DB) GetSession(ctx context.Context, id string) (*Session, error) {
 }
 
 func (db *DB) DeleteSession(ctx context.Context, id string) error {
-	_, err := db.Pool.Exec(ctx, `DELETE FROM sessions WHERE id = $1`, id)
-	return err
+	if _, err := db.Pool.Exec(ctx, `DELETE FROM sessions WHERE id = $1`, id); err != nil {
+		return fmt.Errorf("delete session: %w", err)
+	}
+	return nil
 }
 
 func (db *DB) CleanExpiredSessions(ctx context.Context) error {
-	_, err := db.Pool.Exec(ctx, `DELETE FROM sessions WHERE expires_at < NOW()`)
-	return err
+	if _, err := db.Pool.Exec(ctx, `DELETE FROM sessions WHERE expires_at < NOW()`); err != nil {
+		return fmt.Errorf("clean expired sessions: %w", err)
+	}
+	return nil
 }
 
 func generateToken(bytes int) (string, error) {

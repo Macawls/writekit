@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"writekit/internal/auth"
+	"writekit/internal/httplog"
 	"writekit/internal/platform"
 )
 
@@ -48,6 +49,7 @@ func (h *Handler) OAuthStart(w http.ResponseWriter, r *http.Request) {
 	providerName := chi.URLParam(r, "provider")
 	provider := h.getProvider(providerName)
 	if provider == nil {
+		httplog.FromContext(r.Context()).Warn("oauth start: unknown provider", "provider", providerName)
 		http.Error(w, "unknown provider", http.StatusBadRequest)
 		return
 	}
@@ -81,11 +83,13 @@ func (h *Handler) OAuthStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
 
 	stateCookie, err := r.Cookie("oauth_state")
 	if err != nil {
+		log.Warn("oauth callback: missing state cookie", "err", err)
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
@@ -93,6 +97,7 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 	cookieParts := strings.SplitN(stateCookie.Value, ":", 3)
 	if len(cookieParts) < 2 {
+		log.Warn("oauth callback: malformed state cookie", "parts", len(cookieParts))
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
@@ -101,26 +106,28 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 	nonce := cookieParts[len(cookieParts)-1]
 	if !strings.HasPrefix(state, nonce) {
+		log.Warn("oauth callback: state nonce mismatch", "provider", providerName)
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
 
 	provider := h.getProvider(providerName)
 	if provider == nil {
+		log.Warn("oauth callback: provider not configured", "provider", providerName)
 		http.Error(w, "provider not configured", http.StatusBadRequest)
 		return
 	}
 
 	token, err := provider.Exchange(r.Context(), code)
 	if err != nil {
-		slog.Error("oauth exchange failed", "err", err)
+		log.Error("oauth exchange failed", "provider", providerName, "err", err)
 		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 
 	info, err := provider.GetUserInfo(r.Context(), token)
 	if err != nil {
-		slog.Error("get user info failed", "err", err)
+		log.Error("get user info failed", "provider", providerName, "err", err)
 		http.Error(w, "failed to get user info", http.StatusInternalServerError)
 		return
 	}
@@ -132,7 +139,7 @@ if isLinkAction {
 
 user, isNew, err := h.findOrCreateUser(r, providerName, info)
 	if err != nil {
-		slog.Error("find or create user failed", "err", err)
+		log.Error("find or create user failed", "provider", providerName, "email", info.Email, "err", err)
 		http.Error(w, "failed to save user", http.StatusInternalServerError)
 		return
 	}
@@ -140,11 +147,14 @@ user, isNew, err := h.findOrCreateUser(r, providerName, info)
 	h.autoCreateTenant(r.Context(), user)
 
 	if isNew {
+		log.Info("new user registered via oauth", "user_id", user.ID, "provider", providerName, "email", user.Email)
 		go func() {
 			if err := h.Email.SendWelcome(context.WithoutCancel(r.Context()), user.Email, user.Name); err != nil {
-				slog.Error("send welcome email", "err", err)
+				slog.Error("send welcome email", "user_id", user.ID, "err", err)
 			}
 		}()
+	} else {
+		log.Info("user signed in via oauth", "user_id", user.ID, "provider", providerName)
 	}
 
 	h.createSessionAndRedirect(w, r, user.ID, state)
@@ -153,6 +163,7 @@ user, isNew, err := h.findOrCreateUser(r, providerName, info)
 
 func (h *Handler) findOrCreateUser(r *http.Request, providerName string, info *auth.OAuthUserInfo) (*platform.User, bool, error) {
 	ctx := r.Context()
+	log := httplog.FromContext(ctx)
 
 	user, err := h.DB.FindUserByProvider(ctx, providerName, info.ID)
 	if err == nil {
@@ -164,7 +175,9 @@ func (h *Handler) findOrCreateUser(r *http.Request, providerName string, info *a
 		if err == nil {
 			_, linkErr := h.DB.LinkAccount(ctx, user.ID, providerName, info.ID, info.Email, true)
 			if linkErr != nil {
-				slog.Warn("auto-link failed", "err", linkErr, "provider", providerName, "user", user.ID)
+				log.Warn("auto-link failed", "err", linkErr, "provider", providerName, "user_id", user.ID)
+			} else {
+				log.Info("auto-linked oauth account to existing user", "user_id", user.ID, "provider", providerName)
 			}
 			return user, false, nil
 		}
@@ -173,18 +186,19 @@ func (h *Handler) findOrCreateUser(r *http.Request, providerName string, info *a
 	user, err = h.DB.CreateUser(ctx, info.Email, info.Name, info.AvatarURL)
 	if err != nil {
 		if info.Email != "" {
-			user, err = h.DB.FindUserByVerifiedEmail(ctx, info.Email)
-			if err == nil {
-				h.DB.LinkAccount(ctx, user.ID, providerName, info.ID, info.Email, info.EmailVerified)
-				return user, false, nil
+			u2, err2 := h.DB.FindUserByVerifiedEmail(ctx, info.Email)
+			if err2 == nil {
+				if _, linkErr := h.DB.LinkAccount(ctx, u2.ID, providerName, info.ID, info.Email, info.EmailVerified); linkErr != nil {
+					log.Warn("fallback link-after-create-fail failed", "user_id", u2.ID, "err", linkErr)
+				}
+				return u2, false, nil
 			}
 		}
-		return nil, false, err
+		return nil, false, fmt.Errorf("create user: %w", err)
 	}
 
-	_, err = h.DB.LinkAccount(ctx, user.ID, providerName, info.ID, info.Email, info.EmailVerified)
-	if err != nil {
-		return nil, false, err
+	if _, err := h.DB.LinkAccount(ctx, user.ID, providerName, info.ID, info.Email, info.EmailVerified); err != nil {
+		return nil, false, fmt.Errorf("link oauth account: %w", err)
 	}
 
 	return user, true, nil
@@ -192,20 +206,25 @@ func (h *Handler) findOrCreateUser(r *http.Request, providerName string, info *a
 
 
 func (h *Handler) handleOAuthLink(w http.ResponseWriter, r *http.Request, providerName string, info *auth.OAuthUserInfo) {
+	log := httplog.FromContext(r.Context())
 	sessionCookie, err := r.Cookie("session")
 	if err != nil {
+		log.Info("oauth link: missing session cookie", "err", err)
 		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
 		return
 	}
 
 	sess, err := h.DB.GetSession(r.Context(), sessionCookie.Value)
 	if err != nil {
+		log.Info("oauth link: invalid session", "err", err)
 		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
 		return
 	}
 
 	existingUser, err := h.DB.FindUserByProvider(r.Context(), providerName, info.ID)
 	if err == nil && existingUser.ID != sess.UserID {
+		log.Warn("oauth link: provider already claimed by another user",
+			"session_user", sess.UserID, "provider", providerName, "other_user", existingUser.ID)
 		http.Redirect(w, r, "/settings?error=provider-taken", http.StatusSeeOther)
 		return
 	}
@@ -215,20 +234,20 @@ func (h *Handler) handleOAuthLink(w http.ResponseWriter, r *http.Request, provid
 		return
 	}
 
-	_, err = h.DB.LinkAccount(r.Context(), sess.UserID, providerName, info.ID, info.Email, info.EmailVerified)
-	if err != nil {
-		slog.Error("link account failed", "err", err)
+	if _, err := h.DB.LinkAccount(r.Context(), sess.UserID, providerName, info.ID, info.Email, info.EmailVerified); err != nil {
+		log.Error("link account failed", "user_id", sess.UserID, "provider", providerName, "err", err)
 		http.Redirect(w, r, "/settings?error=link-failed", http.StatusSeeOther)
 		return
 	}
 
+	log.Info("oauth account linked", "user_id", sess.UserID, "provider", providerName)
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 
 func (h *Handler) createSessionAndRedirect(w http.ResponseWriter, r *http.Request, userID, state string) {
 	sess, err := h.DB.CreateSession(r.Context(), userID)
 	if err != nil {
-		slog.Error("create session failed", "err", err)
+		httplog.FromContext(r.Context()).Error("create session failed", "user_id", userID, "err", err)
 		http.Error(w, "failed to create session", http.StatusInternalServerError)
 		return
 	}
@@ -285,7 +304,7 @@ func (h *Handler) MagicLinkRequest(w http.ResponseWriter, r *http.Request) {
 
 	ml, err := h.DB.CreateMagicLink(r.Context(), email)
 	if err != nil {
-		slog.Error("create magic link failed", "err", err)
+		httplog.FromContext(r.Context()).Error("create magic link failed", "email", email, "err", err)
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
 	}
@@ -301,9 +320,10 @@ func (h *Handler) MagicLinkRequest(w http.ResponseWriter, r *http.Request) {
 		link += "&oauth_params=" + url.QueryEscape(oauthParams)
 	}
 
+	slog.Info("magic link created", "email", email)
 	go func() {
 		if err := h.Email.SendMagicLink(context.WithoutCancel(r.Context()), email, link); err != nil {
-			slog.Error("send magic link email", "err", err)
+			slog.Error("send magic link email", "email", email, "err", err)
 		}
 	}()
 
@@ -314,15 +334,17 @@ func (h *Handler) MagicLinkRequest(w http.ResponseWriter, r *http.Request) {
 
 
 func (h *Handler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	token := r.URL.Query().Get("token")
 	if token == "" {
+		log.Debug("magic link verify: missing token")
 		http.Error(w, "missing token", http.StatusBadRequest)
 		return
 	}
 
 	ml, err := h.DB.ConsumeMagicLink(r.Context(), token)
 	if err != nil {
-		slog.Warn("invalid magic link", "err", err)
+		log.Warn("invalid magic link", "err", err)
 		h.Engine.Render(w, "magic_link_sent.html", map[string]any{
 			"Error": "This link is invalid or has expired. Please request a new one.",
 		})
@@ -334,26 +356,34 @@ func (h *Handler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		user, err = h.DB.CreateUser(r.Context(), ml.Email, "", "")
 		if err != nil {
-			slog.Error("create user from magic link", "err", err)
+			log.Error("create user from magic link", "email", ml.Email, "err", err)
 			http.Error(w, "something went wrong", http.StatusInternalServerError)
 			return
 		}
 		isNew = true
 	}
 
-	hasEmail, _ := h.DB.HasLinkedProvider(r.Context(), user.ID, "email")
+	hasEmail, err := h.DB.HasLinkedProvider(r.Context(), user.ID, "email")
+	if err != nil {
+		log.Warn("check linked email provider", "user_id", user.ID, "err", err)
+	}
 	if !hasEmail {
-		h.DB.LinkAccount(r.Context(), user.ID, "email", ml.Email, ml.Email, true)
+		if _, err := h.DB.LinkAccount(r.Context(), user.ID, "email", ml.Email, ml.Email, true); err != nil {
+			log.Warn("link email provider", "user_id", user.ID, "err", err)
+		}
 	}
 
 	h.autoCreateTenant(r.Context(), user)
 
 	if isNew {
+		log.Info("new user registered via magic link", "user_id", user.ID, "email", user.Email)
 		go func() {
 			if err := h.Email.SendWelcome(context.WithoutCancel(r.Context()), user.Email, user.Name); err != nil {
-				slog.Error("send welcome email", "err", err)
+				slog.Error("send welcome email", "user_id", user.ID, "err", err)
 			}
 		}()
+	} else {
+		log.Info("user signed in via magic link", "user_id", user.ID)
 	}
 
 	state := ""
@@ -365,9 +395,12 @@ func (h *Handler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	cookie, err := r.Cookie("session")
 	if err == nil {
-		h.DB.DeleteSession(r.Context(), cookie.Value)
+		if derr := h.DB.DeleteSession(r.Context(), cookie.Value); derr != nil {
+			log.Warn("logout: delete session failed", "err", derr)
+		}
 	}
 
 	logoutCookie := &http.Cookie{
@@ -397,10 +430,11 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	authReq := auth.ParseAuthRequest(r)
 
 	if err := h.MCPAuth.ValidateAuthRequest(r, authReq); err != nil {
-		slog.Warn("oauth authorize failed", "err", err, "path", r.URL.Path)
+		log.Warn("oauth authorize failed", "err", err, "path", r.URL.Path)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -414,6 +448,7 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 
 	sess, err := h.DB.GetSession(r.Context(), cookie.Value)
 	if err != nil {
+		log.Debug("oauth authorize: invalid session, redirecting to login", "err", err)
 		loginURL := fmt.Sprintf("/auth/login?oauth=1&%s", r.URL.RawQuery)
 		http.Redirect(w, r, loginURL, http.StatusSeeOther)
 		return
@@ -421,13 +456,14 @@ func (h *Handler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.DB.GetUser(r.Context(), sess.UserID)
 	if err != nil {
+		log.Error("oauth authorize: user lookup failed", "user_id", sess.UserID, "err", err)
 		http.Error(w, "user not found", http.StatusInternalServerError)
 		return
 	}
 
 	code, err := h.MCPAuth.IssueAuthCode(r, user.ID, authReq)
 	if err != nil {
-		slog.Error("issue auth code failed", "err", err)
+		log.Error("issue auth code failed", "user_id", user.ID, "client_id", authReq.ClientID, "err", err)
 		http.Error(w, "failed to issue code", http.StatusInternalServerError)
 		return
 	}
@@ -494,19 +530,23 @@ func (h *Handler) getSessionUser(r *http.Request) (*platform.User, error) {
 func (h *Handler) AuthMe(w http.ResponseWriter, r *http.Request) {
 	user, err := h.getSessionUser(r)
 	if err != nil {
+		httplog.FromContext(r.Context()).Debug("auth me: no session user", "err", err)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"name":       user.Name,
 		"avatar_url": user.AvatarURL,
-	})
+	}); err != nil {
+		httplog.FromContext(r.Context()).Warn("auth me: encode response", "err", err)
+	}
 }
 
 var reservedSlugs = map[string]bool{"app": true, "www": true, "api": true, "admin": true}
 
 func (h *Handler) autoCreateTenant(ctx context.Context, user *platform.User) {
+	log := httplog.FromContext(ctx)
 	existing, _ := h.DB.GetTenantByUser(ctx, user.ID)
 	if existing != nil {
 		return
@@ -546,13 +586,13 @@ func (h *Handler) autoCreateTenant(ctx context.Context, user *platform.User) {
 		UserID: user.ID,
 		Name:   name,
 	}); err != nil {
-		slog.Error("auto-create tenant failed", "err", err, "slug", slug, "user", user.ID)
+		log.Error("auto-create tenant failed", "err", err, "slug", slug, "user_id", user.ID)
 		return
 	}
 
 	if _, err := h.Pool.Get(slug); err != nil {
-		slog.Error("init tenant db failed", "err", err)
+		log.Error("auto-create tenant: init db failed", "err", err, "slug", slug)
 	}
 
-	slog.Info("auto-created tenant", "slug", slug, "user", user.ID)
+	log.Info("auto-created tenant", "slug", slug, "user_id", user.ID)
 }

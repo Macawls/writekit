@@ -2,7 +2,6 @@ package site
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"writekit/internal/auth"
 	"writekit/internal/events"
+	"writekit/internal/httplog"
 	"writekit/internal/tenant"
 )
 
@@ -19,7 +19,11 @@ func (h *Handler) isTeamMember(r *http.Request, tenantID string) bool {
 		return false
 	}
 	member, err := h.PlatformDB.GetTeamMember(r.Context(), tenantID, user.ID)
-	return err == nil && member != nil
+	if err != nil {
+		httplog.FromContext(r.Context()).Debug("site: team member lookup failed", "tenant", tenantID, "user_id", user.ID, "err", err)
+		return false
+	}
+	return member != nil
 }
 
 // canView checks if the current request can view content with the given visibility.
@@ -40,14 +44,18 @@ func (h *Handler) TenantRobotsTxt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) TenantSitemap(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
+		log.Warn("sitemap: tenant not found", "host", r.Host, "err", err)
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
 
-	// Only public published pages in sitemap
-	pages, _ := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", Visibility: "public", Limit: 1000})
+	pages, err := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", Visibility: "public", Limit: 1000})
+	if err != nil {
+		log.Error("sitemap: list pages", "tenant", tenantID, "err", err)
+	}
 	baseURL := fmt.Sprintf("https://%s.%s", tenantID, h.Config.Host)
 
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
@@ -85,33 +93,38 @@ func (h *Handler) getTenantDB(r *http.Request) (*tenant.DB, string, error) {
 	}
 
 	if _, err := h.PlatformDB.GetTenant(r.Context(), tenantID); err != nil {
-		return nil, "", fmt.Errorf("tenant not found: %s", tenantID)
+		return nil, "", fmt.Errorf("tenant %s not found: %w", tenantID, err)
 	}
 
 	db, err := h.Pool.Get(tenantID)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("open tenant db %s: %w", tenantID, err)
 	}
 	return db, tenantID, nil
 }
 
 func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
+		log.Info("site index: tenant not found", "host", r.Host, "err", err)
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
 
 	collections, err := db.ListCollections(r.Context())
 	if err != nil {
-		slog.Error("list collections", "tenant", tenantID, "err", err)
+		log.Error("site index: list collections", "tenant", tenantID, "err", err)
 	}
 	standalone := ""
 	pages, err := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", CollectionID: &standalone, Limit: 20})
 	if err != nil {
-		slog.Error("list pages", "tenant", tenantID, "err", err)
+		log.Error("site index: list pages", "tenant", tenantID, "err", err)
 	}
-	settings, _ := db.GetSettings(r.Context())
+	settings, err := db.GetSettings(r.Context())
+	if err != nil {
+		log.Warn("site index: get settings", "tenant", tenantID, "err", err)
+	}
 
 	isMember := h.isTeamMember(r, tenantID)
 
@@ -119,7 +132,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	if isMember {
 		drafts, err := db.ListPages(r.Context(), tenant.PageFilter{Status: "draft", CollectionID: &standalone, Limit: 20})
 		if err != nil {
-			slog.Error("list draft pages", "tenant", tenantID, "err", err)
+			log.Error("site index: list draft pages", "tenant", tenantID, "err", err)
 		}
 		pages = append(drafts, pages...)
 	}
@@ -154,7 +167,10 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 
 	collectionData := make([]map[string]any, len(visibleCollections))
 	for i, c := range visibleCollections {
-		count, _ := db.CountCollectionPages(r.Context(), c.ID)
+		count, err := db.CountCollectionPages(r.Context(), c.ID)
+		if err != nil {
+			log.Warn("site index: count collection pages", "tenant", tenantID, "collection", c.ID, "err", err)
+		}
 		collectionData[i] = map[string]any{
 			"Collection": c,
 			"PageCount":  count,
@@ -175,14 +191,17 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
-		slog.Warn("page: tenant not found", "err", err, "host", r.Host)
+		httplog.FromContext(r.Context()).Warn("page: tenant not found", "err", err, "host", r.Host)
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
 
 	slug := chi.URLParam(r, "slug")
-	slog.Info("page request", "tenant", tenantID, "slug", slug)
-	settings, _ := db.GetSettings(r.Context())
+	httplog.FromContext(r.Context()).Debug("page request", "tenant", tenantID, "slug", slug)
+	settings, err := db.GetSettings(r.Context())
+	if err != nil {
+		httplog.FromContext(r.Context()).Warn("page: get settings", "tenant", tenantID, "err", err)
+	}
 
 	collection, err := db.GetCollectionBySlug(r.Context(), slug)
 	if err == nil {
@@ -192,7 +211,10 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		isMember := h.isTeamMember(r, tenantID)
-		pages, _ := db.ListCollectionPages(r.Context(), collection.ID, collection.SortOrder, isMember)
+		pages, err := db.ListCollectionPages(r.Context(), collection.ID, collection.SortOrder, isMember)
+		if err != nil {
+			httplog.FromContext(r.Context()).Error("list collection pages", "tenant", tenantID, "collection", collection.ID, "err", err)
+		}
 
 		// Filter pages by visibility within the collection
 		var visiblePages []tenant.Page
@@ -220,13 +242,13 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 
 	page, err := db.GetStandalonePageBySlug(r.Context(), slug)
 	if err != nil {
-		slog.Warn("page not found", "tenant", tenantID, "slug", slug, "err", err)
+		httplog.FromContext(r.Context()).Info("page not found", "tenant", tenantID, "slug", slug, "err", err)
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 	if page.Status != "published" {
 		if !h.isTeamMember(r, tenantID) {
-			slog.Warn("page not published", "tenant", tenantID, "slug", slug, "status", page.Status)
+			httplog.FromContext(r.Context()).Info("page not published", "tenant", tenantID, "slug", slug, "status", page.Status)
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
@@ -247,8 +269,10 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
+		log.Info("collection page: tenant not found", "host", r.Host, "err", err)
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
@@ -258,6 +282,7 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 
 	collection, err := db.GetCollectionBySlug(r.Context(), collectionSlug)
 	if err != nil {
+		log.Info("collection page: collection not found", "tenant", tenantID, "slug", collectionSlug, "err", err)
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -270,6 +295,7 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 
 	page, err := db.GetPageInCollection(r.Context(), collection.ID, pageSlug)
 	if err != nil {
+		log.Info("collection page: page not found", "tenant", tenantID, "collection", collection.ID, "slug", pageSlug, "err", err)
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -284,7 +310,10 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	settings, _ := db.GetSettings(r.Context())
+	settings, err := db.GetSettings(r.Context())
+	if err != nil {
+		log.Warn("collection page: get settings", "tenant", tenantID, "err", err)
+	}
 
 	h.Engine.Render(w, "page.html", map[string]any{
 		"Page":            page,
@@ -298,8 +327,10 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RawMarkdown(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
+		log.Info("raw md: tenant not found", "host", r.Host, "err", err)
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
@@ -307,6 +338,9 @@ func (h *Handler) RawMarkdown(w http.ResponseWriter, r *http.Request) {
 	slug := strings.TrimSuffix(chi.URLParam(r, "slug"), ".md")
 	page, err := db.GetStandalonePageBySlug(r.Context(), slug)
 	if err != nil || page.Status != "published" {
+		if err != nil {
+			log.Info("raw md: page not found", "tenant", tenantID, "slug", slug, "err", err)
+		}
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -316,12 +350,16 @@ func (h *Handler) RawMarkdown(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
-	w.Write([]byte(page.Content))
+	if _, err := w.Write([]byte(page.Content)); err != nil {
+		log.Warn("raw md: write body", "tenant", tenantID, "slug", slug, "err", err)
+	}
 }
 
 func (h *Handler) RawCollectionMarkdown(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
+		log.Info("raw col md: tenant not found", "host", r.Host, "err", err)
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
@@ -331,6 +369,7 @@ func (h *Handler) RawCollectionMarkdown(w http.ResponseWriter, r *http.Request) 
 
 	collection, err := db.GetCollectionBySlug(r.Context(), collectionSlug)
 	if err != nil {
+		log.Info("raw col md: collection not found", "tenant", tenantID, "slug", collectionSlug, "err", err)
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -341,6 +380,9 @@ func (h *Handler) RawCollectionMarkdown(w http.ResponseWriter, r *http.Request) 
 
 	page, err := db.GetPageInCollection(r.Context(), collection.ID, pageSlug)
 	if err != nil || page.Status != "published" {
+		if err != nil {
+			log.Info("raw col md: page not found", "tenant", tenantID, "collection", collection.ID, "slug", pageSlug, "err", err)
+		}
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -350,12 +392,16 @@ func (h *Handler) RawCollectionMarkdown(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
-	w.Write([]byte(page.Content))
+	if _, err := w.Write([]byte(page.Content)); err != nil {
+		log.Warn("raw col md: write body", "tenant", tenantID, "slug", pageSlug, "err", err)
+	}
 }
 
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
+		log.Info("search: tenant not found", "host", r.Host, "err", err)
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
@@ -363,7 +409,10 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	var pages []tenant.Page
 	if q != "" {
-		results, _ := db.SearchPages(r.Context(), q)
+		results, err := db.SearchPages(r.Context(), q)
+		if err != nil {
+			log.Warn("search: query failed", "tenant", tenantID, "q", q, "err", err)
+		}
 		isMember := h.isTeamMember(r, tenantID)
 		// Filter search results: never include unlisted, include private only for members
 		for _, p := range results {
@@ -379,7 +428,10 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	settings, _ := db.GetSettings(r.Context())
+	settings, err := db.GetSettings(r.Context())
+	if err != nil {
+		log.Warn("search: get settings", "tenant", tenantID, "err", err)
+	}
 
 	h.Engine.Render(w, "search.html", map[string]any{
 		"Query":    q,
@@ -391,8 +443,10 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
+		log.Info("preview: tenant not found", "host", r.Host, "err", err)
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
@@ -400,12 +454,14 @@ func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	pt, err := db.GetPreviewToken(r.Context(), token)
 	if err != nil {
+		log.Info("preview: invalid or expired token", "tenant", tenantID, "err", err)
 		http.Error(w, "preview not found or expired", http.StatusNotFound)
 		return
 	}
 
 	page, err := db.GetPage(r.Context(), pt.PageID)
 	if err != nil {
+		log.Warn("preview: page lookup failed", "tenant", tenantID, "page_id", pt.PageID, "err", err)
 		http.Error(w, "page not found", http.StatusNotFound)
 		return
 	}
@@ -418,11 +474,18 @@ func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 				page.Content = pv.Content
 				page.ContentHTML = pv.ContentHTML
 				page.Version = pv.Version
+			} else {
+				log.Warn("preview: get page version", "tenant", tenantID, "page_id", page.ID, "version", v, "err", err)
 			}
+		} else {
+			log.Debug("preview: invalid version param", "raw", vStr, "err", err)
 		}
 	}
 
-	settings, _ := db.GetSettings(r.Context())
+	settings, err := db.GetSettings(r.Context())
+	if err != nil {
+		log.Warn("preview: get settings", "tenant", tenantID, "err", err)
+	}
 
 	h.Engine.Render(w, "page.html", map[string]any{
 		"Page":         page,
@@ -435,8 +498,10 @@ func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PreviewSSE(w http.ResponseWriter, r *http.Request) {
-	db, _, err := h.getTenantDB(r)
+	log := httplog.FromContext(r.Context())
+	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
+		log.Info("preview sse: tenant not found", "host", r.Host, "err", err)
 		http.Error(w, "site not found", http.StatusNotFound)
 		return
 	}
@@ -444,12 +509,14 @@ func (h *Handler) PreviewSSE(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	pt, err := db.GetPreviewToken(r.Context(), token)
 	if err != nil {
+		log.Info("preview sse: invalid or expired token", "tenant", tenantID, "err", err)
 		http.Error(w, "preview not found or expired", http.StatusNotFound)
 		return
 	}
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
+		log.Error("preview sse: responsewriter does not support flushing", "tenant", tenantID)
 		http.Error(w, "streaming not supported", http.StatusInternalServerError)
 		return
 	}

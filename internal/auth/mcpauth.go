@@ -144,19 +144,24 @@ func (m *MCPAuth) handleAuthCodeExchange(w http.ResponseWriter, r *http.Request)
 
 	authCode, err := m.DB.GetOAuthCode(r.Context(), code)
 	if err != nil {
+		slog.Warn("oauth token: invalid or expired code", "client_id", clientID, "err", err)
 		httpError(w, "invalid_grant", http.StatusBadRequest)
 		return
 	}
 
-	_ = m.DB.DeleteOAuthCode(r.Context(), code)
+	if err := m.DB.DeleteOAuthCode(r.Context(), code); err != nil {
+		slog.Warn("oauth token: failed to delete used code", "err", err)
+	}
 
 	if authCode.ClientID != clientID {
+		slog.Warn("oauth token: client_id mismatch", "expected", authCode.ClientID, "got", clientID)
 		httpError(w, "invalid_grant", http.StatusBadRequest)
 		return
 	}
 
 	if authCode.CodeChallenge != "" {
 		if !verifyPKCE(codeVerifier, authCode.CodeChallenge, authCode.CodeMethod) {
+			slog.Warn("oauth token: pkce verification failed", "client_id", clientID, "method", authCode.CodeMethod)
 			httpError(w, "invalid_grant", http.StatusBadRequest)
 			return
 		}
@@ -164,6 +169,7 @@ func (m *MCPAuth) handleAuthCodeExchange(w http.ResponseWriter, r *http.Request)
 
 	pair, err := GenerateTokenPair(r.Context(), m.DB, clientID, authCode.UserID, authCode.Scope)
 	if err != nil {
+		slog.Error("oauth token: generate token pair failed", "client_id", clientID, "user_id", authCode.UserID, "err", err)
 		httpError(w, "server_error", http.StatusInternalServerError)
 		return
 	}
@@ -182,6 +188,7 @@ func (m *MCPAuth) handleRefreshExchange(w http.ResponseWriter, r *http.Request) 
 
 	pair, err := RefreshAccessToken(r.Context(), m.DB, refreshToken)
 	if err != nil {
+		slog.Warn("oauth refresh: invalid refresh token", "err", err)
 		httpError(w, "invalid_grant", http.StatusBadRequest)
 		return
 	}
@@ -208,7 +215,7 @@ func verifyPKCE(verifier, challenge, method string) bool {
 func generateID() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		return "", err
+		return "", fmt.Errorf("crypto/rand: %w", err)
 	}
 	return hex.EncodeToString(b), nil
 }
@@ -261,7 +268,7 @@ func (m *MCPAuth) ValidateAuthRequest(r *http.Request, req *AuthRequest) error {
 func (m *MCPAuth) IssueAuthCode(r *http.Request, userID string, req *AuthRequest) (string, error) {
 	code, err := generateID()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("generate auth code: %w", err)
 	}
 
 	oauthCode := &platform.OAuthCode{
@@ -276,9 +283,10 @@ func (m *MCPAuth) IssueAuthCode(r *http.Request, userID string, req *AuthRequest
 	}
 
 	if err := m.DB.CreateOAuthCode(r.Context(), oauthCode); err != nil {
-		return "", err
+		return "", fmt.Errorf("persist auth code: %w", err)
 	}
 
+	slog.Info("oauth authorize: code issued", "client_id", req.ClientID, "user_id", userID)
 	return code, nil
 }
 

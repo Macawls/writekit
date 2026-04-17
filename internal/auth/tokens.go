@@ -25,11 +25,11 @@ type TokenPair struct {
 func GenerateTokenPair(ctx context.Context, db *platform.DB, clientID, userID, scope string) (*TokenPair, error) {
 	accessToken, err := generateOpaqueToken()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generate access token: %w", err)
 	}
 	refreshToken, err := generateOpaqueToken()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generate refresh token: %w", err)
 	}
 
 	accessExpiry := time.Now().Add(AccessTokenDuration)
@@ -68,7 +68,7 @@ func RefreshAccessToken(ctx context.Context, db *platform.DB, refreshToken strin
 func generateOpaqueToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		return "", err
+		return "", fmt.Errorf("crypto/rand: %w", err)
 	}
 	return hex.EncodeToString(b), nil
 }
