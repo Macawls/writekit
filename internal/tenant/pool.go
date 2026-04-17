@@ -88,9 +88,16 @@ func (p *Pool) open(tenantID string) (*DB, error) {
 	}
 
 	if migrated {
-		if err := db.rerenderPages(); err != nil {
-			slog.Warn("failed to re-render posts after migration", "tenant", tenantID, "err", err)
-		}
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic re-rendering posts after migration", "tenant", tenantID, "panic", r)
+				}
+			}()
+			if err := db.rerenderPages(); err != nil {
+				slog.Warn("failed to re-render posts after migration", "tenant", tenantID, "err", err)
+			}
+		}()
 	}
 
 	slog.Info("opened tenant db", "tenant", tenantID)
