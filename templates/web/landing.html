@@ -28,11 +28,13 @@
             --sans:'Plus Jakarta Sans',system-ui,sans-serif;
             --mono:'JetBrains Mono',ui-monospace,monospace;
         }
-        html,body{height:100%}
+        html,body{height:100%;scrollbar-width:none;-ms-overflow-style:none}
+        html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}
         body{
             font-family:var(--sans);background:var(--bg);color:var(--fg);
             -webkit-font-smoothing:antialiased;
             display:flex;flex-direction:column;
+            overflow-y:auto;
         }
         body::before{
             content:'';position:fixed;inset:0;
@@ -54,9 +56,9 @@
         .hero p{font-size:.86rem;color:var(--muted);line-height:1.5;max-width:340px;margin:0 auto}
 
         .cmd{
-            display:flex;align-items:center;justify-content:space-between;gap:.75rem;
-            width:100%;max-width:680px;
-            font-family:var(--mono);font-size:clamp(.76rem,1.5vw,.85rem);
+            display:inline-flex;align-items:center;justify-content:space-between;gap:.75rem;
+            width:max-content;max-width:100%;
+            font-family:var(--mono);font-size:clamp(.62rem,2.1vw,.85rem);
             font-weight:500;color:var(--fg);letter-spacing:-.01em;
             padding:.85rem 1.15rem;
             background:var(--white);
@@ -79,27 +81,6 @@
         }
         .cmd-cp:hover{color:var(--muted)}
         .cmd-cp.ok{color:var(--fg)}
-
-        .secondary{
-            margin-top:1rem;text-align:center;position:relative;
-        }
-        .json-toggle{
-            display:inline-flex;align-items:center;gap:.3rem;
-            font-family:var(--mono);font-size:.58rem;font-weight:500;
-            color:var(--faint);cursor:pointer;background:none;border:none;
-        }
-        .json-toggle:hover{color:var(--muted)}
-        .json-toggle svg{width:6px;height:6px}
-        .json-toggle.open svg{transform:rotate(90deg)}
-        .json-code{
-            display:none;margin-top:.6rem;padding:.75rem 1rem;
-            background:var(--white);border:1px solid var(--border);border-radius:8px;
-            font-family:var(--mono);font-size:.65rem;line-height:1.6;
-            color:var(--muted);white-space:pre;text-align:left;
-            position:absolute;left:50%;transform:translateX(-50%);
-            box-shadow:0 4px 16px rgba(0,0,0,.06);z-index:5;
-        }
-        .json-code.show{display:block}
 
         footer{
             position:relative;z-index:1;padding:0 2rem 1.75rem;text-align:center;
@@ -133,19 +114,6 @@
         </button>
     </div>
 
-    <div class="secondary">
-        <button class="json-toggle" onclick="toggleJson(this)">
-            <svg viewBox="0 0 6 10" fill="currentColor"><path d="M1 1l4 4-4 4"/></svg>
-            MCP config JSON
-        </button>
-        <div class="json-code" id="json">{
-  "mcpServers": {
-    "writekit": {
-      "url": "https://writekit.dev/mcp"
-    }
-  }
-}</div>
-    </div>
 </main>
 
 <footer>
@@ -162,10 +130,6 @@ function copyCmd(){
         btn.classList.add('ok');
         setTimeout(()=>{icon.style.display='block';check.style.display='none';btn.classList.remove('ok')},2e3)
     })
-}
-function toggleJson(btn){
-    btn.classList.toggle('open');
-    document.getElementById('json').classList.toggle('show');
 }
 </script>
 </body>
