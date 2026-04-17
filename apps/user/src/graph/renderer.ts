@@ -7,17 +7,14 @@ import {
   MeshBasicMaterial,
   Object3D,
   Color,
-  BufferGeometry,
-  BufferAttribute,
-  LineBasicMaterial,
-  ShaderMaterial,
-  LineSegments,
   Raycaster,
   Vector2,
   AdditiveBlending,
-  Clock,
 } from 'three'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
 import { forceLink } from 'd3-force'
 import { buildSimulation, type SimLink, type SimNode } from './layout'
 import type { GraphEdge, GraphNode } from './types'
@@ -34,11 +31,17 @@ const BG_COLOR = 0xfafafa
 const NODE_COLOR = 0x18181b
 const NODE_DIM_COLOR = 0xc4c4c8
 const GLOW_COLOR = 0x4f46e5
-const EDGE_COLOR_WEAK = new Color(0xd1d5db)
-const EDGE_COLOR_STRONG = new Color(0x4f46e5)
-const EDGE_FOCUS_COLOR = new Color(0x4f46e5)
-const EDGE_BASE_OPACITY = 0.85
-const EDGE_DIM_OPACITY = 0.08
+
+const EDGE_STRONG_THRESHOLD = 0.75
+const EDGE_WEAK_COLOR = 0xc4c4c8
+const EDGE_STRONG_COLOR = 0x4f46e5
+const EDGE_FOCUS_COLOR = 0x4f46e5
+const EDGE_WEAK_WIDTH = 1.4
+const EDGE_STRONG_WIDTH = 2.6
+const EDGE_FOCUS_WIDTH = 3.8
+const EDGE_WEAK_OPACITY = 0.55
+const EDGE_STRONG_OPACITY = 0.85
+const EDGE_DIM_OPACITY = 0.07
 
 const ZOOM_MIN = 0.15
 const ZOOM_MAX = 8
@@ -51,33 +54,13 @@ interface Callbacks {
   onBackgroundClick: () => void
 }
 
-const edgeVertexShader = /* glsl */ `
-  attribute float aT;
-  attribute float aWeight;
-  varying float vT;
-  varying float vWeight;
-  void main() {
-    vT = aT;
-    vWeight = aWeight;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`
-
-const edgeFragmentShader = /* glsl */ `
-  precision mediump float;
-  uniform float uTime;
-  uniform vec3 uColor;
-  varying float vT;
-  varying float vWeight;
-  void main() {
-    float speed = 0.35 + vWeight * 0.8;
-    float pulse = fract(vT - uTime * speed);
-    float head = smoothstep(0.0, 0.12, pulse) * smoothstep(0.28, 0.14, pulse);
-    float base = 0.35 + vWeight * 0.35;
-    float alpha = base + head * 0.65;
-    gl_FragColor = vec4(uColor, alpha);
-  }
-`
+interface EdgeLayer {
+  indices: number[]
+  line: LineSegments2
+  geom: LineSegmentsGeometry
+  mat: LineMaterial
+  positions: Float32Array
+}
 
 export class GraphRenderer {
   private host: HTMLElement
@@ -85,18 +68,13 @@ export class GraphRenderer {
   private camera: OrthographicCamera
   private renderer: WebGLRenderer
   private labelRenderer: CSS2DRenderer
-  private clock = new Clock()
 
   private nodeMesh: InstancedMesh
   private glowMesh: InstancedMesh
-  private edgesAll!: LineSegments
-  private edgesFocus!: LineSegments
-  private edgeAllGeom!: BufferGeometry
-  private edgeFocusGeom!: BufferGeometry
-  private edgeAllMat!: LineBasicMaterial
-  private focusEdgeMat!: ShaderMaterial
-  private allIdx: number[] = []
-  private focusEdgeIdx: number[] = []
+
+  private weakLayer!: EdgeLayer
+  private strongLayer!: EdgeLayer
+  private focusLayer!: EdgeLayer
 
   private simNodes: SimNode[]
   private simLinks: SimLink[]
@@ -182,7 +160,7 @@ export class GraphRenderer {
     this.simNodes = simNodes
     this.simLinks = simLinks
 
-    this.rebuildNeighborsAndEdges(edges)
+    this.buildEdgeLayers(edges)
 
     simNodes.forEach((n, i) => {
       const anchor = new Object3D()
@@ -224,11 +202,35 @@ export class GraphRenderer {
     this.loop()
   }
 
-  private rebuildNeighborsAndEdges(edges: GraphEdge[]) {
+  private createEdgeLayer(color: number, width: number, opacity: number): EdgeLayer {
+    const mat = new LineMaterial({
+      color,
+      linewidth: width,
+      transparent: true,
+      opacity,
+      worldUnits: false,
+      depthTest: false,
+    })
+    const rect = this.host.getBoundingClientRect()
+    mat.resolution.set(rect.width, rect.height)
+    const geom = new LineSegmentsGeometry()
+    const line = new LineSegments2(geom, mat)
+    line.computeLineDistances()
+    line.renderOrder = 0
+    this.scene.add(line)
+    return { indices: [], line, geom, mat, positions: new Float32Array(0) }
+  }
+
+  private buildEdgeLayers(edges: GraphEdge[]) {
     const n = this.simNodes.length
     this.neighbors = Array.from({ length: n }, () => new Set<number>())
     this.degrees = new Array(n).fill(0)
-    this.allIdx = []
+
+    this.weakLayer = this.createEdgeLayer(EDGE_WEAK_COLOR, EDGE_WEAK_WIDTH, EDGE_WEAK_OPACITY)
+    this.strongLayer = this.createEdgeLayer(EDGE_STRONG_COLOR, EDGE_STRONG_WIDTH, EDGE_STRONG_OPACITY)
+    this.focusLayer = this.createEdgeLayer(EDGE_FOCUS_COLOR, EDGE_FOCUS_WIDTH, 1.0)
+    this.focusLayer.line.visible = false
+    this.focusLayer.line.renderOrder = 1
 
     edges.forEach((e, ei) => {
       const a = this.idToIndex.get(e.source)
@@ -238,64 +240,34 @@ export class GraphRenderer {
       this.neighbors[b].add(a)
       this.degrees[a]++
       this.degrees[b]++
-      this.allIdx.push(ei)
+      if (e.weight >= EDGE_STRONG_THRESHOLD) this.strongLayer.indices.push(ei)
+      else this.weakLayer.indices.push(ei)
     })
 
-    this.edgeAllGeom = this.buildColoredEdgeGeom(this.allIdx, edges)
-    this.edgeFocusGeom = this.buildFocusEdgeGeom(0)
-
-    this.edgeAllMat = new LineBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: EDGE_BASE_OPACITY,
-    })
-    this.focusEdgeMat = new ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uColor: { value: EDGE_FOCUS_COLOR },
-      },
-      vertexShader: edgeVertexShader,
-      fragmentShader: edgeFragmentShader,
-      transparent: true,
-      depthWrite: false,
-    })
-
-    this.edgesAll = new LineSegments(this.edgeAllGeom, this.edgeAllMat)
-    this.edgesFocus = new LineSegments(this.edgeFocusGeom, this.focusEdgeMat)
-    this.edgesFocus.visible = false
-    this.scene.add(this.edgesAll)
-    this.scene.add(this.edgesFocus)
+    this.weakLayer.positions = new Float32Array(this.weakLayer.indices.length * 6)
+    this.strongLayer.positions = new Float32Array(this.strongLayer.indices.length * 6)
+    this.focusLayer.positions = new Float32Array(0)
   }
 
-  private buildColoredEdgeGeom(indices: number[], edges: GraphEdge[]): BufferGeometry {
-    const g = new BufferGeometry()
-    const count = Math.max(1, indices.length)
-    g.setAttribute('position', new BufferAttribute(new Float32Array(count * 6), 3))
-    const colors = new Float32Array(count * 6)
-    for (let i = 0; i < indices.length; i++) {
-      const w = Math.min(1, Math.max(0, (edges[indices[i]].weight - 0.5) / 0.5))
-      this.tmpColor.copy(EDGE_COLOR_WEAK).lerp(EDGE_COLOR_STRONG, w)
-      const r = this.tmpColor.r, gr = this.tmpColor.g, b = this.tmpColor.b
-      colors[i * 6 + 0] = r; colors[i * 6 + 1] = gr; colors[i * 6 + 2] = b
-      colors[i * 6 + 3] = r; colors[i * 6 + 4] = gr; colors[i * 6 + 5] = b
+  private updateLayerPositions(layer: EdgeLayer) {
+    if (layer.indices.length === 0) return
+    const arr = layer.positions
+    for (let i = 0; i < layer.indices.length; i++) {
+      const l = this.simLinks[layer.indices[i]]
+      const s = l.source as SimNode
+      const t = l.target as SimNode
+      arr[i * 6 + 0] = s.x
+      arr[i * 6 + 1] = s.y
+      arr[i * 6 + 2] = 0
+      arr[i * 6 + 3] = t.x
+      arr[i * 6 + 4] = t.y
+      arr[i * 6 + 5] = 0
     }
-    g.setAttribute('color', new BufferAttribute(colors, 3))
-    return g
-  }
-
-  private buildFocusEdgeGeom(count: number): BufferGeometry {
-    const g = new BufferGeometry()
-    const safeCount = Math.max(1, count)
-    g.setAttribute('position', new BufferAttribute(new Float32Array(safeCount * 6), 3))
-    g.setAttribute('aT', new BufferAttribute(new Float32Array(safeCount * 2), 1))
-    g.setAttribute('aWeight', new BufferAttribute(new Float32Array(safeCount * 2), 1))
-    return g
+    layer.geom.setPositions(arr)
   }
 
   private loop = () => {
     if (this.disposed) return
-    const t = this.clock.getElapsedTime()
-    this.focusEdgeMat.uniforms.uTime.value = t
     this.renderer.render(this.scene, this.camera)
     this.labelRenderer.render(this.scene, this.camera)
     this.animationId = requestAnimationFrame(this.loop)
@@ -311,6 +283,9 @@ export class GraphRenderer {
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
     this.labelRenderer.setSize(width, height)
+    this.weakLayer?.mat.resolution.set(width, height)
+    this.strongLayer?.mat.resolution.set(width, height)
+    this.focusLayer?.mat.resolution.set(width, height)
   }
 
   private nodeScale(i: number): number {
@@ -345,54 +320,11 @@ export class GraphRenderer {
     this.glowMesh.visible = this.focusedIndex >= 0 || this.externalHoverIndex >= 0
     ;(this.glowMesh.material as MeshBasicMaterial).opacity = 0.22
 
-    this.writeEdgePositions(this.edgeAllGeom, this.allIdx)
-    if (this.focusEdgeIdx.length > 0) {
-      this.writeFocusEdgePositions(this.edgeFocusGeom, this.focusEdgeIdx)
+    this.updateLayerPositions(this.weakLayer)
+    this.updateLayerPositions(this.strongLayer)
+    if (this.focusLayer.indices.length > 0) {
+      this.updateLayerPositions(this.focusLayer)
     }
-  }
-
-  private writeEdgePositions(geom: BufferGeometry, indices: number[]) {
-    const pos = geom.getAttribute('position') as BufferAttribute
-    const arr = pos.array as Float32Array
-    for (let i = 0; i < indices.length; i++) {
-      const l = this.simLinks[indices[i]]
-      const s = l.source as SimNode
-      const t = l.target as SimNode
-      arr[i * 6 + 0] = s.x
-      arr[i * 6 + 1] = s.y
-      arr[i * 6 + 2] = 0
-      arr[i * 6 + 3] = t.x
-      arr[i * 6 + 4] = t.y
-      arr[i * 6 + 5] = 0
-    }
-    pos.needsUpdate = true
-  }
-
-  private writeFocusEdgePositions(geom: BufferGeometry, indices: number[]) {
-    const pos = geom.getAttribute('position') as BufferAttribute
-    const aT = geom.getAttribute('aT') as BufferAttribute
-    const aWeight = geom.getAttribute('aWeight') as BufferAttribute
-    const p = pos.array as Float32Array
-    const t = aT.array as Float32Array
-    const w = aWeight.array as Float32Array
-    for (let i = 0; i < indices.length; i++) {
-      const l = this.simLinks[indices[i]]
-      const s = l.source as SimNode
-      const tg = l.target as SimNode
-      p[i * 6 + 0] = s.x
-      p[i * 6 + 1] = s.y
-      p[i * 6 + 2] = 0
-      p[i * 6 + 3] = tg.x
-      p[i * 6 + 4] = tg.y
-      p[i * 6 + 5] = 0
-      t[i * 2 + 0] = 0
-      t[i * 2 + 1] = 1
-      w[i * 2 + 0] = l.weight
-      w[i * 2 + 1] = l.weight
-    }
-    pos.needsUpdate = true
-    aT.needsUpdate = true
-    aWeight.needsUpdate = true
   }
 
   private isHighlighted(i: number): boolean {
@@ -418,15 +350,17 @@ export class GraphRenderer {
 
   private applyEdgeFocus() {
     if (this.focusedIndex < 0) {
-      this.edgeAllMat.opacity = EDGE_BASE_OPACITY
-      this.focusEdgeIdx = []
-      this.edgesFocus.visible = false
+      this.weakLayer.mat.opacity = EDGE_WEAK_OPACITY
+      this.strongLayer.mat.opacity = EDGE_STRONG_OPACITY
+      this.focusLayer.indices = []
+      this.focusLayer.line.visible = false
       return
     }
 
-    this.edgeAllMat.opacity = EDGE_DIM_OPACITY
+    this.weakLayer.mat.opacity = EDGE_DIM_OPACITY
+    this.strongLayer.mat.opacity = EDGE_DIM_OPACITY
 
-    this.focusEdgeIdx = []
+    const focusIdx: number[] = []
     for (let i = 0; i < this.simLinks.length; i++) {
       const l = this.simLinks[i]
       const sid = typeof l.source === 'string' ? l.source : l.source.id
@@ -434,15 +368,14 @@ export class GraphRenderer {
       const a = this.idToIndex.get(sid)
       const b = this.idToIndex.get(tid)
       if (a === this.focusedIndex || b === this.focusedIndex) {
-        this.focusEdgeIdx.push(i)
+        focusIdx.push(i)
       }
     }
 
-    this.edgeFocusGeom.dispose()
-    this.edgeFocusGeom = this.buildFocusEdgeGeom(this.focusEdgeIdx.length)
-    this.edgesFocus.geometry = this.edgeFocusGeom
-    this.edgesFocus.visible = this.focusEdgeIdx.length > 0
-    this.writeFocusEdgePositions(this.edgeFocusGeom, this.focusEdgeIdx)
+    this.focusLayer.indices = focusIdx
+    this.focusLayer.positions = new Float32Array(focusIdx.length * 6)
+    this.focusLayer.line.visible = focusIdx.length > 0
+    if (focusIdx.length > 0) this.updateLayerPositions(this.focusLayer)
   }
 
   private ndcToWorld(ndcX: number, ndcY: number): { x: number; y: number } {
@@ -641,14 +574,11 @@ export class GraphRenderer {
   }
 
   setEdges(edges: GraphEdge[]) {
-    this.scene.remove(this.edgesAll)
-    this.scene.remove(this.edgesFocus)
-    this.edgeAllGeom.dispose()
-    this.edgeFocusGeom.dispose()
-    this.edgeAllMat.dispose()
-    this.focusEdgeMat.dispose()
+    this.disposeEdgeLayer(this.weakLayer)
+    this.disposeEdgeLayer(this.strongLayer)
+    this.disposeEdgeLayer(this.focusLayer)
 
-    this.rebuildNeighborsAndEdges(edges)
+    this.buildEdgeLayers(edges)
 
     this.simLinks = edges.map(e => ({ source: e.source, target: e.target, weight: e.weight }))
     const linkForce = forceLink<SimNode, SimLink>(this.simLinks)
@@ -659,6 +589,12 @@ export class GraphRenderer {
     this.sim.alpha(0.3).restart()
     this.paintNodes()
     this.applyEdgeFocus()
+  }
+
+  private disposeEdgeLayer(layer: EdgeLayer) {
+    this.scene.remove(layer.line)
+    layer.geom.dispose()
+    layer.mat.dispose()
   }
 
   dispose() {
@@ -676,10 +612,9 @@ export class GraphRenderer {
     ;(this.nodeMesh.material as MeshBasicMaterial).dispose()
     this.glowMesh.geometry.dispose()
     ;(this.glowMesh.material as MeshBasicMaterial).dispose()
-    this.edgeAllGeom.dispose()
-    this.edgeFocusGeom.dispose()
-    this.edgeAllMat.dispose()
-    this.focusEdgeMat.dispose()
+    this.disposeEdgeLayer(this.weakLayer)
+    this.disposeEdgeLayer(this.strongLayer)
+    this.disposeEdgeLayer(this.focusLayer)
     this.renderer.dispose()
     if (this.renderer.domElement.parentNode) this.renderer.domElement.remove()
     const labelEl = this.labelRenderer.domElement
