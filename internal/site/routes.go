@@ -5,6 +5,7 @@ import (
 	"writekit/internal/auth"
 	"writekit/internal/config"
 	"writekit/internal/events"
+	"writekit/internal/og"
 	"writekit/internal/platform"
 	"writekit/internal/render"
 	"writekit/internal/tenant"
@@ -17,6 +18,7 @@ type Handler struct {
 	Bus        *events.Bus
 	Cache      *Cache
 	PlatformDB *platform.DB
+	OG         *og.Renderer
 }
 
 func (h *Handler) Routes(r chi.Router) {
@@ -27,6 +29,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/search", h.Search)
 	r.Get("/preview/{token}", h.Preview)
 	r.Get("/preview/{token}/events", h.PreviewSSE)
+	r.Get("/og/{slug}.png", h.PageOG)
+	r.Get("/og/{collection}/{page}.png", h.CollectionPageOG)
 	r.Get("/{slug}.md", h.RawMarkdown)
 	r.Get("/{slug}", h.PageOrCollection)
 	r.Get("/{collection}/{page}.md", h.RawCollectionMarkdown)

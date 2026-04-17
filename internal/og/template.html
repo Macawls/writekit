@@ -1,0 +1,20 @@
+<div style="display:flex;flex-direction:column;width:100%;height:100%;padding:72px 80px;background-color:#fafafa;font-family:'Plus Jakarta Sans',sans-serif;box-sizing:border-box;">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div style="font-size:17px;font-weight:600;color:#0f0f0f;letter-spacing:-0.01em;">{{.Subdomain}}</div>
+    {{if .DateText}}<div style="font-size:14px;color:#71717a;">{{.DateText}}</div>{{end}}
+  </div>
+
+  <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;">
+    <div style="font-size:{{.TitleSize}}px;font-weight:700;color:#0f0f0f;letter-spacing:-0.035em;line-height:1.05;">{{.Title}}</div>
+    {{if .Subtitle}}<div style="font-size:22px;font-weight:400;color:#52525b;margin-top:26px;line-height:1.45;">{{.Subtitle}}</div>{{end}}
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      {{range .Tags}}<div class="text-sm font-medium text-zinc-700 px-4 py-2 bg-white border border-zinc-200 rounded-full">{{.}}</div>{{end}}
+    </div>
+    {{if .SlugPath}}<div style="font-size:13px;color:#a1a1aa;font-family:'JetBrains Mono',monospace;letter-spacing:-0.01em;">{{.SlugPath}}</div>{{end}}
+  </div>
+
+</div>

@@ -1,0 +1,114 @@
+package og
+
+import (
+	"bytes"
+	_ "embed"
+	"fmt"
+	"html/template"
+	"strings"
+	"sync"
+
+	"github.com/macawls/ogre"
+)
+
+//go:embed template.html
+var templateSrc string
+
+const (
+	Width  = 1200
+	Height = 630
+
+	titleMaxChars     = 60
+	titleFallbackSize = 48
+	titleLargeSize    = 64
+	titleMaxTags      = 5
+)
+
+var fontSources = []ogre.FontSource{
+	{Name: "Plus Jakarta Sans", Weight: 400, Style: "normal",
+		URL: "https://raw.githubusercontent.com/tokotype/PlusJakartaSans/master/fonts/ttf/PlusJakartaSans-Regular.ttf"},
+	{Name: "Plus Jakarta Sans", Weight: 500, Style: "normal",
+		URL: "https://raw.githubusercontent.com/tokotype/PlusJakartaSans/master/fonts/ttf/PlusJakartaSans-Medium.ttf"},
+	{Name: "Plus Jakarta Sans", Weight: 600, Style: "normal",
+		URL: "https://raw.githubusercontent.com/tokotype/PlusJakartaSans/master/fonts/ttf/PlusJakartaSans-SemiBold.ttf"},
+	{Name: "Plus Jakarta Sans", Weight: 700, Style: "normal",
+		URL: "https://raw.githubusercontent.com/tokotype/PlusJakartaSans/master/fonts/ttf/PlusJakartaSans-Bold.ttf"},
+	{Name: "JetBrains Mono", Weight: 400, Style: "normal",
+		URL: "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/ttf/JetBrainsMono-Regular.ttf"},
+}
+
+type Data struct {
+	Subdomain string
+	DateText  string
+	Title     string
+	Subtitle  string
+	Tags      []string
+	SlugPath  string
+}
+
+type templateData struct {
+	Data
+	TitleSize int
+}
+
+type Renderer struct {
+	mu       sync.Mutex
+	ogre     *ogre.Renderer
+	tmpl     *template.Template
+}
+
+func New() (*Renderer, error) {
+	tmpl, err := template.New("og").Parse(templateSrc)
+	if err != nil {
+		return nil, fmt.Errorf("parse og template: %w", err)
+	}
+
+	r := ogre.NewRenderer()
+	for _, f := range fontSources {
+		if err := r.LoadFont(f); err != nil {
+			return nil, fmt.Errorf("load font %s %d: %w", f.Name, f.Weight, err)
+		}
+	}
+	return &Renderer{ogre: r, tmpl: tmpl}, nil
+}
+
+func (r *Renderer) Render(data Data) ([]byte, error) {
+	td := templateData{Data: normalize(data), TitleSize: titleSizeFor(data.Title)}
+
+	var buf bytes.Buffer
+	if err := r.tmpl.Execute(&buf, td); err != nil {
+		return nil, fmt.Errorf("execute og template: %w", err)
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	result, err := r.ogre.Render(buf.String(), ogre.Options{
+		Width:  Width,
+		Height: Height,
+		Format: ogre.FormatPNG,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("ogre render: %w", err)
+	}
+	return result.Data, nil
+}
+
+func normalize(d Data) Data {
+	d.Title = strings.TrimSpace(d.Title)
+	if d.Title == "" {
+		d.Title = d.Subdomain
+	}
+	d.Subtitle = strings.TrimSpace(d.Subtitle)
+	if len(d.Tags) > titleMaxTags {
+		d.Tags = d.Tags[:titleMaxTags]
+	}
+	return d
+}
+
+func titleSizeFor(title string) int {
+	if len([]rune(title)) > titleMaxChars {
+		return titleFallbackSize
+	}
+	return titleLargeSize
+}

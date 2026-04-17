@@ -21,6 +21,7 @@ import (
 	"writekit/internal/events"
 	"writekit/internal/httplog"
 	mcpserver "writekit/internal/mcp"
+	"writekit/internal/og"
 	"writekit/internal/platform"
 	"writekit/internal/render"
 	"writekit/internal/tenant"
@@ -84,6 +85,11 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Pool:    pool,
 	}
 
+	ogRenderer, err := og.New()
+	if err != nil {
+		slog.Warn("og renderer disabled", "err", err)
+	}
+
 	siteHandler := &site.Handler{
 		Pool:       pool,
 		Config:     cfg,
@@ -91,6 +97,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Bus:        bus,
 		Cache:      cache,
 		PlatformDB: platformDB,
+		OG:         ogRenderer,
 	}
 
 	embedClient := embedding.NewClient(cfg.OllamaHost, cfg.EmbeddingModel)

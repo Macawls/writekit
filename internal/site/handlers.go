@@ -265,6 +265,7 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 		"Settings":        settings,
 		"TenantID":        tenantID,
 		"Host":            h.Config.Host,
+		"OGImageURL":      h.OGImageURL(tenantID, "", page.Slug),
 	})
 }
 
@@ -323,6 +324,7 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 		"Settings":        settings,
 		"TenantID":        tenantID,
 		"Host":            h.Config.Host,
+		"OGImageURL":      h.OGImageURL(tenantID, collection.Slug, page.Slug),
 	})
 }
 
