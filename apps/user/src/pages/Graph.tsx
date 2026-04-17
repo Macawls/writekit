@@ -51,10 +51,7 @@ export default function Graph() {
       setFocused(node)
       rendererRef.current?.setFocusedNode(node.id)
     }
-    const handleBackgroundClick = () => {
-      setFocused(null)
-      rendererRef.current?.setFocusedNode(null)
-    }
+    const handleBackgroundClick = () => {}
 
     if (rendererRef.current && nodeCountRef.current === data.nodes.length) {
       rendererRef.current.setEdges(data.edges)

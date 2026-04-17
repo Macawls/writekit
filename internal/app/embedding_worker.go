@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	embedWorkerCount   = 4
-	embedJobQueueSize  = 256
-	embedSweepInterval = 60 * time.Second
-	embedCallTimeout   = 30 * time.Second
+	embedWorkerCount    = 4
+	embedJobQueueSize   = 256
+	embedSweepInterval  = 60 * time.Second
+	embedCallTimeout    = 90 * time.Second
+	embedMaxInputChars  = 20000
 )
 
 type embedJob struct {
@@ -129,24 +130,33 @@ func (w *EmbeddingWorker) process(ctx context.Context, job embedJob) {
 		text = page.Title
 	}
 	if text == "" {
+		text = page.Slug
+	}
+	if text == "" {
 		return
+	}
+	if len(text) > embedMaxInputChars {
+		text = text[:embedMaxInputChars]
 	}
 
 	callCtx, cancel := context.WithTimeout(ctx, embedCallTimeout)
 	defer cancel()
 
+	start := time.Now()
 	vec, err := w.client.Embed(callCtx, text)
 	if err != nil {
 		if errors.Is(err, embedding.ErrDisabled) {
 			return
 		}
-		slog.Warn("embedding: ollama call failed", "tenant", job.tenantID, "page", page.ID, "err", err)
+		slog.Warn("embedding: ollama call failed", "tenant", job.tenantID, "page", page.ID, "chars", len(text), "elapsed_ms", time.Since(start).Milliseconds(), "err", err)
 		return
 	}
 
 	if err := db.UpsertPageEmbedding(ctx, page.ID, w.client.Model(), vec); err != nil {
 		slog.Warn("embedding: upsert", "tenant", job.tenantID, "page", page.ID, "err", err)
+		return
 	}
+	slog.Info("embedding: upserted", "tenant", job.tenantID, "page", page.ID, "chars", len(text), "dims", len(vec), "elapsed_ms", time.Since(start).Milliseconds())
 }
 
 func (w *EmbeddingWorker) runSweeper(ctx context.Context) {

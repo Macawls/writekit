@@ -19,23 +19,23 @@ import { forceLink } from 'd3-force'
 import { buildSimulation, type SimLink, type SimNode } from './layout'
 import type { GraphEdge, GraphNode } from './types'
 
-const NODE_BASE_SCALE = 8
-const NODE_MAX_DEGREE_BONUS = 14
-const NODE_DEGREE_STEP = 0.9
+const NODE_BASE_SCALE = 6
+const NODE_MAX_DEGREE_BONUS = 9
+const NODE_DEGREE_STEP = 0.7
 const NODE_FOCUS_MULTIPLIER = 1.5
-const NODE_SEGMENTS = 24
+const NODE_HOVER_MULTIPLIER = 1.25
+const NODE_SEGMENTS = 48
 
 const BG_COLOR = 0xfafafa
 const NODE_COLOR = 0x18181b
-const NODE_DIM_COLOR = 0xd4d4d8
-const NODE_HOVER_COLOR = 0x2563eb
-const EDGE_COLOR = 0xd4d4d8
+const NODE_DIM_COLOR = 0xc4c4c8
+const EDGE_COLOR = 0x9ca3af
 const EDGE_FOCUS_COLOR = 0x18181b
 const EDGE_STRONG_THRESHOLD = 0.7
-const EDGE_STRONG_OPACITY = 0.7
-const EDGE_WEAK_OPACITY = 0.25
-const EDGE_DIM_OPACITY = 0.05
-const EDGE_FOCUS_OPACITY = 0.85
+const EDGE_STRONG_OPACITY = 0.75
+const EDGE_WEAK_OPACITY = 0.4
+const EDGE_DIM_OPACITY = 0.08
+const EDGE_FOCUS_OPACITY = 0.9
 
 const ZOOM_MIN = 0.15
 const ZOOM_MAX = 8
@@ -132,7 +132,7 @@ export class GraphRenderer {
 
     this.rebuildNeighborsAndEdges(edges)
 
-    for (const n of simNodes) {
+    simNodes.forEach((n, i) => {
       const anchor = new Object3D()
       this.scene.add(anchor)
       this.labelAnchors.push(anchor)
@@ -141,10 +141,11 @@ export class GraphRenderer {
       div.className = 'graph-label'
       div.textContent = n.data.title || n.data.slug
       const label = new CSS2DObject(div)
-      label.position.set(0, -NODE_BASE_SCALE - 6, 0)
+      const baseScale = NODE_BASE_SCALE + Math.min(this.degrees[i] * NODE_DEGREE_STEP, NODE_MAX_DEGREE_BONUS)
+      label.position.set(0, -baseScale - 7, 0)
       anchor.add(label)
       this.labels.push(label)
-    }
+    })
 
     this.paintNodes()
 
@@ -229,6 +230,7 @@ export class GraphRenderer {
   private nodeScale(i: number): number {
     const base = NODE_BASE_SCALE + Math.min(this.degrees[i] * NODE_DEGREE_STEP, NODE_MAX_DEGREE_BONUS)
     if (i === this.focusedIndex) return base * NODE_FOCUS_MULTIPLIER
+    if (i === this.hoveredIndex) return base * NODE_HOVER_MULTIPLIER
     return base
   }
 
@@ -276,10 +278,7 @@ export class GraphRenderer {
 
   private paintNodes() {
     for (let i = 0; i < this.simNodes.length; i++) {
-      let hex: number
-      if (i === this.hoveredIndex) hex = NODE_HOVER_COLOR
-      else if (this.isHighlighted(i)) hex = NODE_COLOR
-      else hex = NODE_DIM_COLOR
+      const hex = this.isHighlighted(i) ? NODE_COLOR : NODE_DIM_COLOR
       this.tmpColor.setHex(hex)
       this.nodeMesh.setColorAt(i, this.tmpColor)
     }
@@ -343,7 +342,7 @@ export class GraphRenderer {
     const prev = this.hoveredIndex
     this.hoveredIndex = this.hitTest()
     if (prev !== this.hoveredIndex) {
-      this.paintNodes()
+      this.applySimToScene()
       this.host.style.cursor = this.hoveredIndex >= 0 ? 'pointer' : 'grab'
     }
   }
