@@ -34,6 +34,7 @@ type graphNode struct {
 	Tags         []string `json:"tags"`
 	CollectionID *string  `json:"collection_id,omitempty"`
 	URL          string   `json:"url"`
+	Visibility   string   `json:"visibility"`
 }
 
 type graphEdge struct {
@@ -84,6 +85,7 @@ func (h *Handler) Graph(w http.ResponseWriter, r *http.Request) {
 			Tags:         parseTags(p.Tags),
 			CollectionID: p.CollectionID,
 			URL:          buildPageURL(siteBaseURL, db, r, p),
+			Visibility:   p.Visibility,
 		})
 	}
 

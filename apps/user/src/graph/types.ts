@@ -1,3 +1,5 @@
+export type Visibility = 'public' | 'unlisted' | 'private'
+
 export interface GraphNode {
   id: string
   slug: string
@@ -5,6 +7,7 @@ export interface GraphNode {
   tags: string[]
   collection_id?: string | null
   url: string
+  visibility: Visibility
 }
 
 export interface GraphEdge {

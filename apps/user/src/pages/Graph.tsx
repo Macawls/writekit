@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchGraph } from '../api/graph'
 import type { GraphResponse, GraphNode } from '../graph/types'
 import { GraphRenderer } from '../graph/renderer'
-import { computeInsights, formatPercent, type GraphInsights } from '../graph/insights'
+import { computeInsights, type GraphInsights } from '../graph/insights'
 
 const BACKFILL_POLL_MS = 5000
 const ZOOM_IN = 1.3
@@ -244,7 +244,11 @@ function NodeDetail({ node, related, onClose, onOpen, onSelectRelated, onHoverRe
       <button className="graph-panel-close" onClick={onClose} aria-label="Close">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
       </button>
-      <div className="graph-panel-eyebrow">Page</div>
+      <div className="graph-panel-eyebrow">
+        <span className={`graph-panel-visibility graph-panel-visibility--${node.visibility}`}>
+          {node.visibility}
+        </span>
+      </div>
       <h3 className="graph-panel-title">{node.title || node.slug}</h3>
       {node.url && <div className="graph-panel-meta">{host}{path}</div>}
       {node.tags.length > 0 && (
@@ -266,6 +270,7 @@ function NodeDetail({ node, related, onClose, onOpen, onSelectRelated, onHoverRe
                   title={`Cosine similarity ${r.weight.toFixed(3)}`}
                 >
                   <span className="graph-panel-bar" style={{ width: `${Math.round(r.weight * 100)}%` }} />
+                  <VisibilityDot node={r.node} />
                   <span className="graph-panel-item-title">{r.node.title || r.node.slug}</span>
                   <span className="graph-panel-item-value">{Math.round(r.weight * 100)}%</span>
                 </button>
@@ -291,135 +296,75 @@ function InsightsView({ insights, onSelect, onHover }: {
   onSelect: (node: GraphNode) => void
   onHover: (id: string | null) => void
 }) {
+  const hasContent = insights.anchors.length > 0 || insights.orphans.length > 0
   return (
     <div className="graph-panel-inner">
-      <div className="graph-panel-eyebrow">Insights</div>
-      <h3 className="graph-panel-title">Your graph at a glance</h3>
+      <h3 className="graph-panel-title">{insights.headline}</h3>
+      <div className="graph-panel-subtitle">Click a page to explore its relationships.</div>
 
-      <div className="graph-panel-stats">
-        <div>
-          <div className="graph-panel-stat-value">{formatPercent(insights.avgSimilarity)}</div>
-          <div className="graph-panel-stat-label">avg similarity</div>
+      {insights.anchors.length > 0 && (
+        <div className="graph-panel-section">
+          <div className="graph-panel-section-label">Anchors</div>
+          <ul className="graph-panel-list">
+            {insights.anchors.map(a => (
+              <li key={a.node.id}>
+                <button
+                  className="graph-panel-item"
+                  onClick={() => onSelect(a.node)}
+                  onMouseEnter={() => onHover(a.node.id)}
+                  onMouseLeave={() => onHover(null)}
+                >
+                  <VisibilityDot node={a.node} />
+                  <span className="graph-panel-item-title">{a.node.title || a.node.slug}</span>
+                  <span className="graph-panel-item-value">{a.degree}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
-        <div>
-          <div className="graph-panel-stat-value">{insights.clusters.length}</div>
-          <div className="graph-panel-stat-label">clusters</div>
-        </div>
-        <div>
-          <div className="graph-panel-stat-value">{insights.orphans.length}</div>
-          <div className="graph-panel-stat-label">orphans</div>
-        </div>
-      </div>
-
-      {insights.hubs.length > 0 && (
-        <InsightList
-          label="Hub pages"
-          hint="most connected"
-          items={insights.hubs.map(h => ({
-            id: h.node.id, node: h.node,
-            primary: h.node.title || h.node.slug,
-            secondary: `${h.degree} links`,
-            barPct: null,
-          }))}
-          onSelect={onSelect}
-          onHover={onHover}
-        />
-      )}
-
-      {insights.strongestPairs.length > 0 && (
-        <InsightList
-          label="Closest pairs"
-          hint="highest similarity"
-          items={insights.strongestPairs.map((p, i) => ({
-            id: `pair-${i}`, node: p.a,
-            primary: `${p.a.title || p.a.slug}  ↔  ${p.b.title || p.b.slug}`,
-            secondary: `${Math.round(p.weight * 100)}%${p.weight >= 0.9 ? ' · near-duplicate' : ''}`,
-            barPct: Math.round(p.weight * 100),
-          }))}
-          onSelect={onSelect}
-          onHover={onHover}
-        />
-      )}
-
-      {insights.clusters.length > 0 && (
-        <InsightList
-          label="Clusters"
-          hint="click to focus"
-          items={insights.clusters.map(c => ({
-            id: `cluster-${c.id}`, node: c.nodes[0],
-            primary: `${c.nodes.length} pages`,
-            secondary: c.nodes.slice(0, 3).map(n => n.title || n.slug).join(' · '),
-            barPct: null,
-          }))}
-          onSelect={onSelect}
-          onHover={onHover}
-        />
       )}
 
       {insights.orphans.length > 0 && (
-        <InsightList
-          label="Orphans"
-          hint="no strong relationships yet"
-          items={insights.orphans.slice(0, 5).map(n => ({
-            id: n.id, node: n,
-            primary: n.title || n.slug,
-            secondary: '',
-            barPct: null,
-          }))}
-          onSelect={onSelect}
-          onHover={onHover}
-        />
+        <div className="graph-panel-section">
+          <div className="graph-panel-section-label">Not yet connected</div>
+          <ul className="graph-panel-list">
+            {insights.orphans.map(n => (
+              <li key={n.id}>
+                <button
+                  className="graph-panel-item"
+                  onClick={() => onSelect(n)}
+                  onMouseEnter={() => onHover(n.id)}
+                  onMouseLeave={() => onHover(null)}
+                >
+                  <VisibilityDot node={n} />
+                  <span className="graph-panel-item-title">{n.title || n.slug}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {insights.orphanOverflow > 0 && (
+            <div className="graph-panel-more">+{insights.orphanOverflow} more</div>
+          )}
+        </div>
       )}
 
-      {insights.untaggedCount > 0 && (
-        <div className="graph-panel-note">
-          <span className="graph-panel-note-dot" />
-          {insights.untaggedCount} {insights.untaggedCount === 1 ? 'page has' : 'pages have'} no tags
+      {!hasContent && (
+        <div className="graph-panel-subtitle" style={{ marginTop: '.5rem' }}>
+          Publish a few more pages to see relationships emerge.
         </div>
       )}
     </div>
   )
 }
 
-interface InsightItem {
-  id: string
-  node: GraphNode
-  primary: string
-  secondary: string
-  barPct: number | null
-}
-
-function InsightList({ label, hint, items, onSelect, onHover }: {
-  label: string
-  hint?: string
-  items: InsightItem[]
-  onSelect: (n: GraphNode) => void
-  onHover: (id: string | null) => void
-}) {
+function VisibilityDot({ node }: { node: GraphNode }) {
+  if (node.visibility === 'public') return null
+  const label = node.visibility === 'private' ? 'Private' : 'Unlisted'
   return (
-    <div className="graph-panel-section">
-      <div className="graph-panel-section-label">
-        {label}
-        {hint && <span className="graph-panel-section-hint"> · {hint}</span>}
-      </div>
-      <ul className="graph-panel-list">
-        {items.map(item => (
-          <li key={item.id}>
-            <button
-              className="graph-panel-item"
-              onClick={() => onSelect(item.node)}
-              onMouseEnter={() => onHover(item.node.id)}
-              onMouseLeave={() => onHover(null)}
-            >
-              {item.barPct !== null && (
-                <span className="graph-panel-bar" style={{ width: `${item.barPct}%` }} />
-              )}
-              <span className="graph-panel-item-title">{item.primary}</span>
-              {item.secondary && <span className="graph-panel-item-value">{item.secondary}</span>}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <span
+      className={`graph-panel-visibility-dot graph-panel-visibility-dot--${node.visibility}`}
+      title={label}
+      aria-label={label}
+    />
   )
 }

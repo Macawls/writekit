@@ -34,20 +34,17 @@ const BG_COLOR = 0xfafafa
 const NODE_COLOR = 0x18181b
 const NODE_DIM_COLOR = 0xc4c4c8
 const GLOW_COLOR = 0x4f46e5
-const EDGE_COLOR = 0x9ca3af
+const EDGE_COLOR_WEAK = new Color(0xd1d5db)
+const EDGE_COLOR_STRONG = new Color(0x4f46e5)
 const EDGE_FOCUS_COLOR = new Color(0x4f46e5)
-const EDGE_STRONG_THRESHOLD = 0.7
-const EDGE_STRONG_OPACITY = 0.75
-const EDGE_WEAK_OPACITY = 0.4
+const EDGE_BASE_OPACITY = 0.85
 const EDGE_DIM_OPACITY = 0.08
 
 const ZOOM_MIN = 0.15
 const ZOOM_MAX = 8
 const FIT_PADDING = 0.85
 
-const REPULSION_RADIUS = 70
-const REPULSION_STRENGTH = 180
-const DRAG_PIN_STRENGTH = 1
+const DRAG_MOVE_THRESHOLD_PX = 4
 
 interface Callbacks {
   onNodeClick: (node: GraphNode) => void
@@ -92,15 +89,13 @@ export class GraphRenderer {
 
   private nodeMesh: InstancedMesh
   private glowMesh: InstancedMesh
-  private edgesStrong!: LineSegments
-  private edgesWeak!: LineSegments
+  private edgesAll!: LineSegments
   private edgesFocus!: LineSegments
-  private edgeStrongGeom!: BufferGeometry
-  private edgeWeakGeom!: BufferGeometry
+  private edgeAllGeom!: BufferGeometry
   private edgeFocusGeom!: BufferGeometry
+  private edgeAllMat!: LineBasicMaterial
   private focusEdgeMat!: ShaderMaterial
-  private strongIdx: number[] = []
-  private weakIdx: number[] = []
+  private allIdx: number[] = []
   private focusEdgeIdx: number[] = []
 
   private simNodes: SimNode[]
@@ -123,7 +118,6 @@ export class GraphRenderer {
   private raycaster = new Raycaster()
   private pointer = new Vector2()
   private pointerWorld = new Vector2()
-  private pointerInside = false
 
   private animationId = 0
   private resizeObserver: ResizeObserver
@@ -136,6 +130,7 @@ export class GraphRenderer {
 
   private draggingIndex = -1
   private dragMoved = false
+  private dragStart = { x: 0, y: 0 }
 
   constructor(host: HTMLElement, nodes: GraphNode[], edges: GraphEdge[], callbacks: Callbacks) {
     this.host = host
@@ -187,8 +182,6 @@ export class GraphRenderer {
     this.simNodes = simNodes
     this.simLinks = simLinks
 
-    this.sim.force('cursor', (alpha: number) => this.applyCursorRepulsion(alpha))
-
     this.rebuildNeighborsAndEdges(edges)
 
     simNodes.forEach((n, i) => {
@@ -198,7 +191,15 @@ export class GraphRenderer {
 
       const div = document.createElement('div')
       div.className = 'graph-label'
-      div.textContent = n.data.title || n.data.slug
+      if (n.data.visibility && n.data.visibility !== 'public') {
+        const dot = document.createElement('span')
+        dot.className = `graph-label-dot graph-label-dot--${n.data.visibility}`
+        dot.title = n.data.visibility
+        div.appendChild(dot)
+      }
+      const text = document.createElement('span')
+      text.textContent = n.data.title || n.data.slug
+      div.appendChild(text)
       const label = new CSS2DObject(div)
       const baseScale = NODE_BASE_SCALE + Math.min(this.degrees[i] * NODE_DEGREE_STEP, NODE_MAX_DEGREE_BONUS)
       label.position.set(0, -baseScale - 7, 0)
@@ -212,7 +213,6 @@ export class GraphRenderer {
     this.applySimToScene()
 
     host.addEventListener('pointermove', this.onPointerMove)
-    host.addEventListener('pointerleave', this.onPointerLeave)
     host.addEventListener('click', this.onClick)
     host.addEventListener('pointerdown', this.onPointerDown)
     host.addEventListener('pointerup', this.onPointerUp)
@@ -228,8 +228,7 @@ export class GraphRenderer {
     const n = this.simNodes.length
     this.neighbors = Array.from({ length: n }, () => new Set<number>())
     this.degrees = new Array(n).fill(0)
-    this.strongIdx = []
-    this.weakIdx = []
+    this.allIdx = []
 
     edges.forEach((e, ei) => {
       const a = this.idToIndex.get(e.source)
@@ -239,16 +238,17 @@ export class GraphRenderer {
       this.neighbors[b].add(a)
       this.degrees[a]++
       this.degrees[b]++
-      if (e.weight >= EDGE_STRONG_THRESHOLD) this.strongIdx.push(ei)
-      else this.weakIdx.push(ei)
+      this.allIdx.push(ei)
     })
 
-    this.edgeStrongGeom = this.buildEdgeGeom(this.strongIdx.length)
-    this.edgeWeakGeom = this.buildEdgeGeom(this.weakIdx.length)
+    this.edgeAllGeom = this.buildColoredEdgeGeom(this.allIdx, edges)
     this.edgeFocusGeom = this.buildFocusEdgeGeom(0)
 
-    const strongMat = new LineBasicMaterial({ color: EDGE_COLOR, transparent: true, opacity: EDGE_STRONG_OPACITY })
-    const weakMat = new LineBasicMaterial({ color: EDGE_COLOR, transparent: true, opacity: EDGE_WEAK_OPACITY })
+    this.edgeAllMat = new LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: EDGE_BASE_OPACITY,
+    })
     this.focusEdgeMat = new ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
@@ -260,19 +260,26 @@ export class GraphRenderer {
       depthWrite: false,
     })
 
-    this.edgesStrong = new LineSegments(this.edgeStrongGeom, strongMat)
-    this.edgesWeak = new LineSegments(this.edgeWeakGeom, weakMat)
+    this.edgesAll = new LineSegments(this.edgeAllGeom, this.edgeAllMat)
     this.edgesFocus = new LineSegments(this.edgeFocusGeom, this.focusEdgeMat)
     this.edgesFocus.visible = false
-    this.scene.add(this.edgesStrong)
-    this.scene.add(this.edgesWeak)
+    this.scene.add(this.edgesAll)
     this.scene.add(this.edgesFocus)
   }
 
-  private buildEdgeGeom(count: number): BufferGeometry {
+  private buildColoredEdgeGeom(indices: number[], edges: GraphEdge[]): BufferGeometry {
     const g = new BufferGeometry()
-    const positions = new Float32Array(Math.max(1, count) * 6)
-    g.setAttribute('position', new BufferAttribute(positions, 3))
+    const count = Math.max(1, indices.length)
+    g.setAttribute('position', new BufferAttribute(new Float32Array(count * 6), 3))
+    const colors = new Float32Array(count * 6)
+    for (let i = 0; i < indices.length; i++) {
+      const w = Math.min(1, Math.max(0, (edges[indices[i]].weight - 0.5) / 0.5))
+      this.tmpColor.copy(EDGE_COLOR_WEAK).lerp(EDGE_COLOR_STRONG, w)
+      const r = this.tmpColor.r, gr = this.tmpColor.g, b = this.tmpColor.b
+      colors[i * 6 + 0] = r; colors[i * 6 + 1] = gr; colors[i * 6 + 2] = b
+      colors[i * 6 + 3] = r; colors[i * 6 + 4] = gr; colors[i * 6 + 5] = b
+    }
+    g.setAttribute('color', new BufferAttribute(colors, 3))
     return g
   }
 
@@ -283,26 +290,6 @@ export class GraphRenderer {
     g.setAttribute('aT', new BufferAttribute(new Float32Array(safeCount * 2), 1))
     g.setAttribute('aWeight', new BufferAttribute(new Float32Array(safeCount * 2), 1))
     return g
-  }
-
-  private applyCursorRepulsion(_alpha: number) {
-    if (!this.pointerInside || this.draggingIndex >= 0) return
-    const px = this.pointerWorld.x
-    const py = this.pointerWorld.y
-    const r = REPULSION_RADIUS
-    const r2 = r * r
-    for (const n of this.simNodes) {
-      if (n.fx != null) continue
-      const dx = n.x - px
-      const dy = n.y - py
-      const d2 = dx * dx + dy * dy
-      if (d2 > r2 || d2 === 0) continue
-      const d = Math.sqrt(d2)
-      const falloff = 1 - d / r
-      const strength = REPULSION_STRENGTH * falloff * falloff * 0.015
-      n.vx += (dx / d) * strength
-      n.vy += (dy / d) * strength
-    }
   }
 
   private loop = () => {
@@ -358,8 +345,7 @@ export class GraphRenderer {
     this.glowMesh.visible = this.focusedIndex >= 0 || this.externalHoverIndex >= 0
     ;(this.glowMesh.material as MeshBasicMaterial).opacity = 0.22
 
-    this.writeEdgePositions(this.edgeStrongGeom, this.strongIdx)
-    this.writeEdgePositions(this.edgeWeakGeom, this.weakIdx)
+    this.writeEdgePositions(this.edgeAllGeom, this.allIdx)
     if (this.focusEdgeIdx.length > 0) {
       this.writeFocusEdgePositions(this.edgeFocusGeom, this.focusEdgeIdx)
     }
@@ -431,19 +417,14 @@ export class GraphRenderer {
   }
 
   private applyEdgeFocus() {
-    const strongMat = this.edgesStrong.material as LineBasicMaterial
-    const weakMat = this.edgesWeak.material as LineBasicMaterial
-
     if (this.focusedIndex < 0) {
-      strongMat.opacity = EDGE_STRONG_OPACITY
-      weakMat.opacity = EDGE_WEAK_OPACITY
+      this.edgeAllMat.opacity = EDGE_BASE_OPACITY
       this.focusEdgeIdx = []
       this.edgesFocus.visible = false
       return
     }
 
-    strongMat.opacity = EDGE_DIM_OPACITY
-    weakMat.opacity = EDGE_DIM_OPACITY
+    this.edgeAllMat.opacity = EDGE_DIM_OPACITY
 
     this.focusEdgeIdx = []
     for (let i = 0; i < this.simLinks.length; i++) {
@@ -481,25 +462,32 @@ export class GraphRenderer {
     const w = this.ndcToWorld(this.pointer.x, this.pointer.y)
     this.pointerWorld.x = w.x
     this.pointerWorld.y = w.y
-    this.pointerInside = true
   }
 
   private onPointerMove = (ev: PointerEvent) => {
     this.updatePointerFromEvent(ev)
 
     if (this.draggingIndex >= 0) {
+      const moved = Math.abs(ev.clientX - this.dragStart.x) + Math.abs(ev.clientY - this.dragStart.y)
+      if (!this.dragMoved && moved < DRAG_MOVE_THRESHOLD_PX) return
+      if (!this.dragMoved) {
+        this.dragMoved = true
+        const n = this.simNodes[this.draggingIndex]
+        n.fx = n.x
+        n.fy = n.y
+        this.sim.alphaTarget(0.25).restart()
+        this.host.style.cursor = 'grabbing'
+      }
       const n = this.simNodes[this.draggingIndex]
       n.fx = this.pointerWorld.x
       n.fy = this.pointerWorld.y
-      this.dragMoved = true
-      this.sim.alphaTarget(0.15).restart()
       return
     }
 
     if (this.isPanning) {
       const dx = (ev.clientX - this.panStart.x) / this.camera.zoom
       const dy = (ev.clientY - this.panStart.y) / this.camera.zoom
-      if (Math.abs(ev.clientX - this.panStart.x) + Math.abs(ev.clientY - this.panStart.y) > 3) {
+      if (Math.abs(ev.clientX - this.panStart.x) + Math.abs(ev.clientY - this.panStart.y) > DRAG_MOVE_THRESHOLD_PX) {
         this.panMoved = true
       }
       this.camera.position.x = this.cameraStart.x - dx
@@ -510,15 +498,8 @@ export class GraphRenderer {
     const prev = this.hoveredIndex
     this.hoveredIndex = this.hitTest()
     if (prev !== this.hoveredIndex) {
-      this.sim.alpha(Math.max(this.sim.alpha(), 0.02)).restart()
       this.host.style.cursor = this.hoveredIndex >= 0 ? 'pointer' : 'grab'
     }
-    this.sim.alpha(Math.max(this.sim.alpha(), 0.01)).restart()
-  }
-
-  private onPointerLeave = () => {
-    this.pointerInside = false
-    if (this.isPanning) this.onPointerUp()
   }
 
   private onPointerDown = (ev: PointerEvent) => {
@@ -526,12 +507,9 @@ export class GraphRenderer {
     if (this.hoveredIndex >= 0) {
       this.draggingIndex = this.hoveredIndex
       this.dragMoved = false
-      const n = this.simNodes[this.draggingIndex]
-      n.fx = n.x
-      n.fy = n.y
-      this.sim.alphaTarget(DRAG_PIN_STRENGTH * 0.15).restart()
+      this.dragStart.x = ev.clientX
+      this.dragStart.y = ev.clientY
       this.host.setPointerCapture?.(ev.pointerId)
-      this.host.style.cursor = 'grabbing'
       return
     }
     this.isPanning = true
@@ -545,11 +523,13 @@ export class GraphRenderer {
 
   private onPointerUp = () => {
     if (this.draggingIndex >= 0) {
-      const n = this.simNodes[this.draggingIndex]
-      n.fx = null
-      n.fy = null
+      if (this.dragMoved) {
+        const n = this.simNodes[this.draggingIndex]
+        n.fx = null
+        n.fy = null
+        this.sim.alphaTarget(0)
+      }
       this.draggingIndex = -1
-      this.sim.alphaTarget(0)
       this.host.style.cursor = this.hoveredIndex >= 0 ? 'pointer' : 'grab'
       return
     }
@@ -661,14 +641,11 @@ export class GraphRenderer {
   }
 
   setEdges(edges: GraphEdge[]) {
-    this.scene.remove(this.edgesStrong)
-    this.scene.remove(this.edgesWeak)
+    this.scene.remove(this.edgesAll)
     this.scene.remove(this.edgesFocus)
-    this.edgeStrongGeom.dispose()
-    this.edgeWeakGeom.dispose()
+    this.edgeAllGeom.dispose()
     this.edgeFocusGeom.dispose()
-    ;(this.edgesStrong.material as LineBasicMaterial).dispose()
-    ;(this.edgesWeak.material as LineBasicMaterial).dispose()
+    this.edgeAllMat.dispose()
     this.focusEdgeMat.dispose()
 
     this.rebuildNeighborsAndEdges(edges)
@@ -690,7 +667,6 @@ export class GraphRenderer {
     this.sim.stop()
     this.resizeObserver.disconnect()
     this.host.removeEventListener('pointermove', this.onPointerMove)
-    this.host.removeEventListener('pointerleave', this.onPointerLeave)
     this.host.removeEventListener('click', this.onClick)
     this.host.removeEventListener('pointerdown', this.onPointerDown)
     this.host.removeEventListener('pointerup', this.onPointerUp)
@@ -700,11 +676,9 @@ export class GraphRenderer {
     ;(this.nodeMesh.material as MeshBasicMaterial).dispose()
     this.glowMesh.geometry.dispose()
     ;(this.glowMesh.material as MeshBasicMaterial).dispose()
-    this.edgeStrongGeom.dispose()
-    this.edgeWeakGeom.dispose()
+    this.edgeAllGeom.dispose()
     this.edgeFocusGeom.dispose()
-    ;(this.edgesStrong.material as LineBasicMaterial).dispose()
-    ;(this.edgesWeak.material as LineBasicMaterial).dispose()
+    this.edgeAllMat.dispose()
     this.focusEdgeMat.dispose()
     this.renderer.dispose()
     if (this.renderer.domElement.parentNode) this.renderer.domElement.remove()
