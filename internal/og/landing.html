@@ -1,0 +1,19 @@
+<div style="display:flex;width:1200px;height:630px;background-color:#fafafa;font-family:'Plus Jakarta Sans',sans-serif;">
+  <div style="display:flex;flex-direction:column;width:1040px;height:486px;margin:72px 80px;justify-content:space-between;">
+
+    <div style="display:flex;width:1040px;align-items:center;justify-content:space-between;">
+      <div style="font-size:17px;font-weight:600;color:#0f0f0f;letter-spacing:-0.01em;">{{.Domain}}</div>
+      <div style="font-size:12px;color:#a1a1aa;letter-spacing:0.14em;font-weight:600;">WRITEKIT</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;width:1040px;">
+      <div style="width:1040px;font-size:92px;font-weight:700;color:#0f0f0f;letter-spacing:-0.04em;line-height:1;">{{.Title}}</div>
+      <div style="width:1040px;font-size:24px;font-weight:400;color:#52525b;margin-top:24px;line-height:1.45;">{{.Subtitle}}</div>
+    </div>
+
+    <div style="display:flex;width:1040px;align-items:center;">
+      {{if .Command}}<div class="text-sm text-zinc-700 px-5 py-3 bg-zinc-200 rounded-[20px]" style="font-family:'JetBrains Mono',monospace;letter-spacing:-0.01em;display:flex;align-items:center;gap:8px;"><span style="color:#a1a1aa;">$</span><span>{{.Command}}</span></div>{{end}}
+    </div>
+
+  </div>
+</div>

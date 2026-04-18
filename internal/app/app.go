@@ -73,6 +73,11 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 
 	cache := site.NewCache(bus)
 
+	ogRenderer, err := og.New()
+	if err != nil {
+		slog.Warn("og renderer disabled", "err", err)
+	}
+
 	webHandler := &web.Handler{
 		DB:      platformDB,
 		Config:  cfg,
@@ -83,11 +88,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		MCPAuth: mcpAuth,
 		Email:   emailSender,
 		Pool:    pool,
-	}
-
-	ogRenderer, err := og.New()
-	if err != nil {
-		slog.Warn("og renderer disabled", "err", err)
+		OG:      ogRenderer,
 	}
 
 	siteHandler := &site.Handler{

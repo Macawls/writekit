@@ -5,6 +5,7 @@ import (
 	"writekit/internal/auth"
 	"writekit/internal/config"
 	"writekit/internal/email"
+	"writekit/internal/og"
 	"writekit/internal/platform"
 	"writekit/internal/render"
 	"writekit/internal/tenant"
@@ -20,6 +21,7 @@ type Handler struct {
 	MCPAuth *auth.MCPAuth
 	Email   *email.Sender
 	Pool    *tenant.Pool
+	OG      *og.Renderer
 }
 
 func (h *Handler) Routes(r chi.Router) {
@@ -47,6 +49,7 @@ func (h *Handler) Routes(r chi.Router) {
 
 	r.Get("/", h.Home)
 	r.Get("/docs", h.Docs)
+	r.Get("/og.png", h.LandingOG)
 	r.Get("/llms.txt", h.LLMsTxt)
 	r.Get("/llms-full.txt", h.LLMsFullTxt)
 	r.Get("/robots.txt", h.RobotsTxt)

@@ -14,6 +14,9 @@ import (
 //go:embed template.html
 var templateSrc string
 
+//go:embed landing.html
+var landingTemplateSrc string
+
 const (
 	Width  = 1200
 	Height = 630
@@ -53,16 +56,28 @@ type templateData struct {
 	TitleSize int
 }
 
+type LandingData struct {
+	Domain   string
+	Title    string
+	Subtitle string
+	Command  string
+}
+
 type Renderer struct {
-	mu       sync.Mutex
-	ogre     *ogre.Renderer
-	tmpl     *template.Template
+	mu          sync.Mutex
+	ogre        *ogre.Renderer
+	tmpl        *template.Template
+	landingTmpl *template.Template
 }
 
 func New() (*Renderer, error) {
 	tmpl, err := template.New("og").Parse(templateSrc)
 	if err != nil {
 		return nil, fmt.Errorf("parse og template: %w", err)
+	}
+	landingTmpl, err := template.New("og-landing").Parse(landingTemplateSrc)
+	if err != nil {
+		return nil, fmt.Errorf("parse og landing template: %w", err)
 	}
 
 	r := ogre.NewRenderer()
@@ -71,7 +86,27 @@ func New() (*Renderer, error) {
 			return nil, fmt.Errorf("load font %s %d: %w", f.Name, f.Weight, err)
 		}
 	}
-	return &Renderer{ogre: r, tmpl: tmpl}, nil
+	return &Renderer{ogre: r, tmpl: tmpl, landingTmpl: landingTmpl}, nil
+}
+
+func (r *Renderer) RenderLanding(data LandingData) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := r.landingTmpl.Execute(&buf, data); err != nil {
+		return nil, fmt.Errorf("execute og landing template: %w", err)
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	result, err := r.ogre.Render(buf.String(), ogre.Options{
+		Width:  Width,
+		Height: Height,
+		Format: ogre.FormatPNG,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("ogre landing render: %w", err)
+	}
+	return result.Data, nil
 }
 
 func (r *Renderer) Render(data Data) ([]byte, error) {
