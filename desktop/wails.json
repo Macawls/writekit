@@ -2,8 +2,8 @@
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "WriteKit",
   "outputfilename": "WriteKit",
-  "frontend:install": "cd ../apps/user && bun install --frozen-lockfile",
-  "frontend:build": "cd ../apps/user && bun run build",
+  "frontend:install": "bun install --frozen-lockfile",
+  "frontend:build": "bun run build",
   "frontend:dir": "../apps/user",
   "author": {
     "name": "Josh Macawls"
