@@ -1,6 +1,7 @@
 package site
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,6 +13,8 @@ import (
 	"writekit/internal/httplog"
 	"writekit/internal/tenant"
 )
+
+const indexPageSize = 20
 
 func (h *Handler) isTeamMember(r *http.Request, tenantID string) bool {
 	user := auth.UserFromContext(r.Context())
@@ -127,8 +130,30 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error("site index: list collections", "tenant", tenantID, "err", err)
 	}
+
+	pageNum, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if pageNum < 1 {
+		pageNum = 1
+	}
+	totalStandalone, err := db.CountStandalonePages(r.Context(), "published")
+	if err != nil {
+		log.Warn("site index: count standalone pages", "tenant", tenantID, "err", err)
+	}
+	totalPages := (totalStandalone + indexPageSize - 1) / indexPageSize
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	if pageNum > totalPages {
+		pageNum = totalPages
+	}
+
 	standalone := ""
-	pages, err := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", CollectionID: &standalone, Limit: 20})
+	pages, err := db.ListPages(r.Context(), tenant.PageFilter{
+		Status:       "published",
+		CollectionID: &standalone,
+		Limit:        indexPageSize,
+		Offset:       (pageNum - 1) * indexPageSize,
+	})
 	if err != nil {
 		log.Error("site index: list pages", "tenant", tenantID, "err", err)
 	}
@@ -139,9 +164,9 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 
 	isMember := h.isTeamMember(r, tenantID)
 
-	// Include draft pages for team members
-	if isMember {
-		drafts, err := db.ListPages(r.Context(), tenant.PageFilter{Status: "draft", CollectionID: &standalone, Limit: 20})
+	// Include draft pages for team members, only on page 1
+	if isMember && pageNum == 1 {
+		drafts, err := db.ListPages(r.Context(), tenant.PageFilter{Status: "draft", CollectionID: &standalone, Limit: indexPageSize})
 		if err != nil {
 			log.Error("site index: list draft pages", "tenant", tenantID, "err", err)
 		}
@@ -188,6 +213,15 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	prevPage := 0
+	if pageNum > 1 {
+		prevPage = pageNum - 1
+	}
+	nextPage := 0
+	if pageNum < totalPages {
+		nextPage = pageNum + 1
+	}
+
 	h.Engine.Render(w, "index.html", map[string]any{
 		"Collections":     collectionData,
 		"Pages":           visiblePages,
@@ -196,6 +230,10 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		"Host":            h.Config.Host,
 		"PageDescription": settings["description"],
 		"IsMember":        isMember,
+		"Page":            pageNum,
+		"TotalPages":      totalPages,
+		"PrevPage":        prevPage,
+		"NextPage":        nextPage,
 	})
 }
 
@@ -410,49 +448,68 @@ func (h *Handler) RawCollectionMarkdown(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
+type searchResult struct {
+	Title      string `json:"title"`
+	Slug       string `json:"slug"`
+	Collection string `json:"collection,omitempty"`
+	Excerpt    string `json:"excerpt,omitempty"`
+	URL        string `json:"url"`
+}
+
+func (h *Handler) SearchJSON(w http.ResponseWriter, r *http.Request) {
 	log := httplog.FromContext(r.Context())
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
 	db, tenantID, err := h.getTenantDB(r)
 	if err != nil {
 		log.Info("search: tenant not found", "host", r.Host, "err", err)
-		http.Error(w, "site not found", http.StatusNotFound)
+		http.Error(w, `{"error":"site not found"}`, http.StatusNotFound)
 		return
 	}
 
-	q := r.URL.Query().Get("q")
-	var pages []tenant.Page
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	results := []searchResult{}
 	if q != "" {
-		results, err := db.SearchPages(r.Context(), q)
+		found, err := db.SearchPages(r.Context(), q)
 		if err != nil {
 			log.Warn("search: query failed", "tenant", tenantID, "q", q, "err", err)
 		}
 		isMember := h.isTeamMember(r, tenantID)
-		// Filter search results: never include unlisted, include private only for members
-		for _, p := range results {
+		for _, p := range found {
 			switch p.Visibility {
 			case "public":
-				pages = append(pages, p)
 			case "private":
-				if isMember {
-					pages = append(pages, p)
+				if !isMember {
+					continue
 				}
-			// unlisted: never in search results
+			default:
+				continue
 			}
+			url := "/" + p.Slug
+			colSlug := ""
+			if p.CollectionID != nil && *p.CollectionID != "" {
+				col, err := db.GetCollection(r.Context(), *p.CollectionID)
+				if err == nil {
+					if col.Visibility != "public" && !(col.Visibility == "private" && isMember) {
+						continue
+					}
+					colSlug = col.Slug
+					url = "/" + col.Slug + "/" + p.Slug
+				}
+			}
+			results = append(results, searchResult{
+				Title:      p.Title,
+				Slug:       p.Slug,
+				Collection: colSlug,
+				Excerpt:    p.Excerpt,
+				URL:        url,
+			})
 		}
 	}
 
-	settings, err := db.GetSettings(r.Context())
-	if err != nil {
-		log.Warn("search: get settings", "tenant", tenantID, "err", err)
+	if err := json.NewEncoder(w).Encode(map[string]any{"results": results}); err != nil {
+		log.Warn("search: encode json", "tenant", tenantID, "err", err)
 	}
-
-	h.Engine.Render(w, "search.html", map[string]any{
-		"Query":    q,
-		"Pages":    pages,
-		"Settings": settings,
-		"TenantID": tenantID,
-		"Host":     h.Config.Host,
-	})
 }
 
 func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {

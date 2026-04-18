@@ -2,6 +2,20 @@
             <p>Powered by <a href="https://writekit.dev">WriteKit</a></p>
         </footer>
     </div>
+    <dialog id="search-modal" class="search-modal" aria-label="Search">
+        <form method="dialog" class="search-modal__form" onsubmit="return false;">
+            <div class="search-modal__input-row">
+                <svg class="search-modal__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="search" id="search-input" class="search-modal__input" placeholder="Search pages…" autocomplete="off" spellcheck="false" />
+                <button type="button" class="search-modal__close" aria-label="Close">Esc</button>
+            </div>
+            <div class="search-modal__body">
+                <ul id="search-results" class="search-modal__results"></ul>
+                <p id="search-empty" class="search-modal__empty" hidden>No results.</p>
+                <p id="search-hint" class="search-modal__hint">Start typing to search.</p>
+            </div>
+        </form>
+    </dialog>
     <script>
     (function() {
         // YouTube: click play → replace with iframe
@@ -150,6 +164,117 @@
                 applyTransform();
             }, { passive: false });
         });
+
+        // Search modal
+        var modal = document.getElementById('search-modal');
+        var trigger = document.querySelector('.search-trigger');
+        var input = document.getElementById('search-input');
+        var resultsEl = document.getElementById('search-results');
+        var emptyEl = document.getElementById('search-empty');
+        var hintEl = document.getElementById('search-hint');
+        var closeBtn = document.querySelector('.search-modal__close');
+
+        if (modal && trigger && input && resultsEl) {
+            var debounceId = null;
+            var currentReq = 0;
+
+            function escapeHtml(s) {
+                return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+                    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c];
+                });
+            }
+
+            function setQueryParam(q) {
+                var url = new URL(window.location.href);
+                if (q) url.searchParams.set('search', q);
+                else url.searchParams.delete('search');
+                window.history.replaceState(null, '', url);
+            }
+
+            function render(results) {
+                resultsEl.innerHTML = '';
+                if (!results.length) {
+                    emptyEl.hidden = false;
+                    return;
+                }
+                emptyEl.hidden = true;
+                results.forEach(function(r) {
+                    var li = document.createElement('li');
+                    li.className = 'search-modal__result';
+                    li.innerHTML = '<a href="' + escapeHtml(r.url) + '">' +
+                        '<span class="search-modal__result-title">' + escapeHtml(r.title) + '</span>' +
+                        (r.collection ? '<span class="search-modal__result-collection">' + escapeHtml(r.collection) + '</span>' : '') +
+                        (r.excerpt ? '<span class="search-modal__result-excerpt">' + escapeHtml(r.excerpt) + '</span>' : '') +
+                        '</a>';
+                    resultsEl.appendChild(li);
+                });
+            }
+
+            function runSearch(q) {
+                if (!q) {
+                    resultsEl.innerHTML = '';
+                    emptyEl.hidden = true;
+                    hintEl.hidden = false;
+                    setQueryParam('');
+                    return;
+                }
+                hintEl.hidden = true;
+                setQueryParam(q);
+                var reqId = ++currentReq;
+                fetch('/search.json?q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' } })
+                    .then(function(res) { return res.ok ? res.json() : { results: [] }; })
+                    .then(function(data) {
+                        if (reqId !== currentReq) return;
+                        render(data.results || []);
+                    })
+                    .catch(function() {
+                        if (reqId !== currentReq) return;
+                        render([]);
+                    });
+            }
+
+            function openModal() {
+                if (typeof modal.showModal === 'function') {
+                    if (!modal.open) modal.showModal();
+                } else {
+                    modal.setAttribute('open', '');
+                }
+                setTimeout(function() { input.focus(); input.select(); }, 0);
+            }
+
+            function closeModal() {
+                if (typeof modal.close === 'function' && modal.open) modal.close();
+                else modal.removeAttribute('open');
+                setQueryParam('');
+            }
+
+            trigger.addEventListener('click', function() {
+                openModal();
+                runSearch(input.value.trim());
+            });
+
+            if (closeBtn) closeBtn.addEventListener('click', closeModal);
+
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) closeModal();
+            });
+
+            modal.addEventListener('close', function() { setQueryParam(''); });
+            modal.addEventListener('cancel', function() { setQueryParam(''); });
+
+            input.addEventListener('input', function() {
+                var val = input.value.trim();
+                if (debounceId) clearTimeout(debounceId);
+                debounceId = setTimeout(function() { runSearch(val); }, 180);
+            });
+
+            var initial = new URLSearchParams(window.location.search).get('search');
+            if (initial) {
+                input.value = initial;
+                openModal();
+                runSearch(initial);
+            }
+        }
     })();
     </script>
 </body>

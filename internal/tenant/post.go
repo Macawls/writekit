@@ -182,7 +182,7 @@ func (db *DB) SearchPages(ctx context.Context, query string) ([]Page, error) {
 	rows, err := db.DB.QueryContext(ctx, `
 		SELECT p.id, p.title, p.slug, p.content, p.content_html, p.excerpt, p.status, p.visibility, p.tags, p.collection_id, p.position, p.version, p.published_at, p.created_at, p.updated_at
 		FROM pages p
-		JOIN pages_fts ON posts_fts.rowid = p.rowid
+		JOIN pages_fts ON pages_fts.rowid = p.rowid
 		WHERE pages_fts MATCH ?
 		ORDER BY rank
 		LIMIT 20
@@ -201,6 +201,20 @@ func (db *DB) SearchPages(ctx context.Context, query string) ([]Page, error) {
 		pages = append(pages, *p)
 	}
 	return pages, nil
+}
+
+func (db *DB) CountStandalonePages(ctx context.Context, status string) (int, error) {
+	var count int
+	query := "SELECT COUNT(*) FROM pages WHERE collection_id IS NULL"
+	args := []any{}
+	if status != "" {
+		query += " AND status = ?"
+		args = append(args, status)
+	}
+	if err := db.DB.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count standalone pages: %w", err)
+	}
+	return count, nil
 }
 
 func (db *DB) CountPages(ctx context.Context, status string) (int, error) {
