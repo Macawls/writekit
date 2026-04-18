@@ -1,4 +1,13 @@
-import { forceSimulation, forceManyBody, forceLink, forceCenter, forceCollide, type Simulation } from 'd3-force'
+import {
+  forceSimulation,
+  forceManyBody,
+  forceLink,
+  forceCollide,
+  forceX,
+  forceY,
+  forceZ,
+  type Simulation,
+} from 'd3-force-3d'
 import type { GraphEdge, GraphNode } from './types'
 
 export interface SimNode {
@@ -6,10 +15,13 @@ export interface SimNode {
   data: GraphNode
   x: number
   y: number
+  z: number
   vx: number
   vy: number
+  vz: number
   fx?: number | null
   fy?: number | null
+  fz?: number | null
 }
 
 export interface SimLink {
@@ -18,14 +30,22 @@ export interface SimLink {
   weight: number
 }
 
-export function buildSimulation(nodes: GraphNode[], edges: GraphEdge[]) {
+const GRAVITY = 0.12
+const REPEL = -400
+const LINK_DIST = 180
+const LINK_STRENGTH = 0.45
+const COLLIDE_RADIUS = 14
+
+export function buildSimulation(nodes: GraphNode[], edges: GraphEdge[], mode: '2d' | '3d' = '2d') {
   const simNodes: SimNode[] = nodes.map(n => ({
     id: n.id,
     data: n,
     x: (Math.random() - 0.5) * 200,
     y: (Math.random() - 0.5) * 200,
+    z: mode === '3d' ? (Math.random() - 0.5) * 200 : 0,
     vx: 0,
     vy: 0,
+    vz: 0,
   }))
 
   const simLinks: SimLink[] = edges.map(e => ({
@@ -34,15 +54,20 @@ export function buildSimulation(nodes: GraphNode[], edges: GraphEdge[]) {
     weight: e.weight,
   }))
 
-  const sim: Simulation<SimNode, SimLink> = forceSimulation(simNodes)
-    .force('charge', forceManyBody<SimNode>().strength(-120))
+  const sim: Simulation<SimNode, SimLink> = forceSimulation(simNodes, mode === '3d' ? 3 : 2)
+    .force('charge', forceManyBody<SimNode>().strength(REPEL))
     .force('link', forceLink<SimNode, SimLink>(simLinks)
       .id(d => d.id)
-      .distance(l => 60 / Math.max(0.35, l.weight))
-      .strength(l => Math.min(1, l.weight)))
-    .force('center', forceCenter(0, 0))
-    .force('collide', forceCollide<SimNode>().radius(14))
+      .distance(l => LINK_DIST / Math.max(0.35, l.weight))
+      .strength(l => LINK_STRENGTH * Math.min(1, l.weight)))
+    .force('x', forceX<SimNode>(0).strength(GRAVITY))
+    .force('y', forceY<SimNode>(0).strength(GRAVITY))
+    .force('collide', forceCollide<SimNode>().radius(COLLIDE_RADIUS))
     .alphaDecay(0.02)
+
+  if (mode === '3d') {
+    sim.force('z', forceZ<SimNode>(0).strength(GRAVITY))
+  }
 
   return { sim, simNodes, simLinks }
 }

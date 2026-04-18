@@ -1,153 +1,92 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { fetchGraph } from '../api/graph'
-import type { GraphResponse, GraphNode, GraphEdge, Visibility } from '../graph/types'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { useStore } from '@nanostores/react'
+import type { GraphNode, Visibility } from '../graph/types'
 import { GraphRenderer } from '../graph/renderer'
-import { computeInsights, type GraphInsights } from '../graph/insights'
+import type { GraphInsights } from '../graph/insights'
+import {
+  $graphData, $loading, $error, $focused, $hoverId,
+  $excludedVis, $excludedCols, $view3D,
+  $visibleData, $hiddenNodeIds, $neighborIndex, $insights,
+  loadGraph, stopGraphPolling, toggleVis, toggleCol,
+  focusNode, setHover, toggleView3D,
+  STANDALONE_KEY,
+  type RelatedEntry,
+} from '../stores/graph'
 
-const STANDALONE_KEY = '__standalone__'
 const ALL_VISIBILITIES: Visibility[] = ['public', 'unlisted', 'private']
-
-const BACKFILL_POLL_MS = 5000
 const ZOOM_IN = 1.3
 const ZOOM_OUT = 1 / 1.3
 const RELATED_LIMIT = 8
 
-interface RelatedEntry {
-  node: GraphNode
-  weight: number
-}
-
-function buildNeighborIndex(data: GraphResponse): Map<string, RelatedEntry[]> {
-  const byId = new Map<string, GraphNode>()
-  for (const n of data.nodes) byId.set(n.id, n)
-  const index = new Map<string, RelatedEntry[]>()
-  const push = (from: string, to: string, w: number) => {
-    const target = byId.get(to)
-    if (!target) return
-    let list = index.get(from)
-    if (!list) { list = []; index.set(from, list) }
-    list.push({ node: target, weight: w })
-  }
-  for (const e of data.edges) {
-    push(e.source, e.target, e.weight)
-    push(e.target, e.source, e.weight)
-  }
-  for (const list of index.values()) list.sort((a, b) => b.weight - a.weight)
-  return index
-}
-
 export default function Graph() {
   const hostRef = useRef<HTMLDivElement>(null)
-  const [data, setData] = useState<GraphResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [focused, setFocused] = useState<GraphNode | null>(null)
-  const [hoverId, setHoverId] = useState<string | null>(null)
-
   const rendererRef = useRef<GraphRenderer | null>(null)
-  const nodeCountRef = useRef(0)
 
-  const [excludedVis, setExcludedVis] = useState<Set<Visibility>>(new Set())
-  const [excludedCols, setExcludedCols] = useState<Set<string>>(new Set())
-
-  const visibleData = useMemo<GraphResponse | null>(() => {
-    if (!data) return null
-    const visibleNodes = data.nodes.filter(n =>
-      !excludedVis.has(n.visibility) &&
-      !excludedCols.has(n.collection_id ?? STANDALONE_KEY))
-    const visibleIds = new Set(visibleNodes.map(n => n.id))
-    const visibleEdges: GraphEdge[] = data.edges.filter(e =>
-      visibleIds.has(e.source) && visibleIds.has(e.target))
-    return { ...data, nodes: visibleNodes, edges: visibleEdges }
-  }, [data, excludedVis, excludedCols])
-
-  const hiddenNodeIds = useMemo<Set<string>>(() => {
-    if (!data || !visibleData) return new Set()
-    const visible = new Set(visibleData.nodes.map(n => n.id))
-    const hidden = new Set<string>()
-    for (const n of data.nodes) if (!visible.has(n.id)) hidden.add(n.id)
-    return hidden
-  }, [data, visibleData])
-
-  const neighborIndex = useMemo(() => visibleData ? buildNeighborIndex(visibleData) : new Map<string, RelatedEntry[]>(), [visibleData])
-  const insights = useMemo(() => visibleData ? computeInsights(visibleData) : null, [visibleData])
+  const data = useStore($graphData)
+  const loading = useStore($loading)
+  const error = useStore($error)
+  const focused = useStore($focused)
+  const hoverId = useStore($hoverId)
+  const excludedVis = useStore($excludedVis)
+  const excludedCols = useStore($excludedCols)
+  const view3D = useStore($view3D)
+  const visibleData = useStore($visibleData)
+  const hiddenNodeIds = useStore($hiddenNodeIds)
+  const neighborIndex = useStore($neighborIndex)
+  const insights = useStore($insights)
 
   useEffect(() => {
-    let cancelled = false
-    let timer: ReturnType<typeof setTimeout> | undefined
-
-    const load = async () => {
-      try {
-        const d = await fetchGraph()
-        if (cancelled) return
-        setData(d)
-        setLoading(false)
-        if (d.model && d.embedded_count < d.total_page_count) {
-          timer = setTimeout(load, BACKFILL_POLL_MS)
-        }
-      } catch (e: unknown) {
-        if (cancelled) return
-        setError(e instanceof Error ? e.message : 'failed to load')
-        setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
-      if (timer) clearTimeout(timer)
-    }
+    loadGraph()
+    return () => stopGraphPolling()
   }, [])
 
   useEffect(() => {
     if (!data || !hostRef.current) return
     if (data.nodes.length === 0) return
 
-    const handleNodeClick = (node: GraphNode) => {
-      setFocused(node)
-      rendererRef.current?.setFocusedNode(node.id)
+    if (!rendererRef.current) {
+      rendererRef.current = new GraphRenderer(
+        hostRef.current,
+        data.nodes,
+        data.edges,
+        {
+          onNodeClick: (n) => focusNode(n),
+          onBackgroundClick: () => focusNode(null),
+        },
+        view3D ? '3d' : '2d',
+      )
+    } else {
+      rendererRef.current.setGraph(
+        visibleData?.nodes ?? data.nodes,
+        visibleData?.edges ?? data.edges,
+      )
     }
-    const handleBackgroundClick = () => {
-      setFocused(null)
-      rendererRef.current?.setFocusedNode(null)
-    }
-
-    if (rendererRef.current && nodeCountRef.current === data.nodes.length) {
-      rendererRef.current.setEdges(visibleData?.edges ?? data.edges)
-      return
-    }
-
-    if (rendererRef.current) rendererRef.current.dispose()
-    rendererRef.current = new GraphRenderer(
-      hostRef.current,
-      data.nodes,
-      data.edges,
-      { onNodeClick: handleNodeClick, onBackgroundClick: handleBackgroundClick },
-    )
-    nodeCountRef.current = data.nodes.length
-  }, [data])
+  }, [data, visibleData])
 
   useEffect(() => {
-    if (!rendererRef.current || !visibleData) return
+    if (!rendererRef.current) return
     rendererRef.current.setHiddenNodes(hiddenNodeIds)
-    rendererRef.current.setEdges(visibleData.edges)
-    if (focused && hiddenNodeIds.has(focused.id)) {
-      setFocused(null)
-      rendererRef.current.setFocusedNode(null)
-    }
-  }, [hiddenNodeIds, visibleData, focused])
+    if (focused && hiddenNodeIds.has(focused.id)) focusNode(null)
+  }, [hiddenNodeIds, focused])
 
   useEffect(() => {
-    return () => {
-      if (rendererRef.current) {
-        rendererRef.current.dispose()
-        rendererRef.current = null
-      }
-    }
-  }, [])
+    rendererRef.current?.setFocusedNode(focused?.id ?? null)
+  }, [focused])
 
   useEffect(() => {
     rendererRef.current?.setHoverHighlight(hoverId)
   }, [hoverId])
+
+  useEffect(() => {
+    rendererRef.current?.setMode(view3D ? '3d' : '2d')
+  }, [view3D])
+
+  useEffect(() => () => {
+    if (rendererRef.current) {
+      rendererRef.current.dispose()
+      rendererRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -156,21 +95,10 @@ export default function Graph() {
       const r = rendererRef.current
       if (!r) return
       switch (e.key) {
-        case 'Escape':
-          setFocused(null)
-          r.setFocusedNode(null)
-          break
-        case '0':
-          r.fit()
-          break
-        case '+':
-        case '=':
-          r.zoomBy(ZOOM_IN)
-          break
-        case '-':
-        case '_':
-          r.zoomBy(ZOOM_OUT)
-          break
+        case 'Escape': focusNode(null); break
+        case '0': r.fit(); break
+        case '+': case '=': r.zoomBy(ZOOM_IN); break
+        case '-': case '_': r.zoomBy(ZOOM_OUT); break
       }
     }
     window.addEventListener('keydown', onKey)
@@ -180,11 +108,9 @@ export default function Graph() {
   if (loading) {
     return <div className="centered"><p className="muted">Loading graph…</p></div>
   }
-
   if (error) {
     return <div className="centered"><p className="error">{error}</p></div>
   }
-
   if (!data || data.nodes.length === 0) {
     return (
       <div className="centered">
@@ -200,16 +126,8 @@ export default function Graph() {
   const zoomIn = () => rendererRef.current?.zoomBy(ZOOM_IN)
   const zoomOut = () => rendererRef.current?.zoomBy(ZOOM_OUT)
   const fit = () => rendererRef.current?.fit()
-  const clearFocus = () => {
-    setFocused(null)
-    rendererRef.current?.setFocusedNode(null)
-  }
   const openFocused = () => {
     if (focused?.url) window.open(focused.url, '_blank', 'noopener,noreferrer')
-  }
-  const focusNode = (node: GraphNode) => {
-    setFocused(node)
-    rendererRef.current?.setFocusedNode(node.id)
   }
 
   return (
@@ -221,8 +139,6 @@ export default function Graph() {
         nodes={data.nodes}
         excludedVis={excludedVis}
         excludedCols={excludedCols}
-        onToggleVis={(v) => setExcludedVis(prev => toggle(prev, v))}
-        onToggleCol={(id) => setExcludedCols(prev => toggle(prev, id))}
       />
 
       <div className="graph-stats">
@@ -238,12 +154,24 @@ export default function Graph() {
       </div>
 
       <div className="graph-toolbar">
-        <button onClick={zoomIn} title="Zoom in (+)" aria-label="Zoom in">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+        <button
+          className={view3D ? 'is-active' : ''}
+          onClick={toggleView3D}
+          title={view3D ? 'Switch to 2D' : 'Switch to 3D'}
+          aria-label="Toggle 2D/3D"
+        >
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.02em' }}>{view3D ? '3D' : '2D'}</span>
         </button>
-        <button onClick={zoomOut} title="Zoom out (−)" aria-label="Zoom out">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
-        </button>
+        {!view3D && (
+          <>
+            <button onClick={zoomIn} title="Zoom in (+)" aria-label="Zoom in">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </button>
+            <button onClick={zoomOut} title="Zoom out (−)" aria-label="Zoom out">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </button>
+          </>
+        )}
         <button onClick={fit} title="Fit to screen (0)" aria-label="Fit to screen">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9V5a2 2 0 012-2h4M21 9V5a2 2 0 00-2-2h-4M3 15v4a2 2 0 002 2h4M21 15v4a2 2 0 01-2 2h-4" /></svg>
         </button>
@@ -254,30 +182,22 @@ export default function Graph() {
           <NodeDetail
             node={focused}
             related={neighborIndex.get(focused.id) ?? []}
-            onClose={clearFocus}
+            onClose={() => focusNode(null)}
             onOpen={openFocused}
-            onSelectRelated={focusNode}
-            onHoverRelated={setHoverId}
           />
         ) : insights ? (
-          <InsightsView
-            insights={insights}
-            onSelect={focusNode}
-            onHover={setHoverId}
-          />
+          <InsightsView insights={insights} />
         ) : null}
       </div>
     </div>
   )
 }
 
-function NodeDetail({ node, related, onClose, onOpen, onSelectRelated, onHoverRelated }: {
+function NodeDetail({ node, related, onClose, onOpen }: {
   node: GraphNode
   related: RelatedEntry[]
   onClose: () => void
   onOpen: () => void
-  onSelectRelated: (node: GraphNode) => void
-  onHoverRelated: (id: string | null) => void
 }) {
   const host = node.url ? new URL(node.url).host : ''
   const path = node.url ? new URL(node.url).pathname : ''
@@ -308,9 +228,9 @@ function NodeDetail({ node, related, onClose, onOpen, onSelectRelated, onHoverRe
               <li key={r.node.id}>
                 <button
                   className="graph-panel-item"
-                  onClick={() => onSelectRelated(r.node)}
-                  onMouseEnter={() => onHoverRelated(r.node.id)}
-                  onMouseLeave={() => onHoverRelated(null)}
+                  onClick={() => focusNode(r.node)}
+                  onMouseEnter={() => setHover(r.node.id)}
+                  onMouseLeave={() => setHover(null)}
                   title={`Cosine similarity ${r.weight.toFixed(3)}`}
                 >
                   <span className="graph-panel-bar" style={{ width: `${Math.round(r.weight * 100)}%` }} />
@@ -335,11 +255,7 @@ function NodeDetail({ node, related, onClose, onOpen, onSelectRelated, onHoverRe
   )
 }
 
-function InsightsView({ insights, onSelect, onHover }: {
-  insights: GraphInsights
-  onSelect: (node: GraphNode) => void
-  onHover: (id: string | null) => void
-}) {
+function InsightsView({ insights }: { insights: GraphInsights }) {
   const hasContent = insights.anchors.length > 0 || insights.orphans.length > 0
   return (
     <div className="graph-panel-inner">
@@ -354,9 +270,9 @@ function InsightsView({ insights, onSelect, onHover }: {
               <li key={a.node.id}>
                 <button
                   className="graph-panel-item"
-                  onClick={() => onSelect(a.node)}
-                  onMouseEnter={() => onHover(a.node.id)}
-                  onMouseLeave={() => onHover(null)}
+                  onClick={() => focusNode(a.node)}
+                  onMouseEnter={() => setHover(a.node.id)}
+                  onMouseLeave={() => setHover(null)}
                 >
                   <VisibilityDot node={a.node} />
                   <span className="graph-panel-item-title">{a.node.title || a.node.slug}</span>
@@ -376,9 +292,9 @@ function InsightsView({ insights, onSelect, onHover }: {
               <li key={n.id}>
                 <button
                   className="graph-panel-item"
-                  onClick={() => onSelect(n)}
-                  onMouseEnter={() => onHover(n.id)}
-                  onMouseLeave={() => onHover(null)}
+                  onClick={() => focusNode(n)}
+                  onMouseEnter={() => setHover(n.id)}
+                  onMouseLeave={() => setHover(null)}
                 >
                   <VisibilityDot node={n} />
                   <span className="graph-panel-item-title">{n.title || n.slug}</span>
@@ -401,34 +317,20 @@ function InsightsView({ insights, onSelect, onHover }: {
   )
 }
 
-function toggle<T>(set: Set<T>, value: T): Set<T> {
-  const next = new Set(set)
-  if (next.has(value)) next.delete(value)
-  else next.add(value)
-  return next
-}
-
-function FilterBar({ collections, nodes, excludedVis, excludedCols, onToggleVis, onToggleCol }: {
+function FilterBar({ collections, nodes, excludedVis, excludedCols }: {
   collections: { id: string; title: string }[]
   nodes: GraphNode[]
   excludedVis: Set<Visibility>
   excludedCols: Set<string>
-  onToggleVis: (v: Visibility) => void
-  onToggleCol: (id: string) => void
 }) {
-  const visCounts = useMemo(() => {
-    const c: Record<Visibility, number> = { public: 0, unlisted: 0, private: 0 }
-    for (const n of nodes) c[n.visibility]++
-    return c
-  }, [nodes])
-  const colCounts = useMemo(() => {
-    const c = new Map<string, number>()
-    for (const n of nodes) {
-      const key = n.collection_id ?? STANDALONE_KEY
-      c.set(key, (c.get(key) ?? 0) + 1)
-    }
-    return c
-  }, [nodes])
+  const visCounts: Record<Visibility, number> = { public: 0, unlisted: 0, private: 0 }
+  for (const n of nodes) visCounts[n.visibility]++
+
+  const colCounts = new Map<string, number>()
+  for (const n of nodes) {
+    const key = n.collection_id ?? STANDALONE_KEY
+    colCounts.set(key, (colCounts.get(key) ?? 0) + 1)
+  }
 
   const visibleVisibilities = ALL_VISIBILITIES.filter(v => visCounts[v] > 0)
   const standaloneCount = colCounts.get(STANDALONE_KEY) ?? 0
@@ -445,19 +347,16 @@ function FilterBar({ collections, nodes, excludedVis, excludedCols, onToggleVis,
         <div className="graph-filters-row">
           <span className="graph-filters-label">Visibility</span>
           <TokenRow>
-            {visibleVisibilities.map((v, i) => {
-              const active = !excludedVis.has(v)
-              return (
-                <FilterToken
-                  key={v}
-                  active={active}
-                  onClick={() => onToggleVis(v)}
-                  label={v}
-                  count={visCounts[v]}
-                  first={i === 0}
-                />
-              )
-            })}
+            {visibleVisibilities.map((v, i) => (
+              <FilterToken
+                key={v}
+                active={!excludedVis.has(v)}
+                onClick={() => toggleVis(v)}
+                label={v}
+                count={visCounts[v]}
+                first={i === 0}
+              />
+            ))}
           </TokenRow>
         </div>
       )}
@@ -469,7 +368,7 @@ function FilterBar({ collections, nodes, excludedVis, excludedCols, onToggleVis,
             {showStandalone && (
               <FilterToken
                 active={!excludedCols.has(STANDALONE_KEY)}
-                onClick={() => onToggleCol(STANDALONE_KEY)}
+                onClick={() => toggleCol(STANDALONE_KEY)}
                 label="Standalone"
                 count={standaloneCount}
                 first={true}
@@ -479,7 +378,7 @@ function FilterBar({ collections, nodes, excludedVis, excludedCols, onToggleVis,
               <FilterToken
                 key={c.id}
                 active={!excludedCols.has(c.id)}
-                onClick={() => onToggleCol(c.id)}
+                onClick={() => toggleCol(c.id)}
                 label={c.title}
                 count={c.count}
                 first={!showStandalone && i === 0}

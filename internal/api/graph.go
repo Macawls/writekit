@@ -17,8 +17,8 @@ import (
 
 const (
 	graphMaxPages            = 10000
-	graphTopKNeighbors       = 4
-	graphMinSimilarity       = 0.35
+	graphTopKNeighbors       = 6
+	graphMinSimilarity       = 0.22
 	graphBackfillMinInterval = 10 * time.Second
 )
 
