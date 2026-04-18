@@ -21,15 +21,15 @@ jobs:
         include:
           - os: windows-latest
             platform: windows/amd64
-            suffix: windows-amd64.exe
+            artifact: WriteKit-Windows-x64.exe
             tags: ""
           - os: macos-latest
             platform: darwin/universal
-            suffix: darwin-universal.app.zip
+            artifact: WriteKit-macOS-universal.zip
             tags: ""
           - os: ubuntu-latest
             platform: linux/amd64
-            suffix: linux-amd64
+            artifact: WriteKit-Linux-x64
             tags: "webkit2_41"
 
     runs-on: ${{ matrix.os }}
@@ -61,18 +61,26 @@ jobs:
         working-directory: desktop
         run: wails build -platform ${{ matrix.platform }} -clean ${{ matrix.tags && format('-tags {0}', matrix.tags) || '' }}
 
+      - name: Package Windows
+        if: matrix.os == 'windows-latest'
+        working-directory: desktop/build/bin
+        run: Rename-Item WriteKit.exe ${{ matrix.artifact }}
+        shell: pwsh
+
       - name: Package macOS
         if: matrix.os == 'macos-latest'
         working-directory: desktop/build/bin
-        run: zip -r WriteKit-${{ matrix.suffix }} WriteKit.app
+        run: zip -r ${{ matrix.artifact }} WriteKit.app
+
+      - name: Package Linux
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: desktop/build/bin
+        run: mv WriteKit ${{ matrix.artifact }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: writekit-${{ matrix.suffix }}
-          path: |
-            desktop/build/bin/*.exe
-            desktop/build/bin/*.zip
-            desktop/build/bin/WriteKit
+          name: ${{ matrix.artifact }}
+          path: desktop/build/bin/${{ matrix.artifact }}
           if-no-files-found: error
 
   release:

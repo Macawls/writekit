@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download WriteKit</title>
+    <meta name="description" content="Download WriteKit for macOS, Windows, or Linux. Local-first publishing with a built-in MCP server.">
+    <link rel="canonical" href="https://writekit.dev/download">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Download WriteKit">
+    <meta property="og:description" content="Local-first publishing with a built-in MCP server. Runs entirely on your machine — no account required.">
+    <meta property="og:url" content="https://writekit.dev/download">
+    <meta property="og:site_name" content="WriteKit">
+    <meta property="og:image" content="https://writekit.dev/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://writekit.dev/og.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --bg:#fafafa;--fg:#0f0f0f;--muted:#71717a;--faint:#a1a1aa;
+            --border:#e4e4e7;--border2:#d4d4d8;--surface:#18181b;--white:#fff;
+            --sans:'Plus Jakarta Sans',system-ui,sans-serif;
+            --mono:'JetBrains Mono',ui-monospace,monospace;
+        }
+        html,body{min-height:100%}
+        body{
+            font-family:var(--sans);background:var(--bg);color:var(--fg);
+            -webkit-font-smoothing:antialiased;
+            display:flex;flex-direction:column;min-height:100vh;
+        }
+        body::before{
+            content:'';position:fixed;inset:0;
+            background-image:radial-gradient(circle,var(--border) .5px,transparent .5px);
+            background-size:24px 24px;opacity:.3;pointer-events:none;z-index:0;
+        }
+        main{
+            flex:1;position:relative;z-index:1;
+            max-width:720px;width:100%;margin:0 auto;padding:2.5rem 2rem 4rem;
+        }
+        .hero{text-align:center;margin-bottom:2.5rem}
+        .hero h1{
+            font-size:1.8rem;font-weight:700;letter-spacing:-.03em;
+            line-height:1.15;margin-bottom:.5rem;
+        }
+        .hero p{font-size:.92rem;color:var(--muted);line-height:1.5;max-width:460px;margin:0 auto}
+
+        .downloads{display:flex;flex-direction:column;gap:.6rem}
+        .dl{
+            display:flex;align-items:center;gap:1rem;
+            padding:1rem 1.1rem;
+            background:var(--white);border:1px solid var(--border);border-radius:10px;
+            text-decoration:none;color:inherit;
+            transition:border-color .15s, box-shadow .15s, transform .05s;
+        }
+        .dl:hover{border-color:var(--border2);box-shadow:0 1px 2px rgba(0,0,0,.02),0 8px 24px rgba(0,0,0,.04)}
+        .dl:active{transform:translateY(1px)}
+        .dl.recommended{
+            border-color:var(--surface);
+            box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06);
+        }
+        .dl-icon{
+            width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+            color:var(--fg);
+        }
+        .dl-body{flex:1;min-width:0}
+        .dl-os{font-size:.95rem;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:.5rem}
+        .dl-os .tag{
+            font-family:var(--mono);font-size:.55rem;font-weight:500;letter-spacing:.05em;
+            color:var(--white);background:var(--surface);
+            padding:.15rem .4rem;border-radius:4px;text-transform:uppercase;
+        }
+        .dl-meta{font-size:.72rem;color:var(--muted);font-family:var(--mono);margin-top:.2rem}
+        .dl-arrow{color:var(--faint);flex-shrink:0}
+        .dl:hover .dl-arrow{color:var(--fg)}
+
+        .note{
+            margin-top:2rem;padding:1rem 1.15rem;font-size:.78rem;color:var(--muted);
+            line-height:1.55;background:var(--white);
+            border:1px solid var(--border);border-radius:10px;
+        }
+        .note code{
+            font-family:var(--mono);font-size:.72rem;color:var(--fg);
+            background:var(--bg);padding:.12rem .35rem;border-radius:4px;
+            border:1px solid var(--border);
+        }
+        .note a{color:var(--fg);text-decoration:underline;text-underline-offset:2px}
+
+        .foot{text-align:center;margin-top:2rem;font-size:.72rem;color:var(--faint)}
+        .foot a{color:var(--muted);text-decoration:none;margin:0 .5rem}
+        .foot a:hover{color:var(--fg)}
+
+        @media(max-width:600px){
+            main{padding:1.5rem 1.25rem 3rem}
+            .hero h1{font-size:1.5rem}
+            .dl{padding:.85rem .95rem;gap:.75rem}
+            .dl-icon{width:30px;height:30px}
+        }
+    </style>
+</head>
+<body>
+
+{{template "partials/nav.html" .}}
+
+<main>
+    <div class="hero">
+        <h1>Download WriteKit</h1>
+        <p>Local-first publishing with a built-in MCP server. No account, no cloud — everything lives on your machine.</p>
+    </div>
+
+    <div class="downloads" id="downloads">
+        <a class="dl" data-os="macos" href="https://github.com/Macawls/writekit/releases/latest/download/WriteKit-macOS-universal.zip">
+            <div class="dl-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+            </div>
+            <div class="dl-body">
+                <div class="dl-os">macOS <span class="tag" data-badge="macos" style="display:none">Recommended</span></div>
+                <div class="dl-meta">Universal binary — Apple Silicon &amp; Intel</div>
+            </div>
+            <svg class="dl-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+        </a>
+
+        <a class="dl" data-os="windows" href="https://github.com/Macawls/writekit/releases/latest/download/WriteKit-Windows-x64.exe">
+            <div class="dl-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.557 10.442 4.55v7.18H3V5.557zm0 12.886L10.442 19.45v-7.179H3v6.172zm8.258 1.102L21 20.887v-8.657h-9.742v7.315zm0-16 9.742-1.645v8.646h-9.742V3.545z"/></svg>
+            </div>
+            <div class="dl-body">
+                <div class="dl-os">Windows <span class="tag" data-badge="windows" style="display:none">Recommended</span></div>
+                <div class="dl-meta">64-bit installer</div>
+            </div>
+            <svg class="dl-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+        </a>
+
+        <a class="dl" data-os="linux" href="https://github.com/Macawls/writekit/releases/latest/download/WriteKit-Linux-x64">
+            <div class="dl-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.988.988 0 0 0-.413.372c-.347.529-.308 1.259-.313 1.959-.016.777.068 1.566-.295 2.354-.072.156-.081.349-.019.524.094.269.306.467.544.6.515.325 1.213.51 1.92.605.766.104 1.55.108 2.06.116.423.008.888.033 1.312-.018 1.242-.069 2.426-.468 3.607-.848.974-.314 1.913-.612 2.726-.647a4.49 4.49 0 0 1 .847.068l.063.013c.167.035.294.058.398.082.176.07.283.2.386.38.131.208.238.473.411.687.176.203.416.334.77.345.018 0 .06.01.146.01.285 0 .68-.074 1.13-.192.562-.141 1.197-.326 1.693-.436.463-.097.844-.17 1.118-.215.307-.05.521-.067.679-.045.15.021.245.07.312.125.062.064.095.141.115.206.02.067.05.126.103.19.107.13.305.193.43.207.133.016.26-.01.359-.05a.76.76 0 0 0 .3-.23c.067-.086.121-.188.149-.3.05-.216.025-.453-.055-.693-.08-.243-.204-.516-.348-.808-.28-.565-.64-1.2-.893-1.87-.178-.472-.254-1.067-.297-1.617a25.11 25.11 0 0 1-.069-1.617c-.02-1.018-.02-2.041-.014-3.078.043-.864.21-1.71.436-2.555a5.63 5.63 0 0 0-.016-.1c-.037-.263-.217-.65-.4-1.02-.187-.376-.376-.742-.52-1.05a6.73 6.73 0 0 1-.388-1.097c-.08-.343-.107-.744-.107-1.202 0-1.125-.11-2.164-.47-3.136-.36-.972-.92-1.88-1.808-2.643C14.785.445 13.626 0 12.503 0z"/></svg>
+            </div>
+            <div class="dl-body">
+                <div class="dl-os">Linux <span class="tag" data-badge="linux" style="display:none">Recommended</span></div>
+                <div class="dl-meta">64-bit binary — mark executable, run</div>
+            </div>
+            <svg class="dl-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+        </a>
+    </div>
+
+    <div class="note">
+        <strong>After install:</strong> WriteKit opens a window and runs a local MCP server on <code>127.0.0.1</code>. Point any MCP client at <code>http://127.0.0.1:&lt;port&gt;/mcp</code> — the port is written to your OS config dir. On first run you may see SmartScreen (Windows) or Gatekeeper (macOS) warnings because the binaries aren't code-signed yet.
+        <br><br>
+        Want the hosted version instead? <a href="/">Connect at writekit.dev</a>.
+    </div>
+
+    <div class="foot">
+        <a href="https://github.com/Macawls/writekit/releases">All releases</a>
+        ·
+        <a href="https://github.com/Macawls/writekit">Source</a>
+    </div>
+</main>
+
+<script>
+(function(){
+    var ua = navigator.userAgent.toLowerCase();
+    var platform = (navigator.platform || '').toLowerCase();
+    var os = null;
+    if (/mac|iphone|ipad/.test(platform) || /mac os x/.test(ua)) os = 'macos';
+    else if (/win/.test(platform) || /windows/.test(ua)) os = 'windows';
+    else if (/linux|x11/.test(platform) || /linux/.test(ua)) os = 'linux';
+
+    if (!os) return;
+    var container = document.getElementById('downloads');
+    var match = container.querySelector('.dl[data-os="' + os + '"]');
+    if (match) {
+        match.classList.add('recommended');
+        container.insertBefore(match, container.firstChild);
+        var badge = match.querySelector('[data-badge="' + os + '"]');
+        if (badge) badge.style.display = 'inline-block';
+    }
+})();
+</script>
+</body>
+</html>
