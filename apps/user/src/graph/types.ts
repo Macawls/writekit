@@ -16,9 +16,16 @@ export interface GraphEdge {
   weight: number
 }
 
+export interface GraphCollection {
+  id: string
+  slug: string
+  title: string
+}
+
 export interface GraphResponse {
   nodes: GraphNode[]
   edges: GraphEdge[]
+  collections: GraphCollection[]
   model: string
   embedded_count: number
   total_page_count: number

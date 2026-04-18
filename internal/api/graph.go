@@ -43,12 +43,19 @@ type graphEdge struct {
 	Weight float32 `json:"weight"`
 }
 
+type graphCollection struct {
+	ID    string `json:"id"`
+	Slug  string `json:"slug"`
+	Title string `json:"title"`
+}
+
 type graphResponse struct {
-	Nodes           []graphNode `json:"nodes"`
-	Edges           []graphEdge `json:"edges"`
-	Model           string      `json:"model"`
-	EmbeddedCount   int         `json:"embedded_count"`
-	TotalPageCount  int         `json:"total_page_count"`
+	Nodes          []graphNode       `json:"nodes"`
+	Edges          []graphEdge       `json:"edges"`
+	Collections    []graphCollection `json:"collections"`
+	Model          string            `json:"model"`
+	EmbeddedCount  int               `json:"embedded_count"`
+	TotalPageCount int               `json:"total_page_count"`
 }
 
 func (h *Handler) Graph(w http.ResponseWriter, r *http.Request) {
@@ -89,9 +96,19 @@ func (h *Handler) Graph(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	collections, err := db.ListCollections(r.Context())
+	if err != nil {
+		log.Warn("graph: list collections", "tenant", site.ID, "err", err)
+	}
+	graphCollections := make([]graphCollection, 0, len(collections))
+	for _, c := range collections {
+		graphCollections = append(graphCollections, graphCollection{ID: c.ID, Slug: c.Slug, Title: c.Title})
+	}
+
 	resp := graphResponse{
 		Nodes:          nodes,
 		Edges:          []graphEdge{},
+		Collections:    graphCollections,
 		TotalPageCount: len(nodes),
 	}
 

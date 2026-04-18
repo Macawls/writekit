@@ -89,6 +89,7 @@ export class GraphRenderer {
   private hoveredIndex = -1
   private externalHoverIndex = -1
   private focusedIndex = -1
+  private hiddenNodes: Set<number> = new Set()
   private callbacks: Callbacks
 
   private dummy = new Object3D()
@@ -297,13 +298,14 @@ export class GraphRenderer {
   private applySimToScene() {
     for (let i = 0; i < this.simNodes.length; i++) {
       const n = this.simNodes[i]
-      const scale = this.nodeScale(i)
+      const hidden = this.hiddenNodes.has(i)
+      const scale = hidden ? 0.0001 : this.nodeScale(i)
       this.dummy.position.set(n.x, n.y, 0)
       this.dummy.scale.set(scale, scale, 1)
       this.dummy.updateMatrix()
       this.nodeMesh.setMatrixAt(i, this.dummy.matrix)
 
-      if (i === this.focusedIndex || i === this.externalHoverIndex) {
+      if (!hidden && (i === this.focusedIndex || i === this.externalHoverIndex)) {
         this.dummy.scale.set(scale * GLOW_SCALE, scale * GLOW_SCALE, 1)
         this.dummy.updateMatrix()
       } else {
@@ -312,6 +314,8 @@ export class GraphRenderer {
       }
       this.glowMesh.setMatrixAt(i, this.dummy.matrix)
 
+      const label = this.labels[i].element as HTMLElement
+      label.style.display = hidden ? 'none' : ''
       this.labelAnchors[i].position.set(n.x, n.y, 0)
     }
     this.nodeMesh.instanceMatrix.needsUpdate = true
@@ -516,6 +520,7 @@ export class GraphRenderer {
     let best = -1
     let bestDist = Infinity
     for (let i = 0; i < this.simNodes.length; i++) {
+      if (this.hiddenNodes.has(i)) continue
       const n = this.simNodes[i]
       const dx = n.x - origin.x
       const dy = n.y - origin.y
@@ -537,6 +542,16 @@ export class GraphRenderer {
     this.applyEdgeFocus()
     this.applySimToScene()
     if (next >= 0) this.sim.alpha(0.25).restart()
+  }
+
+  setHiddenNodes(ids: Set<string>) {
+    const next = new Set<number>()
+    ids.forEach(id => {
+      const idx = this.idToIndex.get(id)
+      if (idx !== undefined) next.add(idx)
+    })
+    this.hiddenNodes = next
+    this.applySimToScene()
   }
 
   setHoverHighlight(id: string | null) {

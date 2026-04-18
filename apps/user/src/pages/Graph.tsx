@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchGraph } from '../api/graph'
-import type { GraphResponse, GraphNode } from '../graph/types'
+import type { GraphResponse, GraphNode, GraphEdge, Visibility } from '../graph/types'
 import { GraphRenderer } from '../graph/renderer'
 import { computeInsights, type GraphInsights } from '../graph/insights'
+
+const STANDALONE_KEY = '__standalone__'
+const ALL_VISIBILITIES: Visibility[] = ['public', 'unlisted', 'private']
 
 const BACKFILL_POLL_MS = 5000
 const ZOOM_IN = 1.3
@@ -44,8 +47,30 @@ export default function Graph() {
   const rendererRef = useRef<GraphRenderer | null>(null)
   const nodeCountRef = useRef(0)
 
-  const neighborIndex = useMemo(() => data ? buildNeighborIndex(data) : new Map<string, RelatedEntry[]>(), [data])
-  const insights = useMemo(() => data ? computeInsights(data) : null, [data])
+  const [excludedVis, setExcludedVis] = useState<Set<Visibility>>(new Set())
+  const [excludedCols, setExcludedCols] = useState<Set<string>>(new Set())
+
+  const visibleData = useMemo<GraphResponse | null>(() => {
+    if (!data) return null
+    const visibleNodes = data.nodes.filter(n =>
+      !excludedVis.has(n.visibility) &&
+      !excludedCols.has(n.collection_id ?? STANDALONE_KEY))
+    const visibleIds = new Set(visibleNodes.map(n => n.id))
+    const visibleEdges: GraphEdge[] = data.edges.filter(e =>
+      visibleIds.has(e.source) && visibleIds.has(e.target))
+    return { ...data, nodes: visibleNodes, edges: visibleEdges }
+  }, [data, excludedVis, excludedCols])
+
+  const hiddenNodeIds = useMemo<Set<string>>(() => {
+    if (!data || !visibleData) return new Set()
+    const visible = new Set(visibleData.nodes.map(n => n.id))
+    const hidden = new Set<string>()
+    for (const n of data.nodes) if (!visible.has(n.id)) hidden.add(n.id)
+    return hidden
+  }, [data, visibleData])
+
+  const neighborIndex = useMemo(() => visibleData ? buildNeighborIndex(visibleData) : new Map<string, RelatedEntry[]>(), [visibleData])
+  const insights = useMemo(() => visibleData ? computeInsights(visibleData) : null, [visibleData])
 
   useEffect(() => {
     let cancelled = false
@@ -87,7 +112,7 @@ export default function Graph() {
     }
 
     if (rendererRef.current && nodeCountRef.current === data.nodes.length) {
-      rendererRef.current.setEdges(data.edges)
+      rendererRef.current.setEdges(visibleData?.edges ?? data.edges)
       return
     }
 
@@ -100,6 +125,16 @@ export default function Graph() {
     )
     nodeCountRef.current = data.nodes.length
   }, [data])
+
+  useEffect(() => {
+    if (!rendererRef.current || !visibleData) return
+    rendererRef.current.setHiddenNodes(hiddenNodeIds)
+    rendererRef.current.setEdges(visibleData.edges)
+    if (focused && hiddenNodeIds.has(focused.id)) {
+      setFocused(null)
+      rendererRef.current.setFocusedNode(null)
+    }
+  }, [hiddenNodeIds, visibleData, focused])
 
   useEffect(() => {
     return () => {
@@ -181,9 +216,18 @@ export default function Graph() {
     <div className="graph-page">
       <div className="graph-canvas" ref={hostRef} />
 
+      <FilterBar
+        collections={data.collections}
+        nodes={data.nodes}
+        excludedVis={excludedVis}
+        excludedCols={excludedCols}
+        onToggleVis={(v) => setExcludedVis(prev => toggle(prev, v))}
+        onToggleCol={(id) => setExcludedCols(prev => toggle(prev, id))}
+      />
+
       <div className="graph-stats">
         <div className="graph-stats-pill">
-          {data.nodes.length} pages · {data.edges.length} connections
+          {visibleData?.nodes.length ?? data.nodes.length} pages · {visibleData?.edges.length ?? data.edges.length} connections
           {data.model && ` · ${data.model}`}
         </div>
         {degraded && (
@@ -351,6 +395,98 @@ function InsightsView({ insights, onSelect, onHover }: {
       {!hasContent && (
         <div className="graph-panel-subtitle" style={{ marginTop: '.5rem' }}>
           Publish a few more pages to see relationships emerge.
+        </div>
+      )}
+    </div>
+  )
+}
+
+function toggle<T>(set: Set<T>, value: T): Set<T> {
+  const next = new Set(set)
+  if (next.has(value)) next.delete(value)
+  else next.add(value)
+  return next
+}
+
+function FilterBar({ collections, nodes, excludedVis, excludedCols, onToggleVis, onToggleCol }: {
+  collections: { id: string; title: string }[]
+  nodes: GraphNode[]
+  excludedVis: Set<Visibility>
+  excludedCols: Set<string>
+  onToggleVis: (v: Visibility) => void
+  onToggleCol: (id: string) => void
+}) {
+  const visCounts = useMemo(() => {
+    const c: Record<Visibility, number> = { public: 0, unlisted: 0, private: 0 }
+    for (const n of nodes) c[n.visibility]++
+    return c
+  }, [nodes])
+  const colCounts = useMemo(() => {
+    const c = new Map<string, number>()
+    for (const n of nodes) {
+      const key = n.collection_id ?? STANDALONE_KEY
+      c.set(key, (c.get(key) ?? 0) + 1)
+    }
+    return c
+  }, [nodes])
+
+  const visibleVisibilities = ALL_VISIBILITIES.filter(v => visCounts[v] > 0)
+  const standaloneCount = colCounts.get(STANDALONE_KEY) ?? 0
+  const showStandalone = standaloneCount > 0
+  const colsWithCounts = collections
+    .map(c => ({ ...c, count: colCounts.get(c.id) ?? 0 }))
+    .filter(c => c.count > 0)
+
+  if (visibleVisibilities.length <= 1 && colsWithCounts.length === 0 && !showStandalone) return null
+
+  return (
+    <div className="graph-filters">
+      {visibleVisibilities.length > 1 && (
+        <div className="graph-filters-group">
+          <span className="graph-filters-label">Visibility</span>
+          {visibleVisibilities.map(v => {
+            const active = !excludedVis.has(v)
+            return (
+              <button
+                key={v}
+                className={`graph-filters-chip ${active ? 'is-active' : 'is-muted'} graph-filters-chip--${v}`}
+                onClick={() => onToggleVis(v)}
+                title={`${active ? 'Hide' : 'Show'} ${v} pages`}
+              >
+                <span className={`graph-filters-dot graph-filters-dot--${v}`} />
+                <span>{v}</span>
+                <span className="graph-filters-count">{visCounts[v]}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {(colsWithCounts.length > 0 || showStandalone) && (
+        <div className="graph-filters-group">
+          <span className="graph-filters-label">Collections</span>
+          {showStandalone && (
+            <button
+              className={`graph-filters-chip ${!excludedCols.has(STANDALONE_KEY) ? 'is-active' : 'is-muted'}`}
+              onClick={() => onToggleCol(STANDALONE_KEY)}
+            >
+              <span>Standalone</span>
+              <span className="graph-filters-count">{standaloneCount}</span>
+            </button>
+          )}
+          {colsWithCounts.map(c => {
+            const active = !excludedCols.has(c.id)
+            return (
+              <button
+                key={c.id}
+                className={`graph-filters-chip ${active ? 'is-active' : 'is-muted'}`}
+                onClick={() => onToggleCol(c.id)}
+              >
+                <span>{c.title}</span>
+                <span className="graph-filters-count">{c.count}</span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

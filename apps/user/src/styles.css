@@ -276,6 +276,47 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
 .graph-label-dot--private { background: #dc2626; }
 .graph-label-dot--unlisted { background: #d97706; }
 
+.graph-filters {
+  position: absolute; top: 1rem; left: 1rem; z-index: 2;
+  display: flex; flex-direction: column; gap: .35rem;
+  max-width: calc(100vw - 2rem);
+}
+.graph-filters-group {
+  display: flex; align-items: center; flex-wrap: wrap; gap: .3rem;
+  background: rgba(255, 255, 255, .85); backdrop-filter: blur(6px);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: .25rem .5rem .25rem .75rem;
+}
+.graph-filters-label {
+  font-size: .6rem; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--faint);
+  margin-right: .15rem;
+}
+.graph-filters-chip {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font: inherit; font-size: .7rem; font-weight: 500;
+  padding: .25rem .6rem;
+  background: transparent; border: 1px solid transparent; border-radius: 999px;
+  cursor: pointer;
+  transition: opacity 120ms ease, background-color 120ms ease;
+  text-transform: capitalize;
+}
+.graph-filters-chip.is-active { color: var(--fg); background: var(--bg); border-color: var(--border); }
+.graph-filters-chip.is-active:hover { background: var(--white); }
+.graph-filters-chip.is-muted { color: var(--faint); opacity: 0.55; text-decoration: line-through; }
+.graph-filters-chip.is-muted:hover { opacity: 0.8; }
+.graph-filters-count {
+  font-variant-numeric: tabular-nums; font-size: .62rem;
+  color: var(--faint); padding-left: .15rem;
+}
+.graph-filters-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--muted); flex-shrink: 0;
+}
+.graph-filters-dot--public { background: #22c55e; }
+.graph-filters-dot--unlisted { background: #d97706; }
+.graph-filters-dot--private { background: #dc2626; }
+
 .graph-stats {
   position: absolute; top: 1rem; right: 1rem; z-index: 2;
   display: flex; flex-direction: column; gap: .4rem; align-items: flex-end;
@@ -446,6 +487,8 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
   .invite-row { flex-direction: column; }
   .invite-row input, .invite-row select { width: 100%; }
   .graph-page { left: 0; top: 49px; }
+  .graph-filters { left: .5rem; top: .5rem; right: .5rem; }
+  .graph-filters-group { padding: .2rem .4rem; }
   .graph-panel { left: .5rem; right: .5rem; width: auto; bottom: .5rem; max-height: 60vh; }
   .graph-panel-inner { max-height: 60vh; }
   .graph-stats, .graph-toolbar { top: .5rem; right: .5rem; }
