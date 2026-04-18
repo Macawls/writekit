@@ -48,6 +48,12 @@
             line-height:1.15;margin-bottom:.5rem;
         }
         .hero p{font-size:.92rem;color:var(--muted);line-height:1.5;max-width:460px;margin:0 auto}
+        .version{
+            margin-top:.9rem;font-size:.72rem;color:var(--faint);
+            font-family:var(--mono);letter-spacing:.02em;min-height:1em;
+        }
+        .version a{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border2)}
+        .version a:hover{color:var(--fg)}
 
         .downloads{display:flex;flex-direction:column;gap:.6rem}
         .dl{
@@ -110,6 +116,7 @@
     <div class="hero">
         <h1>Download WriteKit</h1>
         <p>Local-first publishing with a built-in MCP server. No account, no cloud — everything lives on your machine.</p>
+        <div class="version" id="version"><a href="https://github.com/Macawls/writekit/releases">View all releases</a></div>
     </div>
 
     <div class="downloads" id="downloads">
@@ -147,12 +154,6 @@
         </a>
     </div>
 
-    <div class="note">
-        <strong>After install:</strong> WriteKit opens a window and runs a local MCP server on <code>127.0.0.1</code>. Point any MCP client at <code>http://127.0.0.1:&lt;port&gt;/mcp</code> — the port is written to your OS config dir. On first run you may see SmartScreen (Windows) or Gatekeeper (macOS) warnings because the binaries aren't code-signed yet.
-        <br><br>
-        Want the hosted version instead? <a href="/">Connect at writekit.dev</a>.
-    </div>
-
     <div class="foot">
         <a href="https://github.com/Macawls/writekit/releases">All releases</a>
         ·
@@ -178,6 +179,19 @@
         var badge = match.querySelector('[data-badge="' + os + '"]');
         if (badge) badge.style.display = 'inline-block';
     }
+})();
+
+(function(){
+    var el = document.getElementById('version');
+    if (!el) return;
+    fetch('https://api.github.com/repos/Macawls/writekit/releases/latest', {headers:{'Accept':'application/vnd.github+json'}})
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){
+            if (!d || !d.tag_name) return;
+            var date = d.published_at ? new Date(d.published_at).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}) : '';
+            el.innerHTML = 'Latest: <a href="' + (d.html_url || 'https://github.com/Macawls/writekit/releases') + '">' + d.tag_name + '</a>' + (date ? ' · ' + date : '') + ' · <a href="https://github.com/Macawls/writekit/releases">all releases</a>';
+        })
+        .catch(function(){});
 })();
 </script>
 </body>
