@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,11 +16,13 @@ import (
 )
 
 const (
-	embedWorkerCount    = 4
-	embedJobQueueSize   = 256
-	embedSweepInterval  = 60 * time.Second
-	embedCallTimeout    = 90 * time.Second
-	embedMaxInputChars  = 20000
+	embedWorkerCount   = 4
+	embedJobQueueSize  = 256
+	embedSweepInterval = 60 * time.Second
+	embedCallTimeout   = 90 * time.Second
+	embedChunkSize     = 2000
+	embedChunkOverlap  = 300
+	embedMaxChunks     = 64
 )
 
 type embedJob struct {
@@ -135,28 +139,104 @@ func (w *EmbeddingWorker) process(ctx context.Context, job embedJob) {
 	if text == "" {
 		return
 	}
-	if len(text) > embedMaxInputChars {
-		text = text[:embedMaxInputChars]
-	}
+	chunks := chunkText(text, embedChunkSize, embedChunkOverlap)
 
 	callCtx, cancel := context.WithTimeout(ctx, embedCallTimeout)
 	defer cancel()
 
 	start := time.Now()
-	vec, err := w.client.Embed(callCtx, text)
-	if err != nil {
-		if errors.Is(err, embedding.ErrDisabled) {
+	var sum []float32
+	for i, chunk := range chunks {
+		vec, err := w.client.Embed(callCtx, chunk)
+		if err != nil {
+			if errors.Is(err, embedding.ErrDisabled) {
+				return
+			}
+			slog.Warn("embedding: ollama call failed", "tenant", job.tenantID, "page", page.ID, "chunk", i, "chunk_chars", len(chunk), "elapsed_ms", time.Since(start).Milliseconds(), "err", err)
 			return
 		}
-		slog.Warn("embedding: ollama call failed", "tenant", job.tenantID, "page", page.ID, "chars", len(text), "elapsed_ms", time.Since(start).Milliseconds(), "err", err)
+		if sum == nil {
+			sum = make([]float32, len(vec))
+		}
+		if len(vec) != len(sum) {
+			slog.Warn("embedding: dim mismatch between chunks", "tenant", job.tenantID, "page", page.ID, "expected", len(sum), "got", len(vec))
+			return
+		}
+		for j, v := range vec {
+			sum[j] += v
+		}
+	}
+	if sum == nil {
 		return
 	}
 
-	if err := db.UpsertPageEmbedding(ctx, page.ID, w.client.Model(), vec); err != nil {
+	pooled := meanPoolAndNormalize(sum, len(chunks))
+
+	if err := db.UpsertPageEmbedding(ctx, page.ID, w.client.Model(), pooled); err != nil {
 		slog.Warn("embedding: upsert", "tenant", job.tenantID, "page", page.ID, "err", err)
 		return
 	}
-	slog.Info("embedding: upserted", "tenant", job.tenantID, "page", page.ID, "chars", len(text), "dims", len(vec), "elapsed_ms", time.Since(start).Milliseconds())
+	slog.Info("embedding: upserted", "tenant", job.tenantID, "page", page.ID, "chars", len(text), "chunks", len(chunks), "dims", len(pooled), "elapsed_ms", time.Since(start).Milliseconds())
+}
+
+func chunkText(text string, size, overlap int) []string {
+	if len(text) <= size {
+		return []string{text}
+	}
+	var chunks []string
+	start := 0
+	for start < len(text) {
+		end := start + size
+		if end >= len(text) {
+			chunks = append(chunks, text[start:])
+			break
+		}
+		if b := findBoundary(text, end-100, end); b > start {
+			end = b
+		}
+		chunks = append(chunks, text[start:end])
+		if len(chunks) >= embedMaxChunks {
+			break
+		}
+		start = max(end-overlap, 0)
+	}
+	return chunks
+}
+
+func findBoundary(s string, from, to int) int {
+	if from < 0 {
+		from = 0
+	}
+	if to > len(s) {
+		to = len(s)
+	}
+	if from >= to {
+		return -1
+	}
+	window := s[from:to]
+	for _, sep := range []string{"\n\n", ". ", "\n"} {
+		if i := strings.LastIndex(window, sep); i >= 0 {
+			return from + i + len(sep)
+		}
+	}
+	return -1
+}
+
+func meanPoolAndNormalize(sum []float32, n int) []float32 {
+	out := make([]float32, len(sum))
+	inv := 1.0 / float32(n)
+	var sq float64
+	for i, v := range sum {
+		out[i] = v * inv
+		sq += float64(out[i]) * float64(out[i])
+	}
+	if sq > 0 {
+		norm := float32(1.0 / math.Sqrt(sq))
+		for i := range out {
+			out[i] *= norm
+		}
+	}
+	return out
 }
 
 func (w *EmbeddingWorker) runSweeper(ctx context.Context) {
