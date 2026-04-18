@@ -57,10 +57,10 @@ type templateData struct {
 }
 
 type LandingData struct {
-	Domain   string
-	Title    string
-	Subtitle string
-	Command  string
+	Domain  string
+	Title   string
+	Eyebrow string
+	Tagline string
 }
 
 type Renderer struct {

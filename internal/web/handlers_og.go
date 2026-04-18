@@ -14,10 +14,10 @@ func (h *Handler) LandingOG(w http.ResponseWriter, r *http.Request) {
 	}
 
 	img, err := h.OG.RenderLanding(og.LandingData{
-		Domain:   h.Config.Host,
-		Title:    "Publish by conversation",
-		Subtitle: "Pages, collections, and docs managed entirely through your AI assistant. Connect via MCP and publish to your own subdomain.",
-		Command:  "claude mcp add --transport http writekit https://" + h.Config.Host + "/mcp",
+		Domain:  h.Config.Host,
+		Title:   "Publish by conversation.",
+		Eyebrow: "MCP-NATIVE PUBLISHING",
+		Tagline: "open source",
 	})
 	if err != nil {
 		httplog.FromContext(r.Context()).Error("landing og render", "err", err)
