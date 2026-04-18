@@ -12,6 +12,8 @@ tmp/
 # Frontend apps
 apps/*/node_modules/
 apps/*/dist/
+!apps/admin/dist/.gitkeep
+!apps/user/dist/.gitkeep
 
 /writekit-desktop
 /writekit-desktop.exe

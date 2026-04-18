@@ -10,3 +10,6 @@ var StaticFS embed.FS
 
 //go:embed all:apps/user/dist
 var AppFS embed.FS
+
+//go:embed all:apps/admin/dist
+var AdminFS embed.FS
