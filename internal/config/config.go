@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -12,6 +13,7 @@ type Config struct {
 	Host    string
 	BaseURL string
 	Dev     bool
+	Local   bool
 
 	DatabaseURL string
 	DataDir     string
@@ -46,9 +48,10 @@ func Load() (*Config, error) {
 
 	host := getenv("HOST", "writekit.dev")
 
-	scheme := "https"
+	local := getenv("LOCAL", "") == "true"
 	dev := getenv("DEV", "") == "true"
-	if dev {
+	scheme := "https"
+	if dev || local {
 		scheme = "http"
 	}
 
@@ -56,15 +59,33 @@ func Load() (*Config, error) {
 	if dev {
 		baseURL = fmt.Sprintf("http://localhost:%d", port)
 	}
+	if local {
+		baseURL = fmt.Sprintf("http://127.0.0.1:%d", port)
+	}
+
+	dataDirDefault := "./data/tenants"
+	if local {
+		if ucd, err := os.UserConfigDir(); err == nil {
+			dataDirDefault = filepath.Join(ucd, "WriteKit", "tenants")
+		}
+	}
+
+	ollamaDefault := ""
+	embeddingDefault := ""
+	if local {
+		ollamaDefault = "http://127.0.0.1:11434"
+		embeddingDefault = "nomic-embed-text"
+	}
 
 	cfg := &Config{
 		Port:    port,
 		Host:    host,
 		BaseURL: baseURL,
 		Dev:     dev,
+		Local:   local,
 
 		DatabaseURL: getenv("DATABASE_URL", ""),
-		DataDir:     getenv("DATA_DIR", "./data/tenants"),
+		DataDir:     getenv("DATA_DIR", dataDirDefault),
 
 		GoogleClientID:     getenv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getenv("GOOGLE_CLIENT_SECRET", ""),
@@ -84,15 +105,17 @@ func Load() (*Config, error) {
 
 		MaxPoolSize: maxPool,
 
-		OllamaHost:     getenv("OLLAMA_HOST", ""),
-		EmbeddingModel: getenv("EMBEDDING_MODEL", ""),
+		OllamaHost:     getenv("OLLAMA_HOST", ollamaDefault),
+		EmbeddingModel: getenv("EMBEDDING_MODEL", embeddingDefault),
 	}
 
-	if cfg.DatabaseURL == "" {
-		return nil, fmt.Errorf("DATABASE_URL is required")
-	}
-	if cfg.SessionSecret == "" {
-		return nil, fmt.Errorf("SESSION_SECRET is required")
+	if !local {
+		if cfg.DatabaseURL == "" {
+			return nil, fmt.Errorf("DATABASE_URL is required")
+		}
+		if cfg.SessionSecret == "" {
+			return nil, fmt.Errorf("SESSION_SECRET is required")
+		}
 	}
 
 	if adminRaw := getenv("ADMIN_EMAILS", ""); adminRaw != "" {

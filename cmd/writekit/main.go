@@ -42,19 +42,25 @@ func main() {
 
 	ctx := context.Background()
 
-	platformDB, err := platform.NewDB(ctx, cfg.DatabaseURL)
-	if err != nil {
-		slog.Error("connect postgres", "err", err)
-		os.Exit(1)
-	}
-	defer platformDB.Close()
-	slog.Info("postgres connected")
+	var platformDB *platform.DB
+	if !cfg.Local {
+		db, err := platform.NewDB(ctx, cfg.DatabaseURL)
+		if err != nil {
+			slog.Error("connect postgres", "err", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+		slog.Info("postgres connected")
 
-	if err := platformDB.Migrate(ctx); err != nil {
-		slog.Error("migrate postgres", "err", err)
-		os.Exit(1)
+		if err := db.Migrate(ctx); err != nil {
+			slog.Error("migrate postgres", "err", err)
+			os.Exit(1)
+		}
+		slog.Info("postgres migrated")
+		platformDB = db
+	} else {
+		slog.Info("local mode: skipping postgres")
 	}
-	slog.Info("postgres migrated")
 
 	pool, err := tenant.NewPool(cfg.DataDir, cfg.MaxPoolSize)
 	if err != nil {

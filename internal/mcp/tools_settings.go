@@ -40,18 +40,20 @@ func (s *Server) registerSettingsTools(mcpServer *mcpsdk.Server) {
 		},
 	}, s.updateSettings)
 
-	mcpServer.AddTool(&mcpsdk.Tool{
-		Name:        "rename_subdomain",
-		Description: "Rename your site's subdomain (e.g. my-site → new-name). The old URL will stop working immediately.",
-		InputSchema: map[string]any{
-			"type":     "object",
-			"required": []string{"new_subdomain"},
-			"properties": map[string]any{
-				"new_subdomain": map[string]any{"type": "string", "description": "New subdomain (lowercase letters, numbers, hyphens, 3-64 chars)"},
-				"tenant_id":     map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
+	if !s.Config.Local {
+		mcpServer.AddTool(&mcpsdk.Tool{
+			Name:        "rename_subdomain",
+			Description: "Rename your site's subdomain (e.g. my-site → new-name). The old URL will stop working immediately.",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"new_subdomain"},
+				"properties": map[string]any{
+					"new_subdomain": map[string]any{"type": "string", "description": "New subdomain (lowercase letters, numbers, hyphens, 3-64 chars)"},
+					"tenant_id":     map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
+				},
 			},
-		},
-	}, s.renameSubdomain)
+		}, s.renameSubdomain)
+	}
 }
 
 func (s *Server) getSettings(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {

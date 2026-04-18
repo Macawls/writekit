@@ -12,3 +12,7 @@ tmp/
 # Frontend apps
 apps/*/node_modules/
 apps/*/dist/
+
+/writekit-desktop
+/writekit-desktop.exe
+desktop/build/bin/

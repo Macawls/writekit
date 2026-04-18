@@ -42,54 +42,11 @@ type App struct {
 func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templatesFS, staticFS, appFS, adminFS fs.FS) *App {
 	bus := events.NewBus()
 
-	if cfg.StripeSecretKey != "" {
-		stripe.Key = cfg.StripeSecretKey
-	}
-
-	webTemplatesFS, _ := fs.Sub(templatesFS, "web")
 	siteTemplatesFS, _ := fs.Sub(templatesFS, "themes/default")
-	webEngine := render.New(webTemplatesFS, cfg.Dev)
 	siteEngine := render.New(siteTemplatesFS, cfg.Dev)
 
-	var google, github, discord *auth.OAuthProvider
-	if cfg.GoogleClientID != "" {
-		google = auth.NewGoogleProvider(cfg.GoogleClientID, cfg.GoogleClientSecret,
-			cfg.BaseURL+"/auth/callback")
-	}
-	if cfg.GithubClientID != "" {
-		github = auth.NewGithubProvider(cfg.GithubClientID, cfg.GithubClientSecret,
-			cfg.BaseURL+"/auth/callback")
-	}
-	if cfg.DiscordClientID != "" {
-		discord = auth.NewDiscordProvider(cfg.DiscordClientID, cfg.DiscordClientSecret,
-			cfg.BaseURL+"/auth/callback")
-	}
-
-	mcpAuth := &auth.MCPAuth{DB: platformDB, BaseURL: cfg.BaseURL}
-
-	emailSender := email.NewSender(cfg.SESFrom, cfg.SESRegion)
-
 	mcpSrv := mcpserver.New(platformDB, pool, cfg, bus)
-
 	cache := site.NewCache(bus)
-
-	ogRenderer, err := og.New()
-	if err != nil {
-		slog.Warn("og renderer disabled", "err", err)
-	}
-
-	webHandler := &web.Handler{
-		DB:      platformDB,
-		Config:  cfg,
-		Engine:  webEngine,
-		Google:  google,
-		Github:  github,
-		Discord: discord,
-		MCPAuth: mcpAuth,
-		Email:   emailSender,
-		Pool:    pool,
-		OG:      ogRenderer,
-	}
 
 	siteHandler := &site.Handler{
 		Pool:       pool,
@@ -98,7 +55,6 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Bus:        bus,
 		Cache:      cache,
 		PlatformDB: platformDB,
-		OG:         ogRenderer,
 	}
 
 	embedClient := embedding.NewClient(cfg.OllamaHost, cfg.EmbeddingModel)
@@ -111,16 +67,64 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Bus:      bus,
 	}
 
-	adminHandler := &admin.Handler{
-		DB:     platformDB,
-		Pool:   pool,
-		Config: cfg,
-		Email:  emailSender,
-	}
-
-	router := buildRouter(cfg, webHandler, siteHandler, apiHandler, adminHandler, mcpSrv, platformDB, staticFS, appFS, adminFS)
-
 	worker := NewEmbeddingWorker(pool, bus, embedClient)
+
+	var router http.Handler
+	if cfg.Local {
+		router = buildLocalRouter(cfg, siteHandler, apiHandler, mcpSrv, staticFS, appFS)
+	} else {
+		if cfg.StripeSecretKey != "" {
+			stripe.Key = cfg.StripeSecretKey
+		}
+
+		webTemplatesFS, _ := fs.Sub(templatesFS, "web")
+		webEngine := render.New(webTemplatesFS, cfg.Dev)
+
+		var google, github, discord *auth.OAuthProvider
+		if cfg.GoogleClientID != "" {
+			google = auth.NewGoogleProvider(cfg.GoogleClientID, cfg.GoogleClientSecret,
+				cfg.BaseURL+"/auth/callback")
+		}
+		if cfg.GithubClientID != "" {
+			github = auth.NewGithubProvider(cfg.GithubClientID, cfg.GithubClientSecret,
+				cfg.BaseURL+"/auth/callback")
+		}
+		if cfg.DiscordClientID != "" {
+			discord = auth.NewDiscordProvider(cfg.DiscordClientID, cfg.DiscordClientSecret,
+				cfg.BaseURL+"/auth/callback")
+		}
+
+		mcpAuth := &auth.MCPAuth{DB: platformDB, BaseURL: cfg.BaseURL}
+		emailSender := email.NewSender(cfg.SESFrom, cfg.SESRegion)
+
+		ogRenderer, err := og.New()
+		if err != nil {
+			slog.Warn("og renderer disabled", "err", err)
+		}
+		siteHandler.OG = ogRenderer
+
+		webHandler := &web.Handler{
+			DB:      platformDB,
+			Config:  cfg,
+			Engine:  webEngine,
+			Google:  google,
+			Github:  github,
+			Discord: discord,
+			MCPAuth: mcpAuth,
+			Email:   emailSender,
+			Pool:    pool,
+			OG:      ogRenderer,
+		}
+
+		adminHandler := &admin.Handler{
+			DB:     platformDB,
+			Pool:   pool,
+			Config: cfg,
+			Email:  emailSender,
+		}
+
+		router = buildRouter(cfg, webHandler, siteHandler, apiHandler, adminHandler, mcpSrv, platformDB, staticFS, appFS, adminFS)
+	}
 
 	return &App{
 		Config:     cfg,
@@ -131,6 +135,46 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Worker:     worker,
 		Router:     router,
 	}
+}
+
+func buildLocalRouter(_ *config.Config, siteHandler *site.Handler, apiHandler *api.Handler, mcpSrv *mcpserver.Server, staticFS, appFS fs.FS) http.Handler {
+	root := chi.NewRouter()
+	root.Use(chimw.RealIP)
+	root.Use(httplog.RequestIDMiddleware)
+	root.Use(httplog.Recoverer)
+	root.Use(httplog.Access)
+
+	fileServer := http.FileServer(http.FS(staticFS))
+	root.Handle("/static/*", http.StripPrefix("/static/", fileServer))
+
+	root.Group(func(r chi.Router) {
+		apiHandler.LocalRoutes(r)
+	})
+
+	root.Group(func(r chi.Router) {
+		r.Use(auth.LocalAuth())
+		r.Handle("/mcp", mcpSrv.Handler())
+	})
+
+	root.Route("/site", func(r chi.Router) {
+		siteHandler.Routes(r)
+	})
+
+	distFS, _ := fs.Sub(appFS, "apps/user/dist")
+	spaFileServer := http.FileServer(http.FS(distFS))
+	root.Handle("/assets/*", spaFileServer)
+	root.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+		f, err := distFS.Open("index.html")
+		if err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		defer f.Close()
+		stat, _ := f.Stat()
+		http.ServeContent(w, r, "index.html", stat.ModTime(), f.(io.ReadSeeker))
+	})
+
+	return root
 }
 
 func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.Handler, apiHandler *api.Handler, adminHandler *admin.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB, staticFS, appFS, adminFS fs.FS) http.Handler {

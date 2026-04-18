@@ -44,15 +44,24 @@ type Server struct {
 	Pool       *tenant.Pool
 	Config     *config.Config
 	Bus        *events.Bus
+	Resolver   TenantResolver
 	mcpServer  *mcp.Server
 }
 
 func New(platformDB *platform.DB, pool *tenant.Pool, cfg *config.Config, bus *events.Bus) *Server {
+	var resolver TenantResolver
+	if cfg.Local {
+		resolver = &LocalResolver{Pool: pool}
+	} else {
+		resolver = &HostedResolver{DB: platformDB, Pool: pool}
+	}
+
 	s := &Server{
 		PlatformDB: platformDB,
 		Pool:       pool,
 		Config:     cfg,
 		Bus:        bus,
+		Resolver:   resolver,
 	}
 
 	mcpServer := mcp.NewServer(&mcp.Implementation{
@@ -65,7 +74,9 @@ func New(platformDB *platform.DB, pool *tenant.Pool, cfg *config.Config, bus *ev
 	s.registerPageTools(mcpServer)
 	s.registerCollectionTools(mcpServer)
 	s.registerSettingsTools(mcpServer)
-	s.registerTeamTools(mcpServer)
+	if !cfg.Local {
+		s.registerTeamTools(mcpServer)
+	}
 	s.registerResources(mcpServer)
 	s.registerPrompts(mcpServer)
 
@@ -80,40 +91,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) resolveTenant(userID string, tenantID string) (*tenant.DB, string, error) {
-	tenants, err := s.PlatformDB.ListTenantsByMembership(context.Background(), userID)
-	if err != nil {
-		slog.Error("mcp resolve tenant: list memberships", "user_id", userID, "err", err)
-		return nil, "", err
-	}
-
-	if len(tenants) == 0 {
-		return nil, "", errNoTenants
-	}
-
-	var selectedID string
-	if tenantID != "" {
-		for _, t := range tenants {
-			if t.ID == tenantID {
-				selectedID = t.ID
-				break
-			}
-		}
-		if selectedID == "" {
-			slog.Warn("mcp resolve tenant: requested tenant not in memberships", "user_id", userID, "requested", tenantID)
-			return nil, "", errTenantNotFound
-		}
-	} else if len(tenants) == 1 {
-		selectedID = tenants[0].ID
-	} else {
-		return nil, "", errMultipleTenants
-	}
-
-	db, err := s.Pool.Get(selectedID)
-	if err != nil {
-		slog.Error("mcp resolve tenant: open tenant db", "tenant", selectedID, "err", err)
-		return nil, "", err
-	}
-	return db, selectedID, nil
+	return s.Resolver.Resolve(context.Background(), userID, tenantID)
 }
 
 var roleLevel = map[string]int{"viewer": 0, "editor": 1, "owner": 2}
@@ -123,17 +101,17 @@ func hasMinRole(actual, required string) bool {
 }
 
 func (s *Server) resolveTenantWithRole(ctx context.Context, userID, tenantID, minRole string) (*tenant.DB, string, error) {
-	db, tid, err := s.resolveTenant(userID, tenantID)
+	db, tid, err := s.Resolver.Resolve(ctx, userID, tenantID)
 	if err != nil {
 		return nil, "", err
 	}
-	member, err := s.PlatformDB.GetTeamMember(ctx, tid, userID)
+	role, err := s.Resolver.Role(ctx, userID, tid)
 	if err != nil {
-		slog.Warn("mcp resolve tenant: team member lookup failed", "tenant", tid, "user_id", userID, "err", err)
+		slog.Warn("mcp resolve tenant: role lookup failed", "tenant", tid, "user_id", userID, "err", err)
 		return nil, "", errTenantNotFound
 	}
-	if !hasMinRole(member.Role, minRole) {
-		slog.Info("mcp: permission denied", "tenant", tid, "user_id", userID, "role", member.Role, "required", minRole)
+	if !hasMinRole(role, minRole) {
+		slog.Info("mcp: permission denied", "tenant", tid, "user_id", userID, "role", role, "required", minRole)
 		return nil, "", &mcpError{msg: "you don't have permission for this action (requires " + minRole + " role)"}
 	}
 	return db, tid, nil
@@ -152,7 +130,7 @@ var (
 )
 
 func (s *Server) buildPageURL(tenantID string, collectionID *string, pageSlug string) string {
-	base := "https://" + tenantID + "." + s.Config.Host
+	base := s.tenantBaseURL(tenantID)
 	if collectionID != nil && *collectionID != "" {
 		col, err := s.getCollectionSlug(tenantID, *collectionID)
 		if err == nil {
@@ -160,6 +138,13 @@ func (s *Server) buildPageURL(tenantID string, collectionID *string, pageSlug st
 		}
 	}
 	return base + "/" + pageSlug
+}
+
+func (s *Server) tenantBaseURL(tenantID string) string {
+	if s.Config.Local {
+		return s.Config.BaseURL + "/site"
+	}
+	return "https://" + tenantID + "." + s.Config.Host
 }
 
 func (s *Server) getCollectionSlug(tenantID, collectionID string) (string, error) {
@@ -175,7 +160,7 @@ func (s *Server) getCollectionSlug(tenantID, collectionID string) (string, error
 }
 
 func (s *Server) buildPreviewURL(tenantID, token string) string {
-	return "https://" + tenantID + "." + s.Config.Host + "/preview/" + token
+	return s.tenantBaseURL(tenantID) + "/preview/" + token
 }
 
 // toolError returns an MCP tool-level error with the given user-facing message.

@@ -18,6 +18,9 @@ func (h *Handler) isTeamMember(r *http.Request, tenantID string) bool {
 	if user == nil {
 		return false
 	}
+	if h.Config.Local {
+		return user.ID == auth.LocalUserID && tenantID == auth.LocalTenantID
+	}
 	member, err := h.PlatformDB.GetTeamMember(r.Context(), tenantID, user.ID)
 	if err != nil {
 		httplog.FromContext(r.Context()).Debug("site: team member lookup failed", "tenant", tenantID, "user_id", user.ID, "err", err)
@@ -82,6 +85,14 @@ func (h *Handler) TenantSitemap(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getTenantDB(r *http.Request) (*tenant.DB, string, error) {
+	if h.Config.Local {
+		db, err := h.Pool.Get(auth.LocalTenantID)
+		if err != nil {
+			return nil, "", fmt.Errorf("open local tenant db: %w", err)
+		}
+		return db, auth.LocalTenantID, nil
+	}
+
 	host := r.Host
 	if i := strings.LastIndex(host, ":"); i > 0 {
 		host = host[:i]

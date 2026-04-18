@@ -22,7 +22,11 @@ type Handler struct {
 }
 
 func (h *Handler) Routes(r chi.Router) {
-	r.Use(auth.OptionalWebAuth(h.PlatformDB))
+	if h.Config.Local {
+		r.Use(auth.LocalAuth())
+	} else {
+		r.Use(auth.OptionalWebAuth(h.PlatformDB))
+	}
 	r.Get("/robots.txt", h.TenantRobotsTxt)
 	r.Get("/sitemap.xml", h.TenantSitemap)
 	r.Get("/", h.Index)
