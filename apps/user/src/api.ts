@@ -35,6 +35,22 @@ export interface TeamMember {
   created_at: string
 }
 
+export interface LocalInfo {
+  port: number
+  data_dir: string
+  mcp_url: string
+}
+
+export interface ClientInfo {
+  id: string
+  name: string
+  detected: boolean
+  connected: boolean
+  config_path: string
+  supports_http: boolean
+  requires_npx: boolean
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const opts: RequestInit = {
     method,
@@ -68,4 +84,8 @@ export const api = {
   inviteTeamMember: (email: string, role: string) => request<{ status: string }>('POST', '/api/team', { email, role }),
   updateTeamMemberRole: (userId: string, role: string) => request<{ status: string }>('PUT', `/api/team/${userId}`, { role }),
   removeTeamMember: (userId: string) => request<{ status: string }>('DELETE', `/api/team/${userId}`),
+  localInfo: () => request<LocalInfo>('GET', '/api/local/info'),
+  listClients: () => request<ClientInfo[]>('GET', '/api/local/clients'),
+  connectClient: (id: string) => request<{ status: string; needs_restart: boolean }>('POST', `/api/local/clients/${id}/connect`),
+  disconnectClient: (id: string) => request<{ status: string }>('POST', `/api/local/clients/${id}/disconnect`),
 }

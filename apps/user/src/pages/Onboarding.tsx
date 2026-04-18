@@ -73,8 +73,11 @@ export default function Onboarding({ user, site, onComplete }: Props) {
   const [client, setClient] = useState<Client>('Claude Code')
   const [copied, setCopied] = useState(false)
 
+  const isDesktop = user.id === 'local'
   const host = window.location.hostname.replace(/^app\./, '')
-  const siteUrl = `https://${slug}.${host}`
+  const siteUrl = isDesktop
+    ? `${window.location.origin}/site`
+    : `https://${slug}.${host}`
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
@@ -443,7 +446,24 @@ export default function Onboarding({ user, site, onComplete }: Props) {
           </>
         )}
 
-        {step === 'connect' && (
+        {step === 'connect' && isDesktop && (
+          <>
+            <h1>Connect your assistant</h1>
+            <p className="desc">
+              WriteKit runs a local MCP server on this machine. Once you finish setup, open the <strong>Connect</strong> tab — one click adds WriteKit to Claude Desktop, Cursor, Windsurf, and more.
+            </p>
+
+            <button className="ob-btn" onClick={() => transition('done')}>
+              Got it
+            </button>
+            <br />
+            <button className="ob-btn-ghost" onClick={() => transition('welcome')}>
+              Back
+            </button>
+          </>
+        )}
+
+        {step === 'connect' && !isDesktop && (
           <>
             <h1>Connect your editor</h1>
             <p className="desc">
@@ -499,12 +519,21 @@ export default function Onboarding({ user, site, onComplete }: Props) {
               Start a conversation with your AI assistant and tell it what to write. It handles the rest.
             </p>
 
-            <a className="ob-site-link" href={siteUrl} target="_blank" rel="noopener noreferrer">
-              {slug}.{host} <span className="arrow">&rarr;</span>
+            <a
+              className="ob-site-link"
+              href={siteUrl}
+              target={isDesktop ? undefined : '_blank'}
+              rel={isDesktop ? undefined : 'noopener noreferrer'}
+            >
+              {isDesktop ? 'Open my site' : `${slug}.${host}`} <span className="arrow">&rarr;</span>
             </a>
 
             <button className="ob-btn" onClick={onComplete}>
               Go to dashboard
+            </button>
+            <br />
+            <button className="ob-btn-ghost" onClick={() => transition('connect')}>
+              Back
             </button>
           </>
         )}

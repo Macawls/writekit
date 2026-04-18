@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { useStore } from '@nanostores/react'
 import { $route, navigate, type Route } from '../stores/router'
-import { $user, $site, logout } from '../stores/auth'
+import { $user, $site, $isDesktop, logout } from '../stores/auth'
 
-const navItems: { route: Route; label: string; icon: string }[] = [
+type NavItem = { route: Route; label: string; icon: string; desktopOnly?: boolean; hideOnDesktop?: boolean }
+
+const navItems: NavItem[] = [
   { route: 'site', label: 'Site', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1' },
-  { route: 'team', label: 'Team', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197' },
+  { route: 'connect', label: 'Connect', icon: 'M13 10V3L4 14h7v7l9-11h-7z', desktopOnly: true },
+  { route: 'team', label: 'Team', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197', hideOnDesktop: true },
   { route: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
-  { route: 'billing', label: 'Billing', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
+  { route: 'billing', label: 'Billing', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z', hideOnDesktop: true },
   { route: 'graph', label: 'Graph', icon: 'M18 8a3 3 0 100-6 3 3 0 000 6zM6 15a3 3 0 100-6 3 3 0 000 6zm12 7a3 3 0 100-6 3 3 0 000 6zM8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98' },
 ]
 
@@ -23,10 +26,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const route = useStore($route)
   const user = useStore($user)
   const site = useStore($site)
+  const isDesktop = useStore($isDesktop)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const host = window.location.hostname.replace(/^app\./, '')
-  const siteUrl = site ? `https://${site.ID}.${host}` : ''
+  const siteUrl = isDesktop
+    ? `${window.location.origin}/site`
+    : site ? `https://${site.ID}.${host}` : ''
+  const siteLabel = isDesktop
+    ? 'Open site'
+    : site ? `${site.ID}.${host}` : ''
+
+  const visibleNav = navItems.filter(item => {
+    if (isDesktop && item.hideOnDesktop) return false
+    if (!isDesktop && item.desktopOnly) return false
+    return true
+  })
 
   const handleNav = (r: Route) => {
     navigate(r)
@@ -37,7 +52,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <>
       <div className="sidebar-brand">WriteKit</div>
       <nav className="sidebar-nav">
-        {navItems.map(item => (
+        {visibleNav.map(item => (
           <button
             key={item.route}
             className={`sidebar-link ${route === item.route ? 'active' : ''}`}
@@ -50,8 +65,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </nav>
       <div className="sidebar-footer">
         {site && (
-          <a href={siteUrl} target="_blank" rel="noopener noreferrer" className="sidebar-site-link">
-            {site.ID}.{host}
+          <a
+            href={siteUrl}
+            target={isDesktop ? undefined : '_blank'}
+            rel={isDesktop ? undefined : 'noopener noreferrer'}
+            className="sidebar-site-link"
+          >
+            {siteLabel}
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" /></svg>
           </a>
         )}

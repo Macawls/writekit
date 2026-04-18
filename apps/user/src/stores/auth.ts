@@ -10,6 +10,7 @@ export const $error = atom<string | null>(null)
 
 export const $isOwner = computed($role, role => role === 'owner')
 export const $isLoaded = computed([$user, $loading], (user, loading) => !loading && user !== null)
+export const $isDesktop = computed($user, user => user?.id === 'local')
 
 export async function loadAuth() {
   $loading.set(true)
