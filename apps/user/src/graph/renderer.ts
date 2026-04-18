@@ -215,7 +215,6 @@ export class GraphRenderer {
     mat.resolution.set(rect.width, rect.height)
     const geom = new LineSegmentsGeometry()
     const line = new LineSegments2(geom, mat)
-    line.computeLineDistances()
     line.renderOrder = 0
     this.scene.add(line)
     return { indices: [], line, geom, mat, positions: new Float32Array(0) }
