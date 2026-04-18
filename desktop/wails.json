@@ -15,6 +15,6 @@
     "copyright": "Copyright (C) 2026 Josh Macawls",
     "comments": "Local-first MCP-native publishing. AGPL-3.0-or-later."
   },
-  "build:tags": "",
+  "build:tags": "desktop",
   "wailsjsdir": "./.wails-bindings"
 }
