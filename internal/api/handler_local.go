@@ -27,6 +27,8 @@ func (h *Handler) LocalRoutes(r chi.Router) {
 	r.Get("/api/local/clients", h.LocalClients)
 	r.Post("/api/local/clients/{id}/connect", h.LocalClientConnect)
 	r.Post("/api/local/clients/{id}/disconnect", h.LocalClientDisconnect)
+	r.Get("/api/local/settings", h.LocalGetSettings)
+	r.Put("/api/local/settings", h.LocalPutSettings)
 }
 
 func (h *Handler) localSite() *platform.Tenant {

@@ -51,6 +51,12 @@ export interface ClientInfo {
   requires_npx: boolean
 }
 
+export interface DesktopSettings {
+  autostart: boolean
+  close_to_tray: boolean
+  start_minimized: boolean
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const opts: RequestInit = {
     method,
@@ -88,4 +94,6 @@ export const api = {
   listClients: () => request<ClientInfo[]>('GET', '/api/local/clients'),
   connectClient: (id: string) => request<{ status: string; needs_restart: boolean }>('POST', `/api/local/clients/${id}/connect`),
   disconnectClient: (id: string) => request<{ status: string }>('POST', `/api/local/clients/${id}/disconnect`),
+  getDesktopSettings: () => request<DesktopSettings>('GET', '/api/local/settings'),
+  updateDesktopSettings: (s: DesktopSettings) => request<DesktopSettings>('PUT', '/api/local/settings', s),
 }
