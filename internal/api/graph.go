@@ -18,7 +18,7 @@ import (
 const (
 	graphMaxPages            = 10000
 	graphTopKNeighbors       = 4
-	graphMinSimilarity       = 0.55
+	graphMinSimilarity       = 0.35
 	graphBackfillMinInterval = 10 * time.Second
 )
 
@@ -113,19 +113,22 @@ func (h *Handler) Graph(w http.ResponseWriter, r *http.Request) {
 	}
 
 	model := h.Embedder.Model()
-	if h.Embedder.Enabled() && model != "" {
+	storageTag := h.Embedder.StorageTag()
+	if h.Embedder.Enabled() && storageTag != "" {
 		resp.Model = model
-		embeddings, err := db.ListPageEmbeddings(r.Context(), model)
+		embeddings, err := db.ListPageEmbeddings(r.Context(), storageTag)
 		if err != nil {
-			log.Warn("graph: list embeddings", "tenant", site.ID, "model", model, "err", err)
+			log.Warn("graph: list embeddings", "tenant", site.ID, "model", storageTag, "err", err)
 		} else if len(embeddings) > 1 {
+			normalize(embeddings)
+			center(embeddings)
 			normalize(embeddings)
 			resp.Edges = computeEdges(embeddings)
 		}
 		resp.EmbeddedCount = len(embeddings)
 
 		if resp.EmbeddedCount < resp.TotalPageCount {
-			go h.triggerBackfill(site.ID, model)
+			go h.triggerBackfill(site.ID, storageTag)
 		}
 	}
 
@@ -184,6 +187,34 @@ func buildPageURL(base string, db *tenant.DB, r *http.Request, p tenant.Page) st
 		}
 	}
 	return base + "/" + p.Slug
+}
+
+func center(embeddings []tenant.PageEmbedding) {
+	if len(embeddings) < 2 {
+		return
+	}
+	dims := len(embeddings[0].Vec)
+	if dims == 0 {
+		return
+	}
+	mean := make([]float32, dims)
+	for i := range embeddings {
+		if len(embeddings[i].Vec) != dims {
+			return
+		}
+		for j, v := range embeddings[i].Vec {
+			mean[j] += v
+		}
+	}
+	inv := float32(1.0 / float64(len(embeddings)))
+	for j := range mean {
+		mean[j] *= inv
+	}
+	for i := range embeddings {
+		for j := range embeddings[i].Vec {
+			embeddings[i].Vec[j] -= mean[j]
+		}
+	}
 }
 
 func normalize(embeddings []tenant.PageEmbedding) {

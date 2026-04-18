@@ -34,6 +34,10 @@ func (c *Client) Model() string {
 	return c.model
 }
 
+func (c *Client) StorageTag() string {
+	return c.model + "+doc-v2"
+}
+
 func (c *Client) Embed(ctx context.Context, text string) ([]float32, error) {
 	if !c.Enabled() {
 		return nil, ErrDisabled

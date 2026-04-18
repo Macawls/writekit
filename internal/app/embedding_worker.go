@@ -23,6 +23,7 @@ const (
 	embedChunkSize     = 2000
 	embedChunkOverlap  = 300
 	embedMaxChunks     = 64
+	embedDocPrefix     = "search_document: "
 )
 
 type embedJob struct {
@@ -147,7 +148,7 @@ func (w *EmbeddingWorker) process(ctx context.Context, job embedJob) {
 	start := time.Now()
 	var sum []float32
 	for i, chunk := range chunks {
-		vec, err := w.client.Embed(callCtx, chunk)
+		vec, err := w.client.Embed(callCtx, embedDocPrefix+chunk)
 		if err != nil {
 			if errors.Is(err, embedding.ErrDisabled) {
 				return
@@ -172,7 +173,7 @@ func (w *EmbeddingWorker) process(ctx context.Context, job embedJob) {
 
 	pooled := meanPoolAndNormalize(sum, len(chunks))
 
-	if err := db.UpsertPageEmbedding(ctx, page.ID, w.client.Model(), pooled); err != nil {
+	if err := db.UpsertPageEmbedding(ctx, page.ID, w.client.StorageTag(), pooled); err != nil {
 		slog.Warn("embedding: upsert", "tenant", job.tenantID, "page", page.ID, "err", err)
 		return
 	}
@@ -255,7 +256,7 @@ func (w *EmbeddingWorker) runSweeper(ctx context.Context) {
 }
 
 func (w *EmbeddingWorker) sweep(ctx context.Context) {
-	model := w.client.Model()
+	model := w.client.StorageTag()
 	for _, tenantID := range w.pool.ActiveTenants() {
 		db, err := w.pool.Get(tenantID)
 		if err != nil {
