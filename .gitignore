@@ -16,3 +16,6 @@ apps/*/dist/
 /writekit-desktop
 /writekit-desktop.exe
 desktop/build/bin/
+
+# Claude Code local state
+.claude/
