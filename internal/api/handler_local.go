@@ -23,6 +23,10 @@ func (h *Handler) LocalRoutes(r chi.Router) {
 	r.Put("/api/me", h.UpdateProfileLocal)
 	r.Get("/api/team", h.ListTeamMembersLocal)
 	r.Get("/api/graph", h.GraphLocal)
+	r.Get("/api/local/info", h.LocalInfo)
+	r.Get("/api/local/clients", h.LocalClients)
+	r.Post("/api/local/clients/{id}/connect", h.LocalClientConnect)
+	r.Post("/api/local/clients/{id}/disconnect", h.LocalClientDisconnect)
 }
 
 func (h *Handler) localSite() *platform.Tenant {

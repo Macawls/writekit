@@ -2,6 +2,7 @@ package tenant
 
 import (
 	"container/list"
+	"context"
 	"database/sql"
 	"embed"
 	"fmt"
@@ -9,8 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
+	"github.com/oklog/ulid/v2"
 	_ "modernc.org/sqlite"
+	"writekit/internal/markdown"
+	"writekit/internal/welcome"
 )
 
 //go:embed migrations/*.sql
@@ -101,8 +106,40 @@ func (p *Pool) open(tenantID string) (*DB, error) {
 		}()
 	}
 
+	if err := seedWelcomePage(db); err != nil {
+		slog.Warn("seed welcome page", "tenant", tenantID, "err", err)
+	}
+
 	slog.Info("opened tenant db", "tenant", tenantID)
 	return db, nil
+}
+
+func seedWelcomePage(db *DB) error {
+	var count int
+	if err := db.DB.QueryRow("SELECT COUNT(*) FROM pages").Scan(&count); err != nil {
+		return fmt.Errorf("count pages: %w", err)
+	}
+	if count > 0 {
+		return nil
+	}
+	html, err := markdown.Render(welcome.Markdown)
+	if err != nil {
+		html = ""
+	}
+	now := time.Now()
+	return db.CreatePage(context.Background(), &Page{
+		ID:          ulid.Make().String(),
+		Title:       welcome.Title,
+		Slug:        welcome.Slug,
+		Content:     welcome.Markdown,
+		ContentHTML: html,
+		Excerpt:     welcome.Excerpt,
+		Status:      "published",
+		Visibility:  welcome.Visibility,
+		Tags:        "[]",
+		Version:     1,
+		PublishedAt: &now,
+	})
 }
 
 func (p *Pool) evict(tenantID string) {

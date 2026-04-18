@@ -32,12 +32,11 @@ func main() {
 		os.Setenv("HOST", "localhost")
 	}
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, port, err := bindStablePort()
 	if err != nil {
 		slog.Error("bind loopback", "err", err)
 		os.Exit(1)
 	}
-	port := listener.Addr().(*net.TCPAddr).Port
 	os.Setenv("PORT", fmt.Sprintf("%d", port))
 
 	cfg, err := config.Load()
@@ -99,6 +98,20 @@ func main() {
 		slog.Error("wails run", "err", err)
 		os.Exit(1)
 	}
+}
+
+func bindStablePort() (net.Listener, int, error) {
+	for _, p := range []int{8787, 8788, 8789, 8790, 8791, 8792, 8793, 8794, 8795, 8796, 8797, 8798, 8799} {
+		l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p))
+		if err == nil {
+			return l, p, nil
+		}
+	}
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, 0, err
+	}
+	return l, l.Addr().(*net.TCPAddr).Port, nil
 }
 
 func writePortFile(port int) error {
