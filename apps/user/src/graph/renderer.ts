@@ -7,6 +7,9 @@ import {
   CircleGeometry,
   SphereGeometry,
   MeshBasicMaterial,
+  MeshPhongMaterial,
+  AmbientLight,
+  DirectionalLight,
   Object3D,
   Color,
   Raycaster,
@@ -79,6 +82,7 @@ export class GraphRenderer {
 
   private nodeMesh!: InstancedMesh
   private nodeCapacity = 0
+  private lights: Object3D[] = []
 
   private weakLayer!: EdgeLayer
   private strongLayer!: EdgeLayer
@@ -145,9 +149,11 @@ export class GraphRenderer {
     labelEl.style.position = 'absolute'
     labelEl.style.inset = '0'
     labelEl.style.pointerEvents = 'none'
+    labelEl.style.zIndex = '1'
     host.appendChild(labelEl)
 
     this.buildNodeMesh(Math.max(8, nodes.length))
+    if (this.mode === '3d') this.addLights()
 
     const { sim, simNodes, simLinks } = buildSimulation(nodes, edges, this.mode)
     this.sim = sim
@@ -215,11 +221,29 @@ export class GraphRenderer {
     const geom = this.mode === '3d'
       ? new SphereGeometry(1, 24, 20)
       : new CircleGeometry(1, NODE_SEGMENTS)
-    const mat = new MeshBasicMaterial({ color: 0xffffff })
+    const mat = this.mode === '3d'
+      ? new MeshPhongMaterial({ color: 0xffffff, shininess: 32, specular: 0x222222 })
+      : new MeshBasicMaterial({ color: 0xffffff })
     this.nodeMesh = new InstancedMesh(geom, mat, capacity)
     this.nodeMesh.count = 0
     this.nodeCapacity = capacity
     this.scene.add(this.nodeMesh)
+  }
+
+  private addLights() {
+    if (this.lights.length > 0) return
+    const ambient = new AmbientLight(0xffffff, 0.55)
+    const key = new DirectionalLight(0xffffff, 0.9)
+    key.position.set(200, 400, 600)
+    const rim = new DirectionalLight(0xffffff, 0.35)
+    rim.position.set(-300, -200, -400)
+    this.scene.add(ambient, key, rim)
+    this.lights.push(ambient, key, rim)
+  }
+
+  private removeLights() {
+    for (const l of this.lights) this.scene.remove(l)
+    this.lights = []
   }
 
   private ensureNodeCapacity(n: number) {
@@ -227,7 +251,7 @@ export class GraphRenderer {
     const newCap = Math.max(n, Math.ceil(this.nodeCapacity * NODE_CAPACITY_GROWTH))
     this.scene.remove(this.nodeMesh)
     this.nodeMesh.geometry.dispose()
-    ;(this.nodeMesh.material as MeshBasicMaterial).dispose()
+    ;(this.nodeMesh.material as { dispose?: () => void }).dispose?.()
     this.buildNodeMesh(newCap)
   }
 
@@ -797,25 +821,31 @@ export class GraphRenderer {
 
     this.scene.remove(this.nodeMesh)
     this.nodeMesh.geometry.dispose()
-    ;(this.nodeMesh.material as MeshBasicMaterial).dispose()
+    ;(this.nodeMesh.material as { dispose?: () => void }).dispose?.()
     this.buildNodeMesh(Math.max(8, this.simNodes.length, this.nodeCapacity))
     this.nodeMesh.count = this.simNodes.length
 
-    const { sim, simLinks } = buildSimulation(this.simNodes.map(sn => sn.data), this.simLinks.map(l => ({
-      source: typeof l.source === 'string' ? l.source : l.source.id,
-      target: typeof l.target === 'string' ? l.target : l.target.id,
-      weight: l.weight,
-    })), mode)
-
-    this.sim.stop()
-    this.sim = sim
-    this.simLinks = simLinks
     if (mode === '3d') {
+      this.addLights()
       for (const n of this.simNodes) if (n.z === 0) n.z = (Math.random() - 0.5) * 200
     } else {
+      this.removeLights()
       for (const n of this.simNodes) { n.z = 0; n.vz = 0 }
     }
-    this.sim.nodes(this.simNodes)
+
+    const edgesFromLinks: GraphEdge[] = this.simLinks.map(l => ({
+      source: typeof l.source === 'string' ? l.source : (l.source as SimNode).id,
+      target: typeof l.target === 'string' ? l.target : (l.target as SimNode).id,
+      weight: l.weight,
+    }))
+
+    this.sim.stop()
+    const { sim } = buildSimulation(this.simNodes.map(sn => sn.data), edgesFromLinks, mode)
+    sim.nodes(this.simNodes)
+    this.sim = sim
+
+    this.setEdges(edgesFromLinks, { restart: true })
+
     this.sim.on('tick', () => this.applySimToScene())
     this.sim.alpha(0.5).restart()
 
@@ -840,10 +870,11 @@ export class GraphRenderer {
     this.resizeObserver.disconnect()
     this.detachInputHandlers()
     if (this.controls) this.controls.dispose()
+    this.removeLights()
     for (const label of this.labels) label.element.remove()
     this.clearEdgeLabels()
     this.nodeMesh.geometry.dispose()
-    ;(this.nodeMesh.material as MeshBasicMaterial).dispose()
+    ;(this.nodeMesh.material as { dispose?: () => void }).dispose?.()
     this.disposeEdgeLayer(this.weakLayer)
     this.disposeEdgeLayer(this.strongLayer)
     this.disposeEdgeLayer(this.focusLayer)

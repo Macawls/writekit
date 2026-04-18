@@ -347,14 +347,14 @@ function FilterBar({ collections, nodes, excludedVis, excludedCols }: {
         <div className="graph-filters-row">
           <span className="graph-filters-label">Visibility</span>
           <TokenRow>
-            {visibleVisibilities.map((v, i) => (
+            {visibleVisibilities.map(v => (
               <FilterToken
                 key={v}
                 active={!excludedVis.has(v)}
                 onClick={() => toggleVis(v)}
                 label={v}
                 count={visCounts[v]}
-                first={i === 0}
+                dot={v}
               />
             ))}
           </TokenRow>
@@ -371,17 +371,15 @@ function FilterBar({ collections, nodes, excludedVis, excludedCols }: {
                 onClick={() => toggleCol(STANDALONE_KEY)}
                 label="Standalone"
                 count={standaloneCount}
-                first={true}
               />
             )}
-            {colsWithCounts.map((c, i) => (
+            {colsWithCounts.map(c => (
               <FilterToken
                 key={c.id}
                 active={!excludedCols.has(c.id)}
                 onClick={() => toggleCol(c.id)}
                 label={c.title}
                 count={c.count}
-                first={!showStandalone && i === 0}
               />
             ))}
           </TokenRow>
@@ -395,25 +393,24 @@ function TokenRow({ children }: { children: ReactNode }) {
   return <span className="graph-filters-tokens">{children}</span>
 }
 
-function FilterToken({ active, onClick, label, count, first }: {
+function FilterToken({ active, onClick, label, count, dot }: {
   active: boolean
   onClick: () => void
   label: string
   count: number
-  first: boolean
+  dot?: Visibility
 }) {
   return (
-    <>
-      {!first && <span className="graph-filters-sep" aria-hidden="true">·</span>}
-      <button
-        className={`graph-filter-token ${active ? 'is-active' : 'is-muted'}`}
-        onClick={onClick}
-        title={`${active ? 'Hide' : 'Show'} ${label}`}
-      >
-        <span>{label}</span>
-        <span className="graph-filter-token-count">{count}</span>
-      </button>
-    </>
+    <button
+      className={`graph-filter-token ${active ? 'is-active' : 'is-muted'}`}
+      onClick={onClick}
+      aria-pressed={active}
+      title={`${active ? 'Hide' : 'Show'} ${label}`}
+    >
+      {dot && <span className={`graph-filter-token-dot graph-filter-token-dot--${dot}`} aria-hidden="true" />}
+      <span>{label}</span>
+      <span className="graph-filter-token-count">{count}</span>
+    </button>
   )
 }
 
