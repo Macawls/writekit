@@ -16,7 +16,7 @@ Pages, collections, and docs — managed entirely through your AI assistant.
 
 ---
 
-WriteKit is an MCP-native publishing platform. Connect your AI assistant — Claude, Cursor, Windsurf, or anything else that speaks [Model Context Protocol](https://modelcontextprotocol.io) — and it creates pages, organises them into collections, and publishes them. No dashboard-clicking required; the dashboard is there when you want it.
+WriteKit is a publishing platform with an [MCP](https://modelcontextprotocol.io) server built in. Point Claude, Cursor, Windsurf, Cline, Zed, OpenCode, or Goose at it and write, organise, and publish pages from the chat.
 
 ## Get started
 
