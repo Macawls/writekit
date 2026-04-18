@@ -43,6 +43,7 @@ require (
 	github.com/dop251/goja v0.0.0-20240927123429-241b342198c2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2 // indirect
+	github.com/energye/systray v1.0.3 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/go-text/typesetting v0.3.4 // indirect

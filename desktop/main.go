@@ -16,12 +16,21 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	writekit "writekit"
 	"writekit/internal/app"
 	"writekit/internal/config"
+	"writekit/internal/desksettings"
 	"writekit/internal/platform"
 	"writekit/internal/tenant"
+)
+
+var (
+	wailsCtx       context.Context
+	settingsStore  *desksettings.Store
+	resolvedDataDir string
+	resolvedMCPURL  string
 )
 
 func main() {
@@ -45,8 +54,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	resolvedDataDir = cfg.DataDir
+	resolvedMCPURL = fmt.Sprintf("http://127.0.0.1:%d/mcp", port)
+
 	if err := writePortFile(port); err != nil {
 		slog.Warn("write port file", "err", err)
+	}
+
+	if s, err := desksettings.Open(); err == nil {
+		settingsStore = s
+	} else {
+		slog.Warn("open settings store", "err", err)
 	}
 
 	pool, err := tenant.NewPool(cfg.DataDir, cfg.MaxPoolSize)
@@ -77,8 +95,34 @@ func main() {
 		slog.Warn("server did not become ready within 3s, loading webview anyway")
 	}
 
+	startTray(trayCallbacks{
+		MCPURL: resolvedMCPURL,
+		OnShow: func() {
+			if wailsCtx != nil {
+				wailsruntime.WindowShow(wailsCtx)
+			}
+		},
+		OnCopyMCP: func() {
+			if err := copyToClipboardOS(resolvedMCPURL); err != nil && wailsCtx != nil {
+				wailsruntime.ClipboardSetText(wailsCtx, resolvedMCPURL)
+			}
+		},
+		OnReveal: func() { revealInExplorer(resolvedDataDir) },
+		OnQuit: func() {
+			shutdownServer(server)
+			os.Exit(0)
+		},
+	})
+
 	proxyTarget, _ := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", port))
 	proxy := httputil.NewSingleHostReverseProxy(proxyTarget)
+
+	startMinimized := false
+	if settingsStore != nil {
+		if s, err := settingsStore.Load(); err == nil {
+			startMinimized = s.StartMinimized
+		}
+	}
 
 	err = wails.Run(&options.App{
 		Title:            "WriteKit",
@@ -86,18 +130,40 @@ func main() {
 		Height:           860,
 		MinWidth:         900,
 		MinHeight:        600,
+		StartHidden:      startMinimized,
 		BackgroundColour: &options.RGBA{R: 250, G: 250, B: 250, A: 255},
 		AssetServer: &assetserver.Options{
 			Handler: proxy,
 		},
+		OnStartup: func(ctx context.Context) {
+			wailsCtx = ctx
+		},
+		OnBeforeClose: func(ctx context.Context) bool {
+			if settingsStore == nil {
+				return false
+			}
+			s, err := settingsStore.Load()
+			if err != nil || !s.CloseToTray {
+				return false
+			}
+			wailsruntime.WindowHide(ctx)
+			return true
+		},
 		OnShutdown: func(ctx context.Context) {
-			_ = server.Shutdown(ctx)
+			shutdownServer(server)
 		},
 	})
 	if err != nil {
 		slog.Error("wails run", "err", err)
 		os.Exit(1)
 	}
+}
+
+func shutdownServer(server *http.Server) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = server.Shutdown(ctx)
+	quitTray()
 }
 
 func bindStablePort() (net.Listener, int, error) {

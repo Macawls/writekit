@@ -107,11 +107,11 @@ function DesktopSection() {
           onChange={v => update({ autostart: v })}
         />
         <Toggle
-          label="Close to tray (coming soon)"
-          description="Keeps WriteKit running in the background when you close the window. Tray icon support lands in the next release."
+          label="Close to tray"
+          description="Closing the window hides WriteKit to the system tray instead of quitting. Click the tray icon to bring it back."
           checked={settings.close_to_tray}
-          disabled
-          onChange={() => {}}
+          disabled={busy}
+          onChange={v => update({ close_to_tray: v })}
         />
       </div>
     </div>
