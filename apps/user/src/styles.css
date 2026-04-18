@@ -267,6 +267,16 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
   transition: opacity 180ms ease-out;
 }
 .graph-label.dim { opacity: 0.4; }
+.graph-edge-label {
+  font-family: var(--mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 10px; font-weight: 500;
+  color: var(--fg); user-select: none; pointer-events: none;
+  background: rgba(255, 255, 255, .9);
+  padding: 1px 5px; border-radius: 3px;
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+  transform: translate(0, -1px);
+}
 .graph-label-dot {
   display: inline-block;
   width: 6px; height: 6px; border-radius: 50%;
@@ -278,44 +288,48 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
 
 .graph-filters {
   position: absolute; top: 1rem; left: 1rem; z-index: 2;
-  display: flex; flex-direction: column; gap: .35rem;
+  display: flex; flex-direction: column; gap: .1rem;
   max-width: calc(100vw - 2rem);
+  padding: .55rem .85rem;
+  background: rgba(255, 255, 255, .8); backdrop-filter: blur(8px);
+  border: 1px solid var(--border); border-radius: 10px;
 }
-.graph-filters-group {
-  display: flex; align-items: center; flex-wrap: wrap; gap: .3rem;
-  background: rgba(255, 255, 255, .85); backdrop-filter: blur(6px);
-  border: 1px solid var(--border); border-radius: 999px;
-  padding: .25rem .5rem .25rem .75rem;
+.graph-filters-row {
+  display: flex; align-items: baseline; gap: .75rem;
+  min-height: 20px;
 }
 .graph-filters-label {
-  font-size: .6rem; font-weight: 600; letter-spacing: .08em;
+  font-size: .58rem; font-weight: 600; letter-spacing: .1em;
   text-transform: uppercase; color: var(--faint);
-  margin-right: .15rem;
+  width: 68px; flex-shrink: 0;
 }
-.graph-filters-chip {
-  display: inline-flex; align-items: center; gap: .35rem;
-  font: inherit; font-size: .7rem; font-weight: 500;
-  padding: .25rem .6rem;
-  background: transparent; border: 1px solid transparent; border-radius: 999px;
-  cursor: pointer;
-  transition: opacity 120ms ease, background-color 120ms ease;
+.graph-filters-tokens {
+  display: flex; align-items: baseline; flex-wrap: wrap;
+  gap: 0 .3rem; line-height: 1.6;
+}
+.graph-filter-token {
+  display: inline-flex; align-items: baseline; gap: .2rem;
+  font: inherit; font-size: .72rem; font-weight: 500;
+  color: var(--fg); background: transparent; border: none;
+  padding: 0; cursor: pointer;
+  transition: color 120ms ease, opacity 120ms ease;
   text-transform: capitalize;
 }
-.graph-filters-chip.is-active { color: var(--fg); background: var(--bg); border-color: var(--border); }
-.graph-filters-chip.is-active:hover { background: var(--white); }
-.graph-filters-chip.is-muted { color: var(--faint); opacity: 0.55; text-decoration: line-through; }
-.graph-filters-chip.is-muted:hover { opacity: 0.8; }
-.graph-filters-count {
-  font-variant-numeric: tabular-nums; font-size: .62rem;
-  color: var(--faint); padding-left: .15rem;
+.graph-filter-token.is-active { color: var(--fg); }
+.graph-filter-token.is-active:hover { color: #000; }
+.graph-filter-token.is-muted {
+  color: var(--faint); text-decoration: line-through;
+  text-decoration-thickness: 1px;
 }
-.graph-filters-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--muted); flex-shrink: 0;
+.graph-filter-token.is-muted:hover { color: var(--muted); }
+.graph-filter-token-count {
+  font-size: .62rem; font-variant-numeric: tabular-nums;
+  color: var(--faint); font-weight: 400;
 }
-.graph-filters-dot--public { background: #22c55e; }
-.graph-filters-dot--unlisted { background: #d97706; }
-.graph-filters-dot--private { background: #dc2626; }
+.graph-filter-token.is-muted .graph-filter-token-count { color: var(--faint); }
+.graph-filters-sep {
+  color: var(--faint); font-size: .7rem; user-select: none; margin: 0 .05rem;
+}
 
 .graph-stats {
   position: absolute; top: 1rem; right: 1rem; z-index: 2;
@@ -360,7 +374,7 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
   transition: box-shadow 220ms ease, transform 220ms ease;
   animation: graph-panel-in 260ms cubic-bezier(.2,.9,.3,1) both;
 }
-.graph-panel.is-focused { box-shadow: 0 10px 34px rgba(79, 70, 229, .12); }
+.graph-panel.is-focused { box-shadow: 0 10px 34px rgba(15, 15, 15, .10); }
 @keyframes graph-panel-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -383,7 +397,7 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
 .graph-panel-close:hover { background: var(--bg); color: var(--fg); }
 .graph-panel-eyebrow {
   font-size: .6rem; font-weight: 600; letter-spacing: .08em;
-  text-transform: uppercase; color: var(--accent); margin-bottom: .35rem;
+  text-transform: uppercase; color: var(--muted); margin-bottom: .35rem;
   min-height: 1em;
 }
 .graph-panel-subtitle {
@@ -441,12 +455,13 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
 }
 .graph-panel-item:hover { background: var(--bg); }
 .graph-panel-bar {
-  position: absolute; left: 0; top: 0; bottom: 0;
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border-right: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  position: absolute; left: 0; bottom: 0;
+  height: 2px;
+  background: rgba(15, 15, 15, .45);
   pointer-events: none;
-  transition: width 180ms ease;
+  transition: width 220ms ease;
 }
+.graph-panel-item:hover .graph-panel-bar { background: rgba(15, 15, 15, .7); }
 .graph-panel-item-title {
   position: relative; flex: 1; min-width: 0;
   font-size: .78rem;
@@ -471,7 +486,7 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
   border-radius: 6px; padding: .35rem .65rem;
   cursor: pointer; text-decoration: none;
 }
-.graph-panel-open:hover { background: var(--accent); color: var(--white); border-color: var(--accent); text-decoration: none; }
+.graph-panel-open:hover { background: var(--fg); color: var(--white); border-color: var(--fg); text-decoration: none; }
 .graph-panel-hint { font-size: .65rem; color: var(--faint); }
 .graph-panel-hint kbd {
   font-family: inherit; font-size: .65rem;

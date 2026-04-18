@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { fetchGraph } from '../api/graph'
 import type { GraphResponse, GraphNode, GraphEdge, Visibility } from '../graph/types'
 import { GraphRenderer } from '../graph/renderer'
@@ -442,54 +442,79 @@ function FilterBar({ collections, nodes, excludedVis, excludedCols, onToggleVis,
   return (
     <div className="graph-filters">
       {visibleVisibilities.length > 1 && (
-        <div className="graph-filters-group">
+        <div className="graph-filters-row">
           <span className="graph-filters-label">Visibility</span>
-          {visibleVisibilities.map(v => {
-            const active = !excludedVis.has(v)
-            return (
-              <button
-                key={v}
-                className={`graph-filters-chip ${active ? 'is-active' : 'is-muted'} graph-filters-chip--${v}`}
-                onClick={() => onToggleVis(v)}
-                title={`${active ? 'Hide' : 'Show'} ${v} pages`}
-              >
-                <span className={`graph-filters-dot graph-filters-dot--${v}`} />
-                <span>{v}</span>
-                <span className="graph-filters-count">{visCounts[v]}</span>
-              </button>
-            )
-          })}
+          <TokenRow>
+            {visibleVisibilities.map((v, i) => {
+              const active = !excludedVis.has(v)
+              return (
+                <FilterToken
+                  key={v}
+                  active={active}
+                  onClick={() => onToggleVis(v)}
+                  label={v}
+                  count={visCounts[v]}
+                  first={i === 0}
+                />
+              )
+            })}
+          </TokenRow>
         </div>
       )}
 
       {(colsWithCounts.length > 0 || showStandalone) && (
-        <div className="graph-filters-group">
+        <div className="graph-filters-row">
           <span className="graph-filters-label">Collections</span>
-          {showStandalone && (
-            <button
-              className={`graph-filters-chip ${!excludedCols.has(STANDALONE_KEY) ? 'is-active' : 'is-muted'}`}
-              onClick={() => onToggleCol(STANDALONE_KEY)}
-            >
-              <span>Standalone</span>
-              <span className="graph-filters-count">{standaloneCount}</span>
-            </button>
-          )}
-          {colsWithCounts.map(c => {
-            const active = !excludedCols.has(c.id)
-            return (
-              <button
+          <TokenRow>
+            {showStandalone && (
+              <FilterToken
+                active={!excludedCols.has(STANDALONE_KEY)}
+                onClick={() => onToggleCol(STANDALONE_KEY)}
+                label="Standalone"
+                count={standaloneCount}
+                first={true}
+              />
+            )}
+            {colsWithCounts.map((c, i) => (
+              <FilterToken
                 key={c.id}
-                className={`graph-filters-chip ${active ? 'is-active' : 'is-muted'}`}
+                active={!excludedCols.has(c.id)}
                 onClick={() => onToggleCol(c.id)}
-              >
-                <span>{c.title}</span>
-                <span className="graph-filters-count">{c.count}</span>
-              </button>
-            )
-          })}
+                label={c.title}
+                count={c.count}
+                first={!showStandalone && i === 0}
+              />
+            ))}
+          </TokenRow>
         </div>
       )}
     </div>
+  )
+}
+
+function TokenRow({ children }: { children: ReactNode }) {
+  return <span className="graph-filters-tokens">{children}</span>
+}
+
+function FilterToken({ active, onClick, label, count, first }: {
+  active: boolean
+  onClick: () => void
+  label: string
+  count: number
+  first: boolean
+}) {
+  return (
+    <>
+      {!first && <span className="graph-filters-sep" aria-hidden="true">·</span>}
+      <button
+        className={`graph-filter-token ${active ? 'is-active' : 'is-muted'}`}
+        onClick={onClick}
+        title={`${active ? 'Hide' : 'Show'} ${label}`}
+      >
+        <span>{label}</span>
+        <span className="graph-filter-token-count">{count}</span>
+      </button>
+    </>
   )
 }
 

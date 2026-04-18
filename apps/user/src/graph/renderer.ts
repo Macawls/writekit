@@ -9,7 +9,6 @@ import {
   Color,
   Raycaster,
   Vector2,
-  AdditiveBlending,
 } from 'three'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
@@ -25,23 +24,21 @@ const NODE_DEGREE_STEP = 0.7
 const NODE_FOCUS_MULTIPLIER = 1.5
 const NODE_HOVER_MULTIPLIER = 1.25
 const NODE_SEGMENTS = 48
-const GLOW_SCALE = 2.4
 
 const BG_COLOR = 0xfafafa
 const NODE_COLOR = 0x18181b
-const NODE_DIM_COLOR = 0xc4c4c8
-const GLOW_COLOR = 0x4f46e5
+const NODE_DIM_COLOR = 0xd4d4d8
 
 const EDGE_STRONG_THRESHOLD = 0.75
-const EDGE_WEAK_COLOR = 0xc4c4c8
-const EDGE_STRONG_COLOR = 0x4f46e5
-const EDGE_FOCUS_COLOR = 0x4f46e5
+const EDGE_WEAK_COLOR = 0xd4d4d8
+const EDGE_STRONG_COLOR = 0x71717a
+const EDGE_FOCUS_COLOR = 0x18181b
 const EDGE_WEAK_WIDTH = 1.4
-const EDGE_STRONG_WIDTH = 2.6
-const EDGE_FOCUS_WIDTH = 3.8
+const EDGE_STRONG_WIDTH = 2.4
+const EDGE_FOCUS_WIDTH = 3.0
 const EDGE_WEAK_OPACITY = 0.55
-const EDGE_STRONG_OPACITY = 0.85
-const EDGE_DIM_OPACITY = 0.07
+const EDGE_STRONG_OPACITY = 0.75
+const EDGE_DIM_OPACITY = 0.08
 
 const ZOOM_MIN = 0.15
 const ZOOM_MAX = 8
@@ -70,7 +67,6 @@ export class GraphRenderer {
   private labelRenderer: CSS2DRenderer
 
   private nodeMesh: InstancedMesh
-  private glowMesh: InstancedMesh
 
   private weakLayer!: EdgeLayer
   private strongLayer!: EdgeLayer
@@ -82,6 +78,8 @@ export class GraphRenderer {
 
   private labels: CSS2DObject[] = []
   private labelAnchors: Object3D[] = []
+  private edgeLabels: CSS2DObject[] = []
+  private edgeLabelAnchors: Object3D[] = []
   private idToIndex = new Map<string, number>()
   private neighbors: Set<number>[] = []
   private degrees: number[] = []
@@ -138,18 +136,6 @@ export class GraphRenderer {
     host.appendChild(labelEl)
 
     nodes.forEach((n, i) => this.idToIndex.set(n.id, i))
-
-    const glowGeom = new CircleGeometry(1, NODE_SEGMENTS)
-    const glowMat = new MeshBasicMaterial({
-      color: GLOW_COLOR,
-      transparent: true,
-      opacity: 0.0,
-      blending: AdditiveBlending,
-      depthWrite: false,
-    })
-    this.glowMesh = new InstancedMesh(glowGeom, glowMat, Math.max(1, nodes.length))
-    this.glowMesh.visible = false
-    this.scene.add(this.glowMesh)
 
     const geom = new CircleGeometry(1, NODE_SEGMENTS)
     const mat = new MeshBasicMaterial({ color: 0xffffff })
@@ -305,28 +291,28 @@ export class GraphRenderer {
       this.dummy.updateMatrix()
       this.nodeMesh.setMatrixAt(i, this.dummy.matrix)
 
-      if (!hidden && (i === this.focusedIndex || i === this.externalHoverIndex)) {
-        this.dummy.scale.set(scale * GLOW_SCALE, scale * GLOW_SCALE, 1)
-        this.dummy.updateMatrix()
-      } else {
-        this.dummy.scale.set(0.0001, 0.0001, 1)
-        this.dummy.updateMatrix()
-      }
-      this.glowMesh.setMatrixAt(i, this.dummy.matrix)
-
       const label = this.labels[i].element as HTMLElement
       label.style.display = hidden ? 'none' : ''
       this.labelAnchors[i].position.set(n.x, n.y, 0)
     }
     this.nodeMesh.instanceMatrix.needsUpdate = true
-    this.glowMesh.instanceMatrix.needsUpdate = true
-    this.glowMesh.visible = this.focusedIndex >= 0 || this.externalHoverIndex >= 0
-    ;(this.glowMesh.material as MeshBasicMaterial).opacity = 0.22
 
     this.updateLayerPositions(this.weakLayer)
     this.updateLayerPositions(this.strongLayer)
     if (this.focusLayer.indices.length > 0) {
       this.updateLayerPositions(this.focusLayer)
+      this.updateEdgeLabels()
+    }
+  }
+
+  private updateEdgeLabels() {
+    for (let i = 0; i < this.focusLayer.indices.length; i++) {
+      const l = this.simLinks[this.focusLayer.indices[i]]
+      const s = l.source as SimNode
+      const t = l.target as SimNode
+      const anchor = this.edgeLabelAnchors[i]
+      if (!anchor) continue
+      anchor.position.set((s.x + t.x) / 2, (s.y + t.y) / 2, 0)
     }
   }
 
@@ -352,6 +338,8 @@ export class GraphRenderer {
   }
 
   private applyEdgeFocus() {
+    this.clearEdgeLabels()
+
     if (this.focusedIndex < 0) {
       this.weakLayer.mat.opacity = EDGE_WEAK_OPACITY
       this.strongLayer.mat.opacity = EDGE_STRONG_OPACITY
@@ -378,7 +366,34 @@ export class GraphRenderer {
     this.focusLayer.indices = focusIdx
     this.focusLayer.positions = new Float32Array(focusIdx.length * 6)
     this.focusLayer.line.visible = focusIdx.length > 0
-    if (focusIdx.length > 0) this.updateLayerPositions(this.focusLayer)
+    if (focusIdx.length > 0) {
+      this.updateLayerPositions(this.focusLayer)
+      this.createEdgeLabels(focusIdx)
+    }
+  }
+
+  private createEdgeLabels(indices: number[]) {
+    for (const ei of indices) {
+      const l = this.simLinks[ei]
+      const anchor = new Object3D()
+      this.scene.add(anchor)
+      this.edgeLabelAnchors.push(anchor)
+
+      const div = document.createElement('div')
+      div.className = 'graph-edge-label'
+      div.textContent = Math.round(l.weight * 100) + '%'
+      const label = new CSS2DObject(div)
+      anchor.add(label)
+      this.edgeLabels.push(label)
+    }
+    this.updateEdgeLabels()
+  }
+
+  private clearEdgeLabels() {
+    for (const lbl of this.edgeLabels) lbl.element.remove()
+    for (const anchor of this.edgeLabelAnchors) this.scene.remove(anchor)
+    this.edgeLabels = []
+    this.edgeLabelAnchors = []
   }
 
   private ndcToWorld(ndcX: number, ndcY: number): { x: number; y: number } {
@@ -622,10 +637,9 @@ export class GraphRenderer {
     this.host.removeEventListener('pointerup', this.onPointerUp)
     this.host.removeEventListener('wheel', this.onWheel)
     for (const label of this.labels) label.element.remove()
+    this.clearEdgeLabels()
     this.nodeMesh.geometry.dispose()
     ;(this.nodeMesh.material as MeshBasicMaterial).dispose()
-    this.glowMesh.geometry.dispose()
-    ;(this.glowMesh.material as MeshBasicMaterial).dispose()
     this.disposeEdgeLayer(this.weakLayer)
     this.disposeEdgeLayer(this.strongLayer)
     this.disposeEdgeLayer(this.focusLayer)
