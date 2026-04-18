@@ -22,6 +22,8 @@ const (
 	titleFallbackSize = 48
 	titleLargeSize    = 64
 	titleMaxTags      = 5
+	subtitleMaxChars  = 140
+	slugPathMaxChars  = 36
 )
 
 var fontSources = []ogre.FontSource{
@@ -99,7 +101,8 @@ func normalize(d Data) Data {
 	if d.Title == "" {
 		d.Title = d.Subdomain
 	}
-	d.Subtitle = strings.TrimSpace(d.Subtitle)
+	d.Subtitle = truncate(strings.TrimSpace(d.Subtitle), subtitleMaxChars)
+	d.SlugPath = truncate(d.SlugPath, slugPathMaxChars)
 	if len(d.Tags) > titleMaxTags {
 		d.Tags = d.Tags[:titleMaxTags]
 	}
@@ -111,4 +114,12 @@ func titleSizeFor(title string) int {
 		return titleFallbackSize
 	}
 	return titleLargeSize
+}
+
+func truncate(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return strings.TrimRight(string(runes[:max-1]), " ") + "…"
 }
