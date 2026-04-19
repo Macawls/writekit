@@ -449,11 +449,12 @@ func (h *Handler) RawCollectionMarkdown(w http.ResponseWriter, r *http.Request) 
 }
 
 type searchResult struct {
-	Title      string `json:"title"`
-	Slug       string `json:"slug"`
-	Collection string `json:"collection,omitempty"`
-	Excerpt    string `json:"excerpt,omitempty"`
-	URL        string `json:"url"`
+	Title       string `json:"title"`
+	TitleHTML   string `json:"titleHtml"`
+	Slug        string `json:"slug"`
+	Collection  string `json:"collection,omitempty"`
+	SnippetHTML string `json:"snippetHtml,omitempty"`
+	URL         string `json:"url"`
 }
 
 func (h *Handler) SearchJSON(w http.ResponseWriter, r *http.Request) {
@@ -475,8 +476,8 @@ func (h *Handler) SearchJSON(w http.ResponseWriter, r *http.Request) {
 			log.Warn("search: query failed", "tenant", tenantID, "q", q, "err", err)
 		}
 		isMember := h.isTeamMember(r, tenantID)
-		for _, p := range found {
-			switch p.Visibility {
+		for _, hit := range found {
+			switch hit.Visibility {
 			case "public":
 			case "private":
 				if !isMember {
@@ -485,24 +486,25 @@ func (h *Handler) SearchJSON(w http.ResponseWriter, r *http.Request) {
 			default:
 				continue
 			}
-			url := "/" + p.Slug
+			url := "/" + hit.Slug
 			colSlug := ""
-			if p.CollectionID != nil && *p.CollectionID != "" {
-				col, err := db.GetCollection(r.Context(), *p.CollectionID)
+			if hit.CollectionID != nil && *hit.CollectionID != "" {
+				col, err := db.GetCollection(r.Context(), *hit.CollectionID)
 				if err == nil {
 					if col.Visibility != "public" && !(col.Visibility == "private" && isMember) {
 						continue
 					}
 					colSlug = col.Slug
-					url = "/" + col.Slug + "/" + p.Slug
+					url = "/" + col.Slug + "/" + hit.Slug
 				}
 			}
 			results = append(results, searchResult{
-				Title:      p.Title,
-				Slug:       p.Slug,
-				Collection: colSlug,
-				Excerpt:    p.Excerpt,
-				URL:        url,
+				Title:       hit.Title,
+				TitleHTML:   hit.TitleHTML,
+				Slug:        hit.Slug,
+				Collection:  colSlug,
+				SnippetHTML: hit.SnippetHTML,
+				URL:         url,
 			})
 		}
 	}

@@ -201,10 +201,11 @@
                 results.forEach(function(r) {
                     var li = document.createElement('li');
                     li.className = 'search-modal__result';
+                    // titleHtml / snippetHtml come from the server already escaped around <mark> tags
                     li.innerHTML = '<a href="' + escapeHtml(r.url) + '">' +
-                        '<span class="search-modal__result-title">' + escapeHtml(r.title) + '</span>' +
+                        '<span class="search-modal__result-title">' + (r.titleHtml || escapeHtml(r.title || '')) + '</span>' +
                         (r.collection ? '<span class="search-modal__result-collection">' + escapeHtml(r.collection) + '</span>' : '') +
-                        (r.excerpt ? '<span class="search-modal__result-excerpt">' + escapeHtml(r.excerpt) + '</span>' : '') +
+                        (r.snippetHtml ? '<span class="search-modal__result-excerpt">' + r.snippetHtml + '</span>' : '') +
                         '</a>';
                     resultsEl.appendChild(li);
                 });
@@ -273,7 +274,7 @@
             input.addEventListener('input', function() {
                 var val = input.value.trim();
                 if (debounceId) clearTimeout(debounceId);
-                debounceId = setTimeout(function() { runSearch(val); }, 180);
+                debounceId = setTimeout(function() { runSearch(val); }, 120);
             });
 
             var initial = new URLSearchParams(window.location.search).get('search');

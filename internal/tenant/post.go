@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"html"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type Page struct {
@@ -178,29 +180,99 @@ func (db *DB) ListCollectionPages(ctx context.Context, collectionID, sortOrder s
 	return pages, nil
 }
 
-func (db *DB) SearchPages(ctx context.Context, query string) ([]Page, error) {
+type SearchHit struct {
+	Page
+	TitleHTML   string
+	SnippetHTML string
+}
+
+func buildFTSQuery(input string) string {
+	var tokens []string
+	for _, raw := range strings.Fields(strings.ToLower(input)) {
+		var b strings.Builder
+		for _, r := range raw {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+				b.WriteRune(r)
+			}
+		}
+		if b.Len() > 0 {
+			tokens = append(tokens, b.String())
+		}
+	}
+	if len(tokens) == 0 {
+		return ""
+	}
+	var parts []string
+	for i, t := range tokens {
+		if i == len(tokens)-1 {
+			parts = append(parts, `"`+t+`"*`)
+		} else {
+			parts = append(parts, `"`+t+`"`)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func escapeAroundMark(s string) string {
+	const open, close = "<mark>", "</mark>"
+	var b strings.Builder
+	for {
+		i := strings.Index(s, open)
+		if i < 0 {
+			b.WriteString(html.EscapeString(s))
+			return b.String()
+		}
+		b.WriteString(html.EscapeString(s[:i]))
+		b.WriteString(open)
+		s = s[i+len(open):]
+		j := strings.Index(s, close)
+		if j < 0 {
+			b.WriteString(html.EscapeString(s))
+			return b.String()
+		}
+		b.WriteString(html.EscapeString(s[:j]))
+		b.WriteString(close)
+		s = s[j+len(close):]
+	}
+}
+
+func (db *DB) SearchPages(ctx context.Context, query string) ([]SearchHit, error) {
+	fts := buildFTSQuery(query)
+	if fts == "" {
+		return nil, nil
+	}
 	rows, err := db.DB.QueryContext(ctx, `
-		SELECT p.id, p.title, p.slug, p.content, p.content_html, p.excerpt, p.status, p.visibility, p.tags, p.collection_id, p.position, p.version, p.published_at, p.created_at, p.updated_at
+		SELECT p.id, p.title, p.slug, p.content, p.content_html, p.excerpt, p.status, p.visibility, p.tags, p.collection_id, p.position, p.version, p.published_at, p.created_at, p.updated_at,
+		       highlight(pages_fts, 0, '<mark>', '</mark>') AS title_html,
+		       snippet(pages_fts, 1, '<mark>', '</mark>', '…', 16) AS snippet_html
 		FROM pages p
 		JOIN pages_fts ON pages_fts.rowid = p.rowid
 		WHERE pages_fts MATCH ?
-		ORDER BY rank
+		ORDER BY bm25(pages_fts, 10.0, 1.0, 3.0)
 		LIMIT 20
-	`, query)
+	`, fts)
 	if err != nil {
 		return nil, fmt.Errorf("search pages: %w", err)
 	}
 	defer rows.Close()
 
-	var pages []Page
+	var hits []SearchHit
 	for rows.Next() {
-		p, err := scanPageRow(rows)
+		var p Page
+		var titleHTML, snippetHTML string
+		err := rows.Scan(&p.ID, &p.Title, &p.Slug, &p.Content, &p.ContentHTML, &p.Excerpt,
+			&p.Status, &p.Visibility, &p.Tags, &p.CollectionID, &p.Position, &p.Version,
+			&p.PublishedAt, &p.CreatedAt, &p.UpdatedAt, &titleHTML, &snippetHTML)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan search row: %w", err)
 		}
-		pages = append(pages, *p)
+		hits = append(hits, SearchHit{
+			Page:        p,
+			TitleHTML:   escapeAroundMark(titleHTML),
+			SnippetHTML: escapeAroundMark(snippetHTML),
+		})
 	}
-	return pages, nil
+	return hits, nil
 }
 
 func (db *DB) CountStandalonePages(ctx context.Context, status string) (int, error) {
