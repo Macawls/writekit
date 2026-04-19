@@ -79,28 +79,33 @@ func (db *DB) rerenderPages() error {
 	if err != nil {
 		return fmt.Errorf("query pages: %w", err)
 	}
-	defer rows.Close()
-
-	updated := 0
+	type pageRow struct{ id, content string }
+	var pages []pageRow
 	for rows.Next() {
-		var id, content string
-		if err := rows.Scan(&id, &content); err != nil {
+		var p pageRow
+		if err := rows.Scan(&p.id, &p.content); err != nil {
 			continue
 		}
+		pages = append(pages, p)
+	}
+	rows.Close()
+
+	updated := 0
+	for _, p := range pages {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Warn("panic re-rendering page (isolated)", "tenant", db.TenantID, "id", id, "panic", r)
+					slog.Warn("panic re-rendering page (isolated)", "tenant", db.TenantID, "id", p.id, "panic", r)
 				}
 			}()
-			html, ok := safeRender(id, content)
+			html, ok := safeRender(p.id, p.content)
 			if !ok {
 				return
 			}
-			plain := markdown.Plain(content)
+			plain := markdown.Plain(p.content)
 			if _, err := db.DB.ExecContext(context.Background(),
-				"UPDATE pages SET content_html = ?, search_text = ? WHERE id = ?", html, plain, id); err != nil {
-				slog.Warn("failed to re-render page", "id", id, "err", err)
+				"UPDATE pages SET content_html = ?, search_text = ? WHERE id = ?", html, plain, p.id); err != nil {
+				slog.Warn("failed to re-render page", "id", p.id, "err", err)
 				return
 			}
 			updated++
@@ -115,7 +120,7 @@ func (db *DB) rerenderPages() error {
 	}
 
 	slog.Info("re-rendered pages after migration", "tenant", db.TenantID, "count", updated)
-	return rows.Err()
+	return nil
 }
 
 func safeRender(pageID, content string) (html string, ok bool) {
