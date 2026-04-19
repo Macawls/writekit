@@ -262,7 +262,14 @@ func d2CacheKey(code string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func (r *codeBlockRenderer) renderD2(code string) (string, error) {
+func (r *codeBlockRenderer) renderD2(code string) (result string, err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			err = fmt.Errorf("d2 panic: %v", rec)
+			result = ""
+		}
+	}()
+
 	key := d2CacheKey(code)
 	if cached, ok := d2Cache.Load(key); ok {
 		return cached.(string), nil
@@ -299,7 +306,7 @@ func (r *codeBlockRenderer) renderD2(code string) (string, error) {
 		return "", fmt.Errorf("render error: %w", err)
 	}
 
-	result := string(svg)
+	result = string(svg)
 	d2Cache.Store(key, result)
 	return result, nil
 }

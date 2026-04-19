@@ -67,14 +67,28 @@ func Render(source string) (string, error) {
 var (
 	tagPattern   = regexp.MustCompile(`<[^>]+>`)
 	spacePattern = regexp.MustCompile(`\s+`)
+
+	plainRenderer     goldmark.Markdown
+	plainRendererOnce sync.Once
 )
 
+func getPlainRenderer() goldmark.Markdown {
+	plainRendererOnce.Do(func() {
+		plainRenderer = goldmark.New(
+			goldmark.WithExtensions(extension.GFM),
+			goldmark.WithParserOptions(parser.WithAutoHeadingID()),
+			goldmark.WithRendererOptions(html.WithHardWraps()),
+		)
+	})
+	return plainRenderer
+}
+
 func Plain(source string) string {
-	htmlOut, err := RenderWithTheme(source, DefaultCodeTheme)
-	if err != nil {
+	var buf bytes.Buffer
+	if err := getPlainRenderer().Convert([]byte(source), &buf); err != nil {
 		return strings.TrimSpace(spacePattern.ReplaceAllString(source, " "))
 	}
-	stripped := tagPattern.ReplaceAllString(htmlOut, " ")
+	stripped := tagPattern.ReplaceAllString(buf.String(), " ")
 	stripped = stdhtml.UnescapeString(stripped)
 	return strings.TrimSpace(spacePattern.ReplaceAllString(stripped, " "))
 }
