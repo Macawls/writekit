@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>How it works — WriteKit</title>
+    <meta
+      name="description"
+      content="The technology behind WriteKit — a Go binary, SQLite per site, a desktop app, and a privacy posture that doesn't require trust."
+    />
+    <link rel="canonical" href="https://writekit.dev/how-it-works" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="How WriteKit works" />
+    <meta
+      property="og:description"
+      content="One Go binary. SQLite per site. A desktop app that runs fully offline. Open source."
+    />
+    <meta property="og:url" content="https://writekit.dev/how-it-works" />
+    <meta property="og:site_name" content="WriteKit" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="How WriteKit works" />
+    <meta
+      name="twitter:description"
+      content="Go, SQLite, desktop, privacy — the boring choices WriteKit made on purpose."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      :root {
+        --bg: #fafafa;
+        --white: #fff;
+        --fg: #0a0a0a;
+        --fg2: #3f3f46;
+        --muted: #71717a;
+        --faint: #a1a1aa;
+        --border: #e4e4e7;
+        --border2: #d4d4d8;
+        --accent: #0a0a0a;
+        --surface: #141418;
+        --sans: "Plus Jakarta Sans", system-ui, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+      html, body { scrollbar-width: none; -ms-overflow-style: none; }
+      html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; height: 0; }
+      body {
+        font-family: var(--sans);
+        background: var(--bg);
+        color: var(--fg);
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.7;
+      }
+      a {
+        color: var(--fg);
+        text-decoration: underline;
+        text-decoration-color: var(--border2);
+        text-underline-offset: 3px;
+      }
+      a:hover { text-decoration-color: var(--fg); }
+
+      .hero-band {
+        position: relative;
+        isolation: isolate;
+        background:
+          radial-gradient(70% 80% at 50% 0%, rgba(0,0,0,.05) 0%, rgba(0,0,0,.02) 35%, rgba(0,0,0,0) 70%),
+          #fafafa;
+        color: var(--fg);
+        border-bottom: 1px solid var(--border);
+        overflow: hidden;
+        min-height: 340px;
+      }
+      .hero-band::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background-image: url("/static/grain.svg");
+        background-size: 400px 400px;
+        background-repeat: repeat;
+        opacity: 0.08;
+        mix-blend-mode: multiply;
+      }
+      .hero-band > * { position: relative; z-index: 1; }
+      .hero-inner {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 3.5rem 2rem 4.5rem;
+        text-align: left;
+      }
+      .hero-inner h1 {
+        font-size: clamp(2.2rem, 4.5vw, 3rem);
+        font-weight: 700;
+        letter-spacing: -.035em;
+        line-height: 1.05;
+        margin-bottom: .9rem;
+        color: var(--fg);
+      }
+      .hero-inner .lede {
+        font-size: clamp(.98rem, 1.3vw, 1.1rem);
+        color: #52525b;
+        margin: 0;
+        max-width: 620px;
+        line-height: 1.55;
+      }
+
+      .layout {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 3.5rem 2rem 6rem;
+        display: grid;
+        grid-template-columns: 240px minmax(0,1fr);
+        gap: 4.5rem;
+      }
+      aside.sidebar {
+        position: sticky;
+        top: 1.5rem;
+        align-self: start;
+        max-height: calc(100vh - 3rem);
+        overflow-y: auto;
+        scrollbar-width: none;
+        padding-right: .5rem;
+      }
+      aside.sidebar::-webkit-scrollbar { display: none; }
+      .sb-group { margin-bottom: 1.75rem; }
+      .sb-group:last-child { margin-bottom: 0; }
+      .sb-title {
+        font-family: var(--mono);
+        font-size: .66rem;
+        font-weight: 600;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: var(--fg);
+        margin-bottom: .7rem;
+        padding-left: .9rem;
+      }
+      .sb-group a {
+        display: block;
+        font-size: .84rem;
+        font-weight: 500;
+        padding: .32rem .9rem;
+        color: var(--muted);
+        text-decoration: none;
+        border-left: 2px solid var(--border);
+        line-height: 1.35;
+      }
+      .sb-group a:hover { color: var(--fg); background: rgba(0,0,0,.02); }
+      .sb-group a.active {
+        color: var(--fg);
+        border-left-color: var(--fg);
+        background: rgba(0,0,0,.03);
+      }
+
+      .doc { max-width: 760px; min-width: 0; }
+      .doc > *:first-child { margin-top: 0; }
+
+      h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -.025em;
+        line-height: 1.2;
+        margin-top: 4rem;
+        margin-bottom: 1rem;
+        padding-top: 2.5rem;
+        border-top: 1px solid var(--border);
+        scroll-margin-top: 1.5rem;
+      }
+      h2:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+      h3 {
+        font-size: 1.08rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        line-height: 1.3;
+        margin-top: 2rem;
+        margin-bottom: .6rem;
+        color: var(--fg);
+        scroll-margin-top: 1.5rem;
+      }
+      p { margin-bottom: 1rem; color: var(--fg2); font-size: .95rem; line-height: 1.7; }
+      ul, ol { margin-bottom: 1rem; padding-left: 1.25rem; color: var(--fg2); font-size: .95rem; line-height: 1.7; }
+      li { margin-bottom: .4rem; }
+      strong { color: var(--fg); font-weight: 600; }
+
+      code {
+        font-family: var(--mono);
+        font-size: .82rem;
+        background: #f4f4f5;
+        border: 1px solid var(--border);
+        padding: .1rem .38rem;
+        border-radius: 5px;
+        color: var(--fg);
+      }
+      pre {
+        background: var(--surface);
+        color: #e4e4e7;
+        border-radius: 12px;
+        padding: 1.15rem 1.35rem;
+        margin-bottom: 1.25rem;
+        overflow-x: auto;
+        font-family: var(--mono);
+        font-size: .8rem;
+        line-height: 1.7;
+        scrollbar-width: none;
+        border: 1px solid rgba(255,255,255,.04);
+      }
+      pre::-webkit-scrollbar { display: none; }
+      pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+
+      .callout {
+        margin: 1.25rem 0;
+        padding: .9rem 1.1rem;
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--fg);
+        border-radius: 8px;
+        background: rgba(0,0,0,.015);
+        font-size: .88rem;
+        color: var(--fg2);
+        line-height: 1.6;
+      }
+      .callout strong { color: var(--fg); }
+
+      /* diagram frame */
+      .diagram {
+        margin: 1.75rem 0 2rem;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background:
+          linear-gradient(180deg, #ffffff, #fafafa);
+        padding: 1.75rem 1.25rem 1.25rem;
+        position: relative;
+        overflow: hidden;
+      }
+      .diagram::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(0,0,0,.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0,0,0,.035) 1px, transparent 1px);
+        background-size: 22px 22px;
+        pointer-events: none;
+        mask-image: radial-gradient(ellipse at center, #000 55%, transparent 90%);
+      }
+      .diagram svg {
+        display: block;
+        width: 100%;
+        height: auto;
+        position: relative;
+      }
+      .diagram figcaption {
+        font-family: var(--mono);
+        font-size: .68rem;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--faint);
+        text-align: center;
+        margin-top: 1rem;
+        position: relative;
+      }
+
+      /* svg diagram shared styles */
+      .d-box { fill: #fff; stroke: #18181b; stroke-width: 1.25; }
+      .d-box-alt { fill: #18181b; stroke: #18181b; }
+      .d-box-dim { fill: #f4f4f5; stroke: #a1a1aa; stroke-dasharray: 4 3; stroke-width: 1; }
+      .d-label { font-family: var(--sans); font-size: 12px; font-weight: 600; fill: #0a0a0a; }
+      .d-label-inv { font-family: var(--sans); font-size: 12px; font-weight: 600; fill: #fafafa; }
+      .d-sub { font-family: var(--mono); font-size: 10px; fill: #71717a; letter-spacing: .04em; }
+      .d-sub-inv { font-family: var(--mono); font-size: 10px; fill: #a1a1aa; letter-spacing: .04em; }
+      .d-arrow { fill: none; stroke: #18181b; stroke-width: 1.25; }
+      .d-arrow-dim { fill: none; stroke: #a1a1aa; stroke-width: 1; stroke-dasharray: 4 3; }
+      .d-tag {
+        font-family: var(--mono);
+        font-size: 9px;
+        fill: #71717a;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: .75rem;
+        margin: 1.5rem 0 1.75rem;
+      }
+      .stat {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: .9rem 1rem;
+        background: #fff;
+      }
+      .stat .n {
+        font-family: var(--mono);
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: var(--fg);
+        letter-spacing: -.01em;
+        line-height: 1.1;
+      }
+      .stat .l {
+        font-size: .72rem;
+        color: var(--muted);
+        margin-top: .3rem;
+        line-height: 1.4;
+      }
+
+      footer {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 2.5rem 2rem;
+        border-top: 1px solid var(--border);
+        font-size: .76rem;
+        color: var(--faint);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      footer a { color: var(--muted); text-decoration: none; }
+      footer a:hover { color: var(--fg); }
+
+      @media (max-width: 900px) {
+        .layout { grid-template-columns: 1fr; gap: 2rem; padding: 2.5rem 1.5rem 4rem; }
+        aside.sidebar {
+          position: static;
+          max-height: none;
+          overflow: visible;
+          border-bottom: 1px solid var(--border);
+          padding-bottom: 1.25rem;
+          margin-bottom: 1rem;
+        }
+        .sb-group { margin-bottom: 1.25rem; }
+        .hero-inner { padding: 2.5rem 1.5rem 3rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hero-band">
+      {{template "partials/nav.html" .}}
+
+      <div class="hero-inner">
+        <h1>How it works</h1>
+        <p class="lede">
+          A short tour of the stack, the data model, and how the hosted and
+          desktop builds relate to each other.
+        </p>
+      </div>
+    </div>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sb-group">
+          <div class="sb-title">Stack</div>
+          <a href="#go">Go backend</a>
+          <a href="#sqlite">SQLite per site</a>
+        </div>
+        <div class="sb-group">
+          <div class="sb-title">Runtime</div>
+          <a href="#desktop">Desktop app</a>
+        </div>
+        <div class="sb-group">
+          <div class="sb-title">Trust</div>
+          <a href="#open-source">Open source</a>
+          <a href="#privacy">Data &amp; privacy</a>
+        </div>
+      </aside>
+
+      <article class="doc">
+
+        <h2 id="go">Go backend</h2>
+
+        <p>
+          WriteKit is a single executable. The HTTP server, rendering engine,
+          MCP endpoint, dashboards, database migrations, and static assets
+          are all compiled into one file via <code>//go:embed</code>. To run
+          it, you need the executable and a config.
+        </p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" aria-label="Go binary architecture">
+            <defs>
+              <marker id="hw-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#18181b"/>
+              </marker>
+            </defs>
+
+            <!-- Incoming -->
+            <text x="40" y="30" class="d-tag">Request</text>
+            <rect x="30" y="40" width="110" height="50" rx="8" class="d-box"/>
+            <text x="85" y="62" text-anchor="middle" class="d-label">Browser</text>
+            <text x="85" y="78" text-anchor="middle" class="d-sub">/ MCP client</text>
+
+            <!-- Binary frame -->
+            <rect x="190" y="20" width="490" height="220" rx="12" class="d-box-dim"/>
+            <text x="205" y="40" class="d-tag">writekit — one Go binary</text>
+
+            <!-- Router -->
+            <rect x="210" y="55" width="130" height="44" rx="8" class="d-box-alt"/>
+            <text x="275" y="81" text-anchor="middle" class="d-label-inv">Chi router</text>
+
+            <!-- Web templates -->
+            <rect x="360" y="55" width="150" height="44" rx="8" class="d-box"/>
+            <text x="435" y="75" text-anchor="middle" class="d-label">web (templates)</text>
+            <text x="435" y="90" text-anchor="middle" class="d-sub">auth · billing · docs</text>
+
+            <!-- SPAs -->
+            <rect x="530" y="55" width="130" height="44" rx="8" class="d-box"/>
+            <text x="595" y="75" text-anchor="middle" class="d-label">React SPAs</text>
+            <text x="595" y="90" text-anchor="middle" class="d-sub">embed.FS</text>
+
+            <!-- site render -->
+            <rect x="210" y="115" width="130" height="44" rx="8" class="d-box"/>
+            <text x="275" y="135" text-anchor="middle" class="d-label">site render</text>
+            <text x="275" y="150" text-anchor="middle" class="d-sub">goldmark · chroma · D2</text>
+
+            <!-- MCP -->
+            <rect x="360" y="115" width="150" height="44" rx="8" class="d-box"/>
+            <text x="435" y="135" text-anchor="middle" class="d-label">MCP server</text>
+            <text x="435" y="150" text-anchor="middle" class="d-sub">pages · collections · teams</text>
+
+            <!-- events -->
+            <rect x="530" y="115" width="130" height="44" rx="8" class="d-box"/>
+            <text x="595" y="135" text-anchor="middle" class="d-label">events.Bus</text>
+            <text x="595" y="150" text-anchor="middle" class="d-sub">cache · embeddings</text>
+
+            <!-- data -->
+            <rect x="210" y="175" width="210" height="44" rx="8" class="d-box"/>
+            <text x="315" y="195" text-anchor="middle" class="d-label">platform (Postgres)</text>
+            <text x="315" y="210" text-anchor="middle" class="d-sub">users · tenants · sessions</text>
+
+            <rect x="440" y="175" width="220" height="44" rx="8" class="d-box"/>
+            <text x="550" y="195" text-anchor="middle" class="d-label">tenant pool (SQLite WAL)</text>
+            <text x="550" y="210" text-anchor="middle" class="d-sub">one DB per site</text>
+
+            <!-- arrows -->
+            <path d="M140,65 L210,75" class="d-arrow" marker-end="url(#hw-arr)"/>
+            <path d="M275,99 L275,115" class="d-arrow" marker-end="url(#hw-arr)"/>
+            <path d="M435,99 L435,115" class="d-arrow" marker-end="url(#hw-arr)"/>
+            <path d="M595,99 L595,115" class="d-arrow" marker-end="url(#hw-arr)"/>
+            <path d="M275,159 L315,175" class="d-arrow" marker-end="url(#hw-arr)"/>
+            <path d="M435,159 L500,175" class="d-arrow" marker-end="url(#hw-arr)"/>
+            <path d="M595,159 L580,175" class="d-arrow" marker-end="url(#hw-arr)"/>
+          </svg>
+          <figcaption>One binary · one process · everything embedded</figcaption>
+        </figure>
+
+        <h3>Why Go</h3>
+
+        <p>
+          Go produces statically-linked executables and has an HTTP server in
+          its standard library. That keeps the runtime dependency surface
+          small — there's no separate language runtime to install alongside
+          the server. Concurrency is handled with goroutines, so each
+          request, background worker, and event subscriber runs independently
+          without a thread pool to tune. The same source cross-compiles for
+          Linux, macOS, and Windows, which is what makes the desktop build
+          (below) feasible.
+        </p>
+
+        <p>
+          The dashboards are client-side JavaScript applications. They're
+          built ahead of time into static bundles and embedded in the
+          executable, so at runtime the server hands out static files.
+        </p>
+
+        <h2 id="sqlite">SQLite per site</h2>
+
+        <p>
+          Each site gets its own SQLite file on disk. Pages, collections,
+          versions, embeddings, and settings all live together in that one
+          file. There's no shared content database and no row-level tenant
+          column — tenancy is enforced by which file you open.
+        </p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg" aria-label="SQLite per tenant">
+            <defs>
+              <marker id="hw-arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#18181b"/>
+              </marker>
+            </defs>
+
+            <!-- pool -->
+            <rect x="30" y="60" width="200" height="120" rx="12" class="d-box-alt"/>
+            <text x="130" y="95" text-anchor="middle" class="d-label-inv">tenant.Pool</text>
+            <text x="130" y="115" text-anchor="middle" class="d-sub-inv">WAL + LRU</text>
+            <text x="130" y="135" text-anchor="middle" class="d-sub-inv">open · cache · close</text>
+            <text x="130" y="160" text-anchor="middle" class="d-sub-inv">handle per request</text>
+
+            <!-- files -->
+            <g>
+              <rect x="300" y="30" width="180" height="52" rx="8" class="d-box"/>
+              <text x="320" y="52" class="d-label">alice.db</text>
+              <text x="320" y="68" class="d-sub">~/data/tenants/alice/</text>
+            </g>
+            <g>
+              <rect x="300" y="94" width="180" height="52" rx="8" class="d-box"/>
+              <text x="320" y="116" class="d-label">bob.db</text>
+              <text x="320" y="132" class="d-sub">~/data/tenants/bob/</text>
+            </g>
+            <g>
+              <rect x="300" y="158" width="180" height="52" rx="8" class="d-box"/>
+              <text x="320" y="180" class="d-label">carol.db</text>
+              <text x="320" y="196" class="d-sub">~/data/tenants/carol/</text>
+            </g>
+
+            <!-- tables inside -->
+            <rect x="520" y="30" width="170" height="180" rx="10" class="d-box-dim"/>
+            <text x="535" y="52" class="d-tag">per-file tables</text>
+            <text x="535" y="76" class="d-label">pages</text>
+            <text x="535" y="98" class="d-label">collections</text>
+            <text x="535" y="120" class="d-label">page_versions</text>
+            <text x="535" y="142" class="d-label">page_embeddings</text>
+            <text x="535" y="164" class="d-label">settings</text>
+            <text x="535" y="192" class="d-sub">migrations/*.sql</text>
+
+            <path d="M230,90 L300,56" class="d-arrow" marker-end="url(#hw-arr2)"/>
+            <path d="M230,120 L300,120" class="d-arrow" marker-end="url(#hw-arr2)"/>
+            <path d="M230,150 L300,184" class="d-arrow" marker-end="url(#hw-arr2)"/>
+
+            <path d="M480,56 L520,80" class="d-arrow-dim"/>
+            <path d="M480,120 L520,120" class="d-arrow-dim"/>
+            <path d="M480,184 L520,160" class="d-arrow-dim"/>
+          </svg>
+          <figcaption>One file per site · strong isolation · trivial backup</figcaption>
+        </figure>
+
+        <h3>Why one file per site</h3>
+
+        <ul>
+          <li>
+            <strong>Isolation.</strong> A query in one site's file cannot
+            reach another site's data, because the other data is literally a
+            different file with a different handle.
+          </li>
+          <li>
+            <strong>Portability.</strong> Backup and migration are file
+            copies. <code>cp alice.db</code> moves the whole site.
+          </li>
+          <li>
+            <strong>Transparency.</strong> The file is a standard SQLite
+            database. You can open it in any SQLite browser to see what's
+            stored, or copy it out to keep a local backup.
+          </li>
+          <li>
+            <strong>Migrations.</strong> Schema changes run at startup from
+            embedded SQL files, per-tenant. There are no shared content
+            tables that need coordinated changes.
+          </li>
+          <li>
+            <strong>Hosted data model.</strong> The hosted build also uses
+            Postgres, but only for platform concerns — users, tenants,
+            sessions, and Stripe records. Page content stays in the
+            per-site SQLite file.
+          </li>
+        </ul>
+
+        <div class="callout">
+          <strong>Tradeoff:</strong> SQLite allows one writer at a time per
+          file. We use WAL mode so readers don't block each other, and a
+          connection pool so writes are serialized per site. For a publishing
+          workflow this matches how the system is used — most writes come
+          from one person or one AI session at a time.
+        </div>
+
+        <h2 id="desktop">Desktop app</h2>
+
+        <p>
+          The desktop app uses the same codebase as the hosted server,
+          wrapped with <a href="https://wails.io" rel="noopener">Wails</a>.
+          It imports the same <code>internal/app</code> package with
+          <code>LOCAL=true</code> and serves the user SPA over loopback
+          inside a native window.
+        </p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg" aria-label="Hosted vs desktop">
+            <defs>
+              <marker id="hw-arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#18181b"/>
+              </marker>
+            </defs>
+
+            <!-- Hosted -->
+            <rect x="30" y="30" width="310" height="180" rx="12" class="d-box-dim"/>
+            <text x="45" y="50" class="d-tag">Hosted · writekit.dev</text>
+
+            <rect x="50" y="65" width="120" height="40" rx="8" class="d-box"/>
+            <text x="110" y="89" text-anchor="middle" class="d-label">OAuth + email</text>
+
+            <rect x="190" y="65" width="130" height="40" rx="8" class="d-box"/>
+            <text x="255" y="89" text-anchor="middle" class="d-label">subdomain route</text>
+
+            <rect x="50" y="120" width="270" height="40" rx="8" class="d-box-alt"/>
+            <text x="185" y="144" text-anchor="middle" class="d-label-inv">internal/app · buildRouter()</text>
+
+            <rect x="50" y="170" width="130" height="30" rx="6" class="d-box"/>
+            <text x="115" y="190" text-anchor="middle" class="d-sub">Postgres</text>
+            <rect x="190" y="170" width="130" height="30" rx="6" class="d-box"/>
+            <text x="255" y="190" text-anchor="middle" class="d-sub">tenant SQLite</text>
+
+            <!-- Desktop -->
+            <rect x="380" y="30" width="310" height="180" rx="12" class="d-box-dim"/>
+            <text x="395" y="50" class="d-tag">Desktop · Wails window</text>
+
+            <rect x="400" y="65" width="270" height="40" rx="8" class="d-box"/>
+            <text x="535" y="89" text-anchor="middle" class="d-label">context-injected identity</text>
+
+            <rect x="400" y="120" width="270" height="40" rx="8" class="d-box-alt"/>
+            <text x="535" y="144" text-anchor="middle" class="d-label-inv">internal/app · buildLocalRouter()</text>
+
+            <rect x="400" y="170" width="270" height="30" rx="6" class="d-box"/>
+            <text x="535" y="190" text-anchor="middle" class="d-sub">single SQLite · local folder</text>
+
+            <path d="M340,140 L380,140" class="d-arrow-dim"/>
+            <text x="360" y="130" text-anchor="middle" class="d-tag">same code</text>
+          </svg>
+          <figcaption>Two build targets · one <code>internal/app</code> · no platform shim</figcaption>
+        </figure>
+
+        <h3>What's different in local mode</h3>
+
+        <ul>
+          <li>No Postgres — there is no platform database at all.</li>
+          <li>No OAuth, Stripe, subdomains, or DNS.</li>
+          <li>
+            Identity is injected via request context from the loopback
+            listener. The server treats requests as coming from the logged-in
+            OS user rather than going through a sign-in flow.
+          </li>
+          <li>
+            Content lives in a single SQLite file in the OS user data
+            directory.
+          </li>
+        </ul>
+
+        <div class="callout">
+          The desktop build doesn't require internet access to run. If you
+          want semantic search, you can point it at a local
+          <a href="https://ollama.com" rel="noopener">Ollama</a> model for
+          embeddings, which also runs locally.
+        </div>
+
+        <h2 id="open-source">Open source</h2>
+
+        <p>
+          The codebase is at
+          <a href="https://github.com/Macawls/writekit" rel="noopener">github.com/Macawls/writekit</a>.
+          That includes the server, desktop app, frontends, migrations, and
+          the MCP tool definitions.
+        </p>
+
+        <p>
+          The repo is self-hostable. The <code>docker compose</code> file used
+          for local development (Postgres and Ollama) is the same one that
+          can run a self-hosted instance.
+        </p>
+
+        <h2 id="privacy">Data &amp; privacy</h2>
+
+        <p>
+          This section describes what data WriteKit stores, where it stores
+          it, and which data paths exist between your device and our servers.
+        </p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" aria-label="Privacy model">
+            <!-- your device -->
+            <rect x="30" y="30" width="200" height="200" rx="12" class="d-box"/>
+            <text x="130" y="54" text-anchor="middle" class="d-label">Your device</text>
+            <text x="130" y="72" text-anchor="middle" class="d-sub">AI client · desktop app</text>
+
+            <rect x="50" y="90" width="160" height="32" rx="6" class="d-box-dim"/>
+            <text x="130" y="110" text-anchor="middle" class="d-sub">drafts in progress</text>
+
+            <rect x="50" y="130" width="160" height="32" rx="6" class="d-box-dim"/>
+            <text x="130" y="150" text-anchor="middle" class="d-sub">local SQLite (desktop)</text>
+
+            <rect x="50" y="170" width="160" height="32" rx="6" class="d-box-dim"/>
+            <text x="130" y="190" text-anchor="middle" class="d-sub">OAuth tokens</text>
+
+            <!-- writekit -->
+            <rect x="280" y="30" width="210" height="200" rx="12" class="d-box-alt"/>
+            <text x="385" y="54" text-anchor="middle" class="d-label-inv">writekit.dev (hosted)</text>
+            <text x="385" y="72" text-anchor="middle" class="d-sub-inv">only what we need to run</text>
+
+            <rect x="300" y="90" width="170" height="32" rx="6" class="d-box"/>
+            <text x="385" y="110" text-anchor="middle" class="d-sub">account · email · tenant</text>
+
+            <rect x="300" y="130" width="170" height="32" rx="6" class="d-box"/>
+            <text x="385" y="150" text-anchor="middle" class="d-sub">your pages (your site)</text>
+
+            <rect x="300" y="170" width="170" height="32" rx="6" class="d-box"/>
+            <text x="385" y="190" text-anchor="middle" class="d-sub">Stripe customer ID</text>
+
+            <!-- not -->
+            <rect x="515" y="30" width="180" height="200" rx="12" class="d-box-dim"/>
+            <text x="605" y="54" text-anchor="middle" class="d-label">What we don't</text>
+
+            <g>
+              <line x1="530" y1="90" x2="680" y2="90" stroke="#a1a1aa" stroke-dasharray="3 2"/>
+              <text x="605" y="105" text-anchor="middle" class="d-sub">analytics pixels</text>
+            </g>
+            <g>
+              <line x1="530" y1="125" x2="680" y2="125" stroke="#a1a1aa" stroke-dasharray="3 2"/>
+              <text x="605" y="140" text-anchor="middle" class="d-sub">third-party trackers</text>
+            </g>
+            <g>
+              <line x1="530" y1="160" x2="680" y2="160" stroke="#a1a1aa" stroke-dasharray="3 2"/>
+              <text x="605" y="175" text-anchor="middle" class="d-sub">reading your drafts</text>
+            </g>
+            <g>
+              <line x1="530" y1="195" x2="680" y2="195" stroke="#a1a1aa" stroke-dasharray="3 2"/>
+              <text x="605" y="210" text-anchor="middle" class="d-sub">training on your content</text>
+            </g>
+          </svg>
+          <figcaption>What's stored where · and what isn't</figcaption>
+        </figure>
+
+        <h3>Hosted mode — what's stored on our servers</h3>
+
+        <ul>
+          <li><strong>Account:</strong> email, OAuth provider, user ID.</li>
+          <li><strong>Tenant:</strong> the subdomain you chose and any custom domain you configured.</li>
+          <li><strong>Page content:</strong> in your per-tenant SQLite file, on disk in our hosting environment.</li>
+          <li><strong>Billing:</strong> a Stripe customer ID. Card details are held by Stripe, not by us.</li>
+        </ul>
+
+        <h3>What we don't collect</h3>
+
+        <ul>
+          <li>No third-party analytics, pixels, or session-replay scripts are loaded anywhere on the site.</li>
+          <li>Drafts are not used to train models.</li>
+          <li>No advertising or data-broker integrations.</li>
+        </ul>
+
+        <h3>Desktop mode</h3>
+
+        <p>
+          The desktop app doesn't send data to writekit.dev. It writes a
+          SQLite file to your user data directory, and the network is only
+          touched if you configure an external service (such as a local
+          Ollama instance for embeddings).
+        </p>
+
+        <div class="callout">
+          Content is stored as Markdown inside a standard SQLite schema, so
+          exporting is a matter of reading rows from the file — there's no
+          separate export pipeline or proprietary format.
+        </div>
+      </article>
+    </div>
+
+    <footer>
+      <span>&copy; 2026 WriteKit</span>
+      <a href="/">Home</a>
+    </footer>
+
+    <script>
+      (function () {
+        var links = document.querySelectorAll("aside.sidebar a");
+        var linkMap = {};
+        links.forEach(function (a) {
+          var href = a.getAttribute("href") || "";
+          if (href.indexOf("#") === 0) linkMap[href.slice(1)] = a;
+        });
+        var targets = [];
+        Object.keys(linkMap).forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) targets.push(el);
+        });
+        if (!targets.length || !("IntersectionObserver" in window)) return;
+        var active = null;
+        function setActive(id) {
+          if (active === id) return;
+          active = id;
+          links.forEach(function (a) { a.classList.remove("active"); });
+          if (linkMap[id]) linkMap[id].classList.add("active");
+        }
+        var io = new IntersectionObserver(function (entries) {
+          var visible = entries.filter(function (e) { return e.isIntersecting; });
+          if (visible.length) {
+            visible.sort(function (a, b) {
+              return a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top;
+            });
+            setActive(visible[0].target.id);
+          }
+        }, { rootMargin: "-10% 0px -70% 0px", threshold: 0 });
+        targets.forEach(function (t) { io.observe(t); });
+      })();
+    </script>
+    {{template "partials/lightbox.html" .}}
+  </body>
+</html>

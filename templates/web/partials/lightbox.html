@@ -1,0 +1,172 @@
+<style>
+  .wk-zoomable { cursor: zoom-in; position: relative; }
+  .wk-controls {
+    position: absolute; top: .5rem; right: .5rem;
+    display: none; gap: .25rem; z-index: 2;
+  }
+  .wk-zoomable.wk-fs .wk-controls { display: flex; top: 1rem; right: 1rem; }
+  .wk-controls button {
+    background: #fff; border: 1px solid #e4e4e7; border-radius: 5px;
+    padding: 5px; cursor: pointer; color: #71717a;
+    display: flex; align-items: center; justify-content: center;
+    font-family: inherit;
+  }
+  .wk-controls button:hover { color: #0a0a0a; background: #f4f4f5; }
+
+  .wk-zoomable.wk-fs {
+    position: fixed; inset: 0; z-index: 9999; margin: 0 !important;
+    border-radius: 0; border: none;
+    background: #fafafa;
+    padding: 0 !important;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    max-width: none !important;
+  }
+  .wk-zoomable.wk-fs::before { opacity: .05; }
+
+  /* SVG diagrams in fullscreen get pan/zoom via an inner viewport */
+  .wk-zoomable.wk-fs .wk-viewport {
+    position: absolute; inset: 0;
+    overflow: hidden; cursor: grab;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .wk-zoomable.wk-fs .wk-viewport.dragging { cursor: grabbing; }
+  .wk-zoomable.wk-fs svg {
+    width: auto; height: auto;
+    max-width: 90vw; max-height: 86vh;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+  .wk-zoomable.wk-fs img {
+    max-width: 92vw; max-height: 92vh;
+    width: auto; height: auto;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .wk-zoomable.wk-fs figcaption {
+    position: absolute; bottom: 1rem; left: 0; right: 0;
+    text-align: center;
+    margin: 0 !important;
+  }
+  body.wk-fs-open { overflow: hidden; }
+</style>
+<script>
+(function(){
+  var targets = document.querySelectorAll('.diagram, .shot');
+  if (!targets.length) return;
+
+  var active = null;
+  var scale = 1, tx = 0, ty = 0;
+  var svgEl = null, viewport = null;
+
+  function makeControls(hasZoom){
+    var c = document.createElement('div');
+    c.className = 'wk-controls';
+    var inner = '';
+    if (hasZoom) {
+      inner += '<button type="button" data-act="zoom-in" aria-label="Zoom in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
+      inner += '<button type="button" data-act="zoom-out" aria-label="Zoom out"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
+      inner += '<button type="button" data-act="reset" aria-label="Reset"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>';
+    }
+    inner += '<button type="button" data-act="close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+    c.innerHTML = inner;
+    return c;
+  }
+
+  function apply(){
+    if (!svgEl) return;
+    svgEl.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
+  }
+
+  function open(el){
+    if (active) close();
+    active = el;
+    el.classList.add('wk-fs');
+    document.body.classList.add('wk-fs-open');
+    scale = 1; tx = 0; ty = 0;
+
+    svgEl = el.querySelector('svg');
+    if (svgEl) {
+      viewport = document.createElement('div');
+      viewport.className = 'wk-viewport';
+      el.insertBefore(viewport, svgEl);
+      viewport.appendChild(svgEl);
+    } else {
+      viewport = null;
+    }
+
+    var controls = makeControls(!!svgEl);
+    el.appendChild(controls);
+  }
+
+  function close(){
+    if (!active) return;
+    var controls = active.querySelector('.wk-controls');
+    if (controls) controls.remove();
+    if (viewport && svgEl) {
+      active.insertBefore(svgEl, viewport);
+      svgEl.style.transform = '';
+      viewport.remove();
+    }
+    active.classList.remove('wk-fs');
+    document.body.classList.remove('wk-fs-open');
+    active = null; svgEl = null; viewport = null;
+  }
+
+  targets.forEach(function(el){
+    el.classList.add('wk-zoomable');
+    el.setAttribute('tabindex', '0');
+    el.addEventListener('click', function(e){
+      if (e.target.closest('a')) return;
+      var btn = e.target.closest('.wk-controls button');
+      if (btn) {
+        e.stopPropagation();
+        var act = btn.getAttribute('data-act');
+        if (act === 'close') close();
+        else if (act === 'zoom-in') { scale = Math.min(scale * 1.25, 5); apply(); }
+        else if (act === 'zoom-out') { scale = Math.max(scale / 1.25, 0.2); apply(); }
+        else if (act === 'reset') { scale = 1; tx = 0; ty = 0; apply(); }
+        return;
+      }
+      if (active === el) return;
+      open(el);
+    });
+    el.addEventListener('keydown', function(e){
+      if ((e.key === 'Enter' || e.key === ' ') && active !== el) { e.preventDefault(); open(el); }
+    });
+  });
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && active) close();
+  });
+
+  // pan + wheel zoom
+  var dragging = false, lx = 0, ly = 0;
+  document.addEventListener('mousedown', function(e){
+    if (!active || !svgEl) return;
+    if (!e.target.closest('.wk-viewport')) return;
+    if (e.target.closest('.wk-controls')) return;
+    dragging = true; lx = e.clientX; ly = e.clientY;
+    if (viewport) viewport.classList.add('dragging');
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e){
+    if (!dragging) return;
+    tx += e.clientX - lx; ty += e.clientY - ly;
+    lx = e.clientX; ly = e.clientY;
+    apply();
+  });
+  document.addEventListener('mouseup', function(){
+    dragging = false;
+    if (viewport) viewport.classList.remove('dragging');
+  });
+  document.addEventListener('wheel', function(e){
+    if (!active || !svgEl) return;
+    if (!e.target.closest('.wk-viewport')) return;
+    e.preventDefault();
+    var factor = e.deltaY < 0 ? 1.1 : 1/1.1;
+    scale = Math.max(0.2, Math.min(5, scale * factor));
+    apply();
+  }, { passive: false });
+})();
+</script>
