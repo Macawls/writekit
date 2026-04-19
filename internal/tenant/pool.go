@@ -93,7 +93,18 @@ func (p *Pool) open(tenantID string) (*DB, error) {
 		return nil, fmt.Errorf("migrate sqlite %s: %w", tenantID, err)
 	}
 
-	if migrated {
+	needBackfill := migrated
+	if !needBackfill {
+		var pending int
+		if err := sqlDB.QueryRow(
+			"SELECT COUNT(*) FROM pages WHERE content != '' AND search_text = ''",
+		).Scan(&pending); err == nil && pending > 0 {
+			slog.Info("pages missing search_text, scheduling backfill", "tenant", tenantID, "pending", pending)
+			needBackfill = true
+		}
+	}
+
+	if needBackfill {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
