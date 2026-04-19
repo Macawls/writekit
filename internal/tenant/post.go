@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"writekit/internal/markdown"
 )
 
 type Page struct {
@@ -16,6 +18,7 @@ type Page struct {
 	Slug         string
 	Content      string
 	ContentHTML  string
+	SearchText   string
 	Excerpt      string
 	Status       string
 	Visibility   string
@@ -41,10 +44,13 @@ func (db *DB) CreatePage(ctx context.Context, p *Page) error {
 	if p.Visibility == "" {
 		p.Visibility = "public"
 	}
+	if p.SearchText == "" && p.Content != "" {
+		p.SearchText = markdown.Plain(p.Content)
+	}
 	_, err := db.DB.ExecContext(ctx, `
-		INSERT INTO pages (id, title, slug, content, content_html, excerpt, status, visibility, tags, collection_id, position, version, published_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, p.ID, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Visibility, p.Tags, p.CollectionID, p.Position, p.Version, p.PublishedAt)
+		INSERT INTO pages (id, title, slug, content, content_html, search_text, excerpt, status, visibility, tags, collection_id, position, version, published_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, p.ID, p.Title, p.Slug, p.Content, p.ContentHTML, p.SearchText, p.Excerpt, p.Status, p.Visibility, p.Tags, p.CollectionID, p.Position, p.Version, p.PublishedAt)
 	if err != nil {
 		return fmt.Errorf("create page: %w", err)
 	}
@@ -52,10 +58,13 @@ func (db *DB) CreatePage(ctx context.Context, p *Page) error {
 }
 
 func (db *DB) UpdatePage(ctx context.Context, p *Page) error {
+	if p.SearchText == "" && p.Content != "" {
+		p.SearchText = markdown.Plain(p.Content)
+	}
 	_, err := db.DB.ExecContext(ctx, `
-		UPDATE pages SET title=?, slug=?, content=?, content_html=?, excerpt=?, status=?, visibility=?, tags=?, collection_id=?, position=?, version=?, published_at=?, updated_at=datetime('now')
+		UPDATE pages SET title=?, slug=?, content=?, content_html=?, search_text=?, excerpt=?, status=?, visibility=?, tags=?, collection_id=?, position=?, version=?, published_at=?, updated_at=datetime('now')
 		WHERE id=?
-	`, p.Title, p.Slug, p.Content, p.ContentHTML, p.Excerpt, p.Status, p.Visibility, p.Tags, p.CollectionID, p.Position, p.Version, p.PublishedAt, p.ID)
+	`, p.Title, p.Slug, p.Content, p.ContentHTML, p.SearchText, p.Excerpt, p.Status, p.Visibility, p.Tags, p.CollectionID, p.Position, p.Version, p.PublishedAt, p.ID)
 	if err != nil {
 		return fmt.Errorf("update page: %w", err)
 	}

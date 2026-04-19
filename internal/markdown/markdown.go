@@ -2,6 +2,9 @@ package markdown
 
 import (
 	"bytes"
+	stdhtml "html"
+	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/yuin/goldmark"
@@ -59,6 +62,21 @@ func getRenderer(codeTheme string) goldmark.Markdown {
 
 func Render(source string) (string, error) {
 	return RenderWithTheme(source, DefaultCodeTheme)
+}
+
+var (
+	tagPattern   = regexp.MustCompile(`<[^>]+>`)
+	spacePattern = regexp.MustCompile(`\s+`)
+)
+
+func Plain(source string) string {
+	htmlOut, err := RenderWithTheme(source, DefaultCodeTheme)
+	if err != nil {
+		return strings.TrimSpace(spacePattern.ReplaceAllString(source, " "))
+	}
+	stripped := tagPattern.ReplaceAllString(htmlOut, " ")
+	stripped = stdhtml.UnescapeString(stripped)
+	return strings.TrimSpace(spacePattern.ReplaceAllString(stripped, " "))
 }
 
 func RenderWithTheme(source, codeTheme string) (string, error) {

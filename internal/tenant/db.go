@@ -97,13 +97,21 @@ func (db *DB) rerenderPages() error {
 			if !ok {
 				return
 			}
+			plain := markdown.Plain(content)
 			if _, err := db.DB.ExecContext(context.Background(),
-				"UPDATE pages SET content_html = ? WHERE id = ?", html, id); err != nil {
+				"UPDATE pages SET content_html = ?, search_text = ? WHERE id = ?", html, plain, id); err != nil {
 				slog.Warn("failed to re-render page", "id", id, "err", err)
 				return
 			}
 			updated++
 		}()
+	}
+
+	if updated > 0 {
+		if _, err := db.DB.ExecContext(context.Background(),
+			"INSERT INTO pages_fts(pages_fts) VALUES('rebuild')"); err != nil {
+			slog.Warn("failed to rebuild pages_fts after rerender", "tenant", db.TenantID, "err", err)
+		}
 	}
 
 	slog.Info("re-rendered pages after migration", "tenant", db.TenantID, "count", updated)
