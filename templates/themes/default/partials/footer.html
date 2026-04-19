@@ -14,6 +14,7 @@
                 <p id="search-empty" class="search-modal__empty" hidden>No results.</p>
                 <p id="search-hint" class="search-modal__hint">Start typing to search.</p>
             </div>
+            <div id="search-meta" class="search-modal__meta" hidden></div>
         </form>
     </dialog>
     <script>
@@ -172,6 +173,7 @@
         var resultsEl = document.getElementById('search-results');
         var emptyEl = document.getElementById('search-empty');
         var hintEl = document.getElementById('search-hint');
+        var metaEl = document.getElementById('search-meta');
         var closeBtn = document.querySelector('.search-modal__close');
 
         if (modal && trigger && input && resultsEl) {
@@ -191,13 +193,28 @@
                 window.history.replaceState(null, '', url);
             }
 
-            function render(results) {
+            function formatMs(ms) {
+                if (ms == null) return '';
+                if (ms < 1) return '<1 ms';
+                if (ms < 10) return ms.toFixed(1) + ' ms';
+                return Math.round(ms) + ' ms';
+            }
+
+            function render(results, durationMs) {
                 resultsEl.innerHTML = '';
                 if (!results.length) {
                     emptyEl.hidden = false;
+                    if (metaEl) {
+                        metaEl.hidden = false;
+                        metaEl.textContent = '0 results · ' + formatMs(durationMs);
+                    }
                     return;
                 }
                 emptyEl.hidden = true;
+                if (metaEl) {
+                    metaEl.hidden = false;
+                    metaEl.textContent = results.length + ' result' + (results.length === 1 ? '' : 's') + ' · ' + formatMs(durationMs);
+                }
                 results.forEach(function(r) {
                     var li = document.createElement('li');
                     li.className = 'search-modal__result';
@@ -216,21 +233,24 @@
                     resultsEl.innerHTML = '';
                     emptyEl.hidden = true;
                     hintEl.hidden = false;
+                    if (metaEl) metaEl.hidden = true;
                     setQueryParam('');
                     return;
                 }
                 hintEl.hidden = true;
                 setQueryParam(q);
                 var reqId = ++currentReq;
+                var clientStart = performance.now();
                 fetch('/search.json?q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' } })
-                    .then(function(res) { return res.ok ? res.json() : { results: [] }; })
+                    .then(function(res) { return res.ok ? res.json() : { results: [], durationMs: 0 }; })
                     .then(function(data) {
                         if (reqId !== currentReq) return;
-                        render(data.results || []);
+                        var ms = (typeof data.durationMs === 'number') ? data.durationMs : (performance.now() - clientStart);
+                        render(data.results || [], ms);
                     })
                     .catch(function() {
                         if (reqId !== currentReq) return;
-                        render([]);
+                        render([], performance.now() - clientStart);
                     });
             }
 

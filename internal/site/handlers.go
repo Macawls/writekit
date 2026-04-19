@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"writekit/internal/auth"
@@ -470,6 +471,7 @@ func (h *Handler) SearchJSON(w http.ResponseWriter, r *http.Request) {
 
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	results := []searchResult{}
+	start := time.Now()
 	if q != "" {
 		found, err := db.SearchPages(r.Context(), q)
 		if err != nil {
@@ -509,7 +511,11 @@ func (h *Handler) SearchJSON(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := json.NewEncoder(w).Encode(map[string]any{"results": results}); err != nil {
+	elapsedMs := float64(time.Since(start).Microseconds()) / 1000.0
+	if err := json.NewEncoder(w).Encode(map[string]any{
+		"results":    results,
+		"durationMs": elapsedMs,
+	}); err != nil {
 		log.Warn("search: encode json", "tenant", tenantID, "err", err)
 	}
 }
