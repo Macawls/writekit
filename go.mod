@@ -7,12 +7,16 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.60.1
+	github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2
+	github.com/energye/systray v1.0.3
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/joho/godotenv v1.5.1
+	github.com/macawls/ogre v1.4.0
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/stripe/stripe-go/v82 v82.5.1
+	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/yuin/goldmark v1.7.16
 	golang.org/x/oauth2 v0.36.0
 	modernc.org/sqlite v1.47.0
@@ -42,8 +46,6 @@ require (
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dop251/goja v0.0.0-20240927123429-241b342198c2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2 // indirect
-	github.com/energye/systray v1.0.3 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/go-text/typesetting v0.3.4 // indirect
@@ -64,7 +66,6 @@ require (
 	github.com/leaanthony/slicer v1.6.0 // indirect
 	github.com/leaanthony/u v1.1.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
-	github.com/macawls/ogre v1.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mazznoer/csscolorparser v0.1.5 // indirect
@@ -81,7 +82,6 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
-	github.com/wailsapp/wails/v2 v2.12.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
