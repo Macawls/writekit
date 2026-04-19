@@ -29,6 +29,11 @@ func (h *Handler) LocalRoutes(r chi.Router) {
 	r.Post("/api/local/clients/{id}/disconnect", h.LocalClientDisconnect)
 	r.Get("/api/local/settings", h.LocalGetSettings)
 	r.Put("/api/local/settings", h.LocalPutSettings)
+	r.Post("/api/local/pick-folder", h.LocalPickFolder)
+	r.Get("/api/db/tables", h.DBTables)
+	r.Get("/api/db/tables/{name}", h.DBTableRows)
+	r.Post("/api/db/query", h.DBQuery)
+	r.Get("/api/db/export", h.DBExport)
 }
 
 func (h *Handler) localSite() *platform.Tenant {

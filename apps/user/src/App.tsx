@@ -10,6 +10,7 @@ import Settings from './pages/Settings'
 import Billing from './pages/Billing'
 import Graph from './pages/Graph'
 import Connect from './pages/Connect'
+import Database from './pages/Database'
 
 const ONBOARDED_KEY = 'writekit_onboarded'
 const POLL_INTERVAL = 2000
@@ -24,6 +25,7 @@ function Router() {
     case 'billing': return <Billing />
     case 'graph': return <Graph />
     case 'connect': return <Connect />
+    case 'database': return <Database />
     default: return <Site />
   }
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useStore } from '@nanostores/react'
 import { $route, navigate, type Route } from '../stores/router'
 import { $user, $site, $isDesktop, logout } from '../stores/auth'
+import DataWelcome from './DataWelcome'
 
 type NavItem = { route: Route; label: string; icon: string; desktopOnly?: boolean; hideOnDesktop?: boolean }
 
@@ -12,6 +13,7 @@ const navItems: NavItem[] = [
   { route: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
   { route: 'billing', label: 'Billing', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z', hideOnDesktop: true },
   { route: 'graph', label: 'Graph', icon: 'M18 8a3 3 0 100-6 3 3 0 000 6zM6 15a3 3 0 100-6 3 3 0 000 6zm12 7a3 3 0 100-6 3 3 0 000 6zM8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98' },
+  { route: 'database', label: 'Database', icon: 'M4 7v10c0 2 3 3 8 3s8-1 8-3V7M4 7c0-2 3-3 8-3s8 1 8 3M4 7c0 2 3 3 8 3s8-1 8-3m-16 5c0 2 3 3 8 3s8-1 8-3' },
 ]
 
 function NavIcon({ path }: { path: string }) {
@@ -120,6 +122,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className="content">
         {children}
       </main>
+      <DataWelcome />
     </div>
   )
 }

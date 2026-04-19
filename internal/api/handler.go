@@ -51,6 +51,10 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Put("/api/team/{userId}", h.UpdateTeamMemberRole)
 	r.Delete("/api/team/{userId}", h.RemoveTeamMember)
 	r.Get("/api/graph", h.Graph)
+	r.Get("/api/db/tables", h.DBTables)
+	r.Get("/api/db/tables/{name}", h.DBTableRows)
+	r.Post("/api/db/query", h.DBQuery)
+	r.Get("/api/db/export", h.DBExport)
 }
 
 func (h *Handler) authMiddleware(next http.Handler) http.Handler {

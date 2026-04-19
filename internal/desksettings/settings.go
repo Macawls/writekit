@@ -9,9 +9,11 @@ import (
 )
 
 type Settings struct {
-	Autostart       bool `json:"autostart"`
-	CloseToTray     bool `json:"close_to_tray"`
-	StartMinimized  bool `json:"start_minimized"`
+	Autostart          bool   `json:"autostart"`
+	CloseToTray        bool   `json:"close_to_tray"`
+	StartMinimized     bool   `json:"start_minimized"`
+	DataDir            string `json:"data_dir"`
+	OnboardingComplete bool   `json:"onboarding_complete"`
 }
 
 func Default() Settings {
@@ -21,6 +23,8 @@ func Default() Settings {
 		StartMinimized: false,
 	}
 }
+
+var PickFolder func(title string) (string, error)
 
 type Store struct {
 	mu   sync.Mutex

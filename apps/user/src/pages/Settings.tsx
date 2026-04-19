@@ -113,7 +113,99 @@ function DesktopSection() {
           disabled={busy}
           onChange={v => update({ close_to_tray: v })}
         />
+        <DataFolderRow settings={settings} busy={busy} update={update} />
       </div>
+    </div>
+  )
+}
+
+function DataFolderRow({
+  settings,
+  busy,
+  update,
+}: {
+  settings: DesktopSettings
+  busy: boolean
+  update: (patch: Partial<DesktopSettings>) => Promise<void>
+}) {
+  const [picking, setPicking] = useState(false)
+  const [pickError, setPickError] = useState<string | null>(null)
+  const [restart, setRestart] = useState(false)
+
+  const choose = async () => {
+    setPickError(null)
+    setPicking(true)
+    try {
+      const res = await api.pickDataFolder()
+      if (!res.path) return
+      if (res.has_existing_data) {
+        const ok = confirm(
+          `That folder already contains WriteKit data.\n\nUse the existing data at:\n${res.path}\n\nYour current data will be left in place — you can switch back by selecting the old folder.`,
+        )
+        if (!ok) return
+      } else {
+        const ok = confirm(
+          `Set data folder to:\n${res.path}\n\nWriteKit will use this folder for new content after restart. Existing data will remain at the old location.`,
+        )
+        if (!ok) return
+      }
+      await update({ data_dir: res.path })
+      setRestart(true)
+    } catch (e) {
+      setPickError(e instanceof Error ? e.message : 'failed to pick folder')
+    } finally {
+      setPicking(false)
+    }
+  }
+
+  const reset = async () => {
+    if (!confirm('Reset data folder to the default location? You will need to restart WriteKit.')) return
+    try {
+      await update({ data_dir: '' })
+      setRestart(true)
+    } catch (e) {
+      setPickError(e instanceof Error ? e.message : 'failed to reset')
+    }
+  }
+
+  const shown = settings.data_dir || settings.effective_data_dir
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
+      <div style={{ fontWeight: 500 }}>Data folder</div>
+      <div style={{ fontSize: '.875rem', color: 'var(--muted, #666)' }}>
+        Where your data lives on this computer. Stick with the default unless you have a reason to move it — e.g., you want it on a different drive or you manage your own backups.
+      </div>
+      <div
+        style={{
+          marginTop: '.25rem',
+          padding: '.5rem .65rem',
+          background: 'var(--bg-subtle, #f5f5f5)',
+          borderRadius: 4,
+          fontFamily: 'ui-monospace, monospace',
+          fontSize: '.8rem',
+          wordBreak: 'break-all',
+        }}
+      >
+        {shown}
+        {!settings.data_dir && <span style={{ marginLeft: '.5rem', fontStyle: 'italic', opacity: 0.7 }}>(default)</span>}
+      </div>
+      <div style={{ display: 'flex', gap: '.5rem', marginTop: '.25rem' }}>
+        <button type="button" onClick={choose} disabled={busy || picking}>
+          {picking ? 'Choose…' : 'Change…'}
+        </button>
+        {settings.data_dir && (
+          <button type="button" onClick={reset} disabled={busy || picking}>
+            Reset to default
+          </button>
+        )}
+      </div>
+      {pickError && <p className="error" style={{ marginTop: '.25rem' }}>{pickError}</p>}
+      {restart && (
+        <p style={{ marginTop: '.25rem', color: 'var(--warn, #b45309)' }}>
+          Quit and reopen WriteKit for the new data folder to take effect.
+        </p>
+      )}
     </div>
   )
 }

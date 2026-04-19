@@ -55,6 +55,15 @@ export interface DesktopSettings {
   autostart: boolean
   close_to_tray: boolean
   start_minimized: boolean
+  data_dir: string
+  effective_data_dir: string
+  onboarding_complete: boolean
+  needs_restart?: boolean
+}
+
+export interface PickFolderResult {
+  path: string
+  has_existing_data?: boolean
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -96,4 +105,39 @@ export const api = {
   disconnectClient: (id: string) => request<{ status: string }>('POST', `/api/local/clients/${id}/disconnect`),
   getDesktopSettings: () => request<DesktopSettings>('GET', '/api/local/settings'),
   updateDesktopSettings: (s: DesktopSettings) => request<DesktopSettings>('PUT', '/api/local/settings', s),
+  pickDataFolder: () => request<PickFolderResult>('POST', '/api/local/pick-folder'),
+  dbTables: () => request<DBTable[]>('GET', '/api/db/tables'),
+  dbTableRows: (name: string, limit: number, offset: number) =>
+    request<DBTableRows>('GET', `/api/db/tables/${encodeURIComponent(name)}?limit=${limit}&offset=${offset}`),
+  dbQuery: (sql: string) => request<DBQueryResult>('POST', '/api/db/query', { sql }),
+}
+
+export interface DBTable {
+  name: string
+  rows: number
+  columns: number
+  type: string
+}
+
+export interface DBColumnInfo {
+  name: string
+  type: string
+  not_null: boolean
+  pk: boolean
+}
+
+export interface DBTableRows {
+  columns: string[]
+  types: string[]
+  rows: unknown[][]
+  total: number
+  limit: number
+  offset: number
+  schema?: DBColumnInfo[]
+}
+
+export interface DBQueryResult {
+  columns: string[]
+  rows: unknown[][]
+  truncated: boolean
 }

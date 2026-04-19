@@ -54,6 +54,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	if s, err := desksettings.Open(); err == nil {
+		settingsStore = s
+		if loaded, err := s.Load(); err == nil {
+			if os.Getenv("DATA_DIR") == "" && loaded.DataDir != "" {
+				if err := os.MkdirAll(loaded.DataDir, 0755); err == nil {
+					cfg.DataDir = loaded.DataDir
+				} else {
+					slog.Warn("custom data dir unusable, falling back to default", "dir", loaded.DataDir, "err", err)
+				}
+			}
+			if !loaded.OnboardingComplete && dataDirLooksUsed(cfg.DataDir) {
+				loaded.OnboardingComplete = true
+				_ = s.Save(loaded)
+			}
+		}
+	} else {
+		slog.Warn("open settings store", "err", err)
+	}
+
 	resolvedDataDir = cfg.DataDir
 	resolvedMCPURL = fmt.Sprintf("http://127.0.0.1:%d/mcp", port)
 
@@ -61,10 +80,11 @@ func main() {
 		slog.Warn("write port file", "err", err)
 	}
 
-	if s, err := desksettings.Open(); err == nil {
-		settingsStore = s
-	} else {
-		slog.Warn("open settings store", "err", err)
+	desksettings.PickFolder = func(title string) (string, error) {
+		if wailsCtx == nil {
+			return "", fmt.Errorf("window not ready")
+		}
+		return wailsruntime.OpenDirectoryDialog(wailsCtx, wailsruntime.OpenDialogOptions{Title: title})
 	}
 
 	pool, err := tenant.NewPool(cfg.DataDir, cfg.MaxPoolSize)
@@ -190,6 +210,19 @@ func writePortFile(port int) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(base, "port"), []byte(fmt.Sprintf("%d\n", port)), 0644)
+}
+
+func dataDirLooksUsed(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() && filepath.Ext(e.Name()) == ".db" {
+			return true
+		}
+	}
+	return false
 }
 
 func waitForReady(port int, timeout time.Duration) bool {
