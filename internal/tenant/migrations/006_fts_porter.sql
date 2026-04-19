@@ -25,5 +25,4 @@ CREATE TRIGGER pages_au AFTER UPDATE ON pages BEGIN
     INSERT INTO pages_fts(rowid, title, content, tags) VALUES (new.rowid, new.title, new.content, new.tags);
 END;
 
-INSERT INTO pages_fts(rowid, title, content, tags)
-    SELECT rowid, title, content, tags FROM pages;
+INSERT INTO pages_fts(pages_fts) VALUES('rebuild');

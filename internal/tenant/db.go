@@ -87,16 +87,23 @@ func (db *DB) rerenderPages() error {
 		if err := rows.Scan(&id, &content); err != nil {
 			continue
 		}
-		html, ok := safeRender(id, content)
-		if !ok {
-			continue
-		}
-		if _, err := db.DB.ExecContext(context.Background(),
-			"UPDATE pages SET content_html = ? WHERE id = ?", html, id); err != nil {
-			slog.Warn("failed to re-render page", "id", id, "err", err)
-			continue
-		}
-		updated++
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Warn("panic re-rendering page (isolated)", "tenant", db.TenantID, "id", id, "panic", r)
+				}
+			}()
+			html, ok := safeRender(id, content)
+			if !ok {
+				return
+			}
+			if _, err := db.DB.ExecContext(context.Background(),
+				"UPDATE pages SET content_html = ? WHERE id = ?", html, id); err != nil {
+				slog.Warn("failed to re-render page", "id", id, "err", err)
+				return
+			}
+			updated++
+		}()
 	}
 
 	slog.Info("re-rendered pages after migration", "tenant", db.TenantID, "count", updated)
