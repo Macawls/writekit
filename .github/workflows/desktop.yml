@@ -59,7 +59,7 @@ jobs:
 
       - name: Build
         working-directory: desktop
-        run: wails build -platform ${{ matrix.platform }} -clean ${{ matrix.tags && format('-tags {0}', matrix.tags) || '' }}
+        run: wails build -platform ${{ matrix.platform }} -clean -trimpath -ldflags "-s -w" ${{ matrix.tags && format('-tags {0}', matrix.tags) || '' }}
 
       - name: Package Windows
         if: matrix.os == 'windows-latest'
