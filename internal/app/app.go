@@ -296,6 +296,9 @@ func siteRouter(siteHandler *site.Handler) http.Handler {
 }
 
 func (a *App) ListenAddr() string {
+	if a.Config.Dev {
+		return fmt.Sprintf("127.0.0.1:%d", a.Config.Port)
+	}
 	return fmt.Sprintf(":%d", a.Config.Port)
 }
 
