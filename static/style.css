@@ -188,9 +188,10 @@ input, textarea, select { font-family: var(--sans); font-size: .9rem; }
 .auth-btn { display: flex; align-items: center; justify-content: center; gap: .5rem; padding: .65rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); font-size: .88rem; cursor: pointer; background: #fff; font-family: var(--sans); }
 .auth-btn:hover { background: var(--bg2); text-decoration: none; }
 
-/* Search trigger button */
-.site-nav { margin-top: .6rem; display: flex; gap: 1rem; }
-.search-trigger { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .65rem; font-family: var(--sans); font-size: .78rem; font-weight: 500; color: var(--muted); background: transparent; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+/* Site title row + search trigger */
+.site-title-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.site-title-row h1 { margin: 0; }
+.search-trigger { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; color: var(--muted); background: transparent; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; flex-shrink: 0; }
 .search-trigger:hover { color: var(--fg); border-color: var(--border2); background: var(--bg2); }
 .search-trigger svg { flex-shrink: 0; }
 
@@ -215,7 +216,8 @@ input, textarea, select { font-family: var(--sans); font-size: .9rem; }
 .pagination__status { color: var(--muted); font-size: .78rem; }
 
 /* Search modal */
-.search-modal { padding: 0; border: 1px solid var(--border); border-radius: 10px; width: min(560px, 92vw); max-height: 80vh; background: var(--bg); color: var(--fg); box-shadow: 0 20px 60px rgba(0,0,0,.18); }
+body.search-modal-open { overflow: hidden; }
+.search-modal { position: fixed; inset: 0; margin: auto; padding: 0; border: 1px solid var(--border); border-radius: 10px; width: min(560px, 92vw); max-height: min(560px, 80vh); height: auto; background: var(--bg); color: var(--fg); box-shadow: 0 20px 60px rgba(0,0,0,.18); }
 .search-modal::backdrop { background: rgba(15, 15, 15, .35); backdrop-filter: blur(2px); }
 .search-modal__form { display: flex; flex-direction: column; max-height: 80vh; }
 .search-modal__input-row { display: flex; align-items: center; gap: .6rem; padding: .85rem 1rem; border-bottom: 1px solid var(--border); }

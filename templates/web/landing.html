@@ -23,80 +23,93 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         :root{
-            --bg:#fafafa;--fg:#0f0f0f;--muted:#71717a;--faint:#a1a1aa;
-            --border:#e4e4e7;--border2:#d4d4d8;--surface:#18181b;--white:#fff;
+            --bg:#fafafa;--fg:#0a0a0a;--muted:#52525b;--faint:#a1a1aa;
+            --border:#e4e4e7;--border2:#d4d4d8;--surface:#141418;--white:#fff;
             --sans:'Plus Jakarta Sans',system-ui,sans-serif;
             --mono:'JetBrains Mono',ui-monospace,monospace;
         }
         html,body{height:100%;scrollbar-width:none;-ms-overflow-style:none}
         html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}
         body{
-            font-family:var(--sans);background:var(--bg);color:var(--fg);
+            font-family:var(--sans);color:var(--fg);background:var(--bg);
             -webkit-font-smoothing:antialiased;
             display:flex;flex-direction:column;
-            overflow-y:auto;
+            overflow-y:auto;position:relative;
         }
         body::before{
-            content:'';position:fixed;inset:0;
-            background-image:radial-gradient(circle,var(--border) .5px,transparent .5px);
-            background-size:24px 24px;opacity:.3;pointer-events:none;
+            content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+            background:
+                radial-gradient(70% 55% at 50% 0%, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0) 60%),
+                radial-gradient(50% 40% at 80% 110%, rgba(0,0,0,0.025) 0%, rgba(0,0,0,0) 60%);
         }
-
+        body::after{
+            content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+            background-image:url('/static/grain.svg');
+            background-size:400px 400px;background-repeat:repeat;
+            opacity:.06;mix-blend-mode:multiply;
+        }
 
         main{
             flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-            position:relative;z-index:1;padding:0 2rem 8rem;
+            position:relative;z-index:1;padding:6rem 2rem 10rem;
         }
 
-        .hero{text-align:center;margin-bottom:2.5rem}
+        .hero{text-align:center;margin-bottom:4rem;max-width:720px}
         .hero h1{
-            font-size:1.5rem;font-weight:700;letter-spacing:-.03em;
-            line-height:1.2;margin-bottom:.6rem;color:var(--fg);
+            font-size:clamp(2.4rem,6vw,4rem);font-weight:700;letter-spacing:-.04em;
+            line-height:1.02;margin-bottom:1.35rem;color:var(--fg);
         }
-        .hero p{font-size:.86rem;color:var(--muted);line-height:1.5;max-width:340px;margin:0 auto}
+        .hero p{
+            font-size:clamp(1rem,1.5vw,1.125rem);color:var(--muted);
+            line-height:1.55;max-width:520px;margin:0 auto;font-weight:400;
+        }
 
         .cmd{
-            display:inline-flex;align-items:center;justify-content:space-between;gap:.75rem;
+            display:inline-flex;align-items:center;justify-content:space-between;gap:.9rem;
             width:max-content;max-width:100%;
-            font-family:var(--mono);font-size:clamp(.62rem,2.1vw,.85rem);
-            font-weight:500;color:var(--fg);letter-spacing:-.01em;
-            padding:.85rem 1.15rem;
-            background:var(--white);
-            border:1px solid var(--border);
-            border-radius:10px;
-            box-shadow:0 1px 2px rgba(0,0,0,.02),0 4px 16px rgba(0,0,0,.03);
+            font-family:var(--mono);font-size:clamp(.7rem,1.6vw,.9rem);
+            font-weight:500;color:#e4e4e7;letter-spacing:-.01em;
+            padding:1.1rem 1.4rem;
+            background:#0a0a0a;
+            border:1px solid #1c1c1f;
+            border-radius:14px;
+            box-shadow:
+                0 0 0 1px rgba(0,0,0,0.04),
+                0 4px 12px rgba(0,0,0,.08),
+                0 24px 64px rgba(0,0,0,.12);
             cursor:pointer;
         }
         .cmd:hover{
-            box-shadow:0 1px 2px rgba(0,0,0,.02),0 8px 32px rgba(0,0,0,.06);
-            border-color:var(--border2);
+            box-shadow:
+                0 0 0 1px rgba(0,0,0,0.06),
+                0 8px 20px rgba(0,0,0,.12),
+                0 32px 80px rgba(0,0,0,.18);
         }
         .cmd-text{white-space:nowrap;overflow-x:auto;min-width:0;scrollbar-width:none}
         .cmd-text::-webkit-scrollbar{display:none}
-        .cmd-text .d{color:var(--faint);user-select:none;margin-right:.3em}
-        .cmd-text .dim{color:var(--muted)}
+        .cmd-text .d{color:#71717a;user-select:none;margin-right:.35em}
+        .cmd-text .dim{color:#a1a1aa}
         .cmd-cp{
-            color:var(--faint);background:transparent;border:none;padding:0;
+            color:#71717a;background:transparent;border:none;padding:0;
             cursor:pointer;flex-shrink:0;display:flex;align-items:center;
         }
-        .cmd-cp:hover{color:var(--muted)}
-        .cmd-cp.ok{color:var(--fg)}
+        .cmd-cp:hover{color:#d4d4d8}
+        .cmd-cp.ok{color:#fff}
 
         footer{
-            position:relative;z-index:1;padding:0 2rem 1.75rem;text-align:center;
+            position:relative;z-index:1;padding:0 2rem 2.5rem;text-align:center;
         }
-        footer a{font-size:.68rem;color:var(--faint);text-decoration:none}
+        footer a{font-size:.72rem;color:var(--muted);text-decoration:none;letter-spacing:.02em}
         footer a:hover{color:var(--fg)}
 
         @media(max-width:600px){
-            nav{margin:.75rem .75rem 0;width:auto}
-            main{padding:0 1.5rem 5rem}
-            .hero h1{font-size:1.3rem}
-            .cmd{padding:.75rem 1rem}
+            main{padding:4rem 1.5rem 6rem}
+            .hero{margin-bottom:3rem}
+            .cmd{padding:.95rem 1.15rem}
         }
     </style>
 </head>
@@ -106,8 +119,8 @@
 
 <main>
     <div class="hero">
-        <h1>Publish by conversation</h1>
-        <p>Pages, collections, docs — managed entirely through your AI assistant.</p>
+        <h1>Publish by conversation.</h1>
+        <p>Pages, collections, docs — managed entirely through your AI assistant. Connect via MCP and publish to your own subdomain.</p>
     </div>
 
     <div class="cmd" onclick="copyCmd()">

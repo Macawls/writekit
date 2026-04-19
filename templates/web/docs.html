@@ -1,162 +1,559 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Documentation — WriteKit</title>
-    <meta name="description" content="Learn how to use WriteKit — add the MCP server, authenticate, and start publishing pages and collections through your AI assistant.">
-    <link rel="canonical" href="https://writekit.dev/docs">
-    <meta property="og:type" content="article">
-    <meta property="og:title" content="Documentation — WriteKit">
-    <meta property="og:description" content="Learn how to use WriteKit — add the MCP server, authenticate, and start publishing through your AI assistant.">
-    <meta property="og:url" content="https://writekit.dev/docs">
-    <meta property="og:site_name" content="WriteKit">
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="Documentation — WriteKit">
-    <meta name="twitter:description" content="Learn how to use WriteKit — add the MCP server and start publishing.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <meta
+      name="description"
+      content="Learn how to use WriteKit — connect your AI, sign in, and publish pages and collections through conversation."
+    />
+    <link rel="canonical" href="https://writekit.dev/docs" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Documentation — WriteKit" />
+    <meta
+      property="og:description"
+      content="The 2-minute guide to publishing pages from Claude, Cursor, or any MCP client."
+    />
+    <meta property="og:url" content="https://writekit.dev/docs" />
+    <meta property="og:site_name" content="WriteKit" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Documentation — WriteKit" />
+    <meta
+      name="twitter:description"
+      content="The 2-minute guide to publishing with WriteKit."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <style>
-        *{margin:0;padding:0;box-sizing:border-box}
-        :root{
-            --bg:#fafafa;--white:#fff;--fg:#0f0f0f;--fg2:#3f3f46;--muted:#71717a;
-            --faint:#a1a1aa;--border:#e4e4e7;--border2:#d4d4d8;--accent:#0f0f0f;
-            --surface:#18181b;
-            --sans:'Plus Jakarta Sans',system-ui,sans-serif;
-            --mono:'JetBrains Mono',ui-monospace,monospace;
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      :root {
+        --bg: #fafafa;
+        --white: #fff;
+        --fg: #0a0a0a;
+        --fg2: #3f3f46;
+        --muted: #71717a;
+        --faint: #a1a1aa;
+        --border: #e4e4e7;
+        --border2: #d4d4d8;
+        --accent: #0a0a0a;
+        --surface: #141418;
+        --sans: "Plus Jakarta Sans", system-ui, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+      html,
+      body {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      html::-webkit-scrollbar,
+      body::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+      }
+      body {
+        font-family: var(--sans);
+        background: var(--bg);
+        color: var(--fg);
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.7;
+      }
+      a {
+        color: var(--fg);
+        text-decoration: underline;
+        text-decoration-color: var(--border2);
+        text-underline-offset: 3px;
+      }
+      a:hover {
+        text-decoration-color: var(--fg);
+      }
+
+      .hero-band {
+        position: relative;
+        isolation: isolate;
+        background:
+          radial-gradient(
+            70% 80% at 50% 0%,
+            rgba(0, 0, 0, 0.05) 0%,
+            rgba(0, 0, 0, 0.02) 35%,
+            rgba(0, 0, 0, 0) 70%
+          ),
+          #fafafa;
+        color: var(--fg);
+        border-bottom: 1px solid var(--border);
+        overflow: hidden;
+        min-height: 340px;
+      }
+      .hero-band::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background-image: url("/static/grain.svg");
+        background-size: 400px 400px;
+        background-repeat: repeat;
+        opacity: 0.08;
+        mix-blend-mode: multiply;
+      }
+      .hero-band > * {
+        position: relative;
+        z-index: 1;
+      }
+      .hero-inner {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 3.5rem 2rem 4.5rem;
+        text-align: left;
+      }
+      .hero-inner h1 {
+        font-size: clamp(2.2rem, 4.5vw, 3rem);
+        font-weight: 700;
+        letter-spacing: -0.035em;
+        line-height: 1.05;
+        margin-bottom: 0.9rem;
+        color: var(--fg);
+      }
+      .hero-inner .lede {
+        font-size: clamp(0.98rem, 1.3vw, 1.1rem);
+        color: #52525b;
+        margin: 0;
+        max-width: 620px;
+        line-height: 1.55;
+      }
+
+      .layout {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 3.5rem 2rem 6rem;
+        display: grid;
+        grid-template-columns: 240px minmax(0, 1fr);
+        gap: 4.5rem;
+      }
+      aside.sidebar {
+        position: sticky;
+        top: 1.5rem;
+        align-self: start;
+        max-height: calc(100vh - 3rem);
+        overflow-y: auto;
+        scrollbar-width: none;
+        padding-right: 0.5rem;
+      }
+      aside.sidebar::-webkit-scrollbar {
+        display: none;
+      }
+      .sb-group {
+        margin-bottom: 1.75rem;
+      }
+      .sb-group:last-child {
+        margin-bottom: 0;
+      }
+      .sb-title {
+        font-family: var(--mono);
+        font-size: 0.66rem;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--fg);
+        margin-bottom: 0.7rem;
+        padding-left: 0.9rem;
+      }
+      .sb-group a {
+        display: block;
+        font-size: 0.84rem;
+        font-weight: 500;
+        padding: 0.32rem 0.9rem;
+        color: var(--muted);
+        text-decoration: none;
+        border-left: 2px solid var(--border);
+        line-height: 1.35;
+      }
+      .sb-group a:hover {
+        color: var(--fg);
+        background: rgba(0, 0, 0, 0.02);
+      }
+      .sb-group a.active {
+        color: var(--fg);
+        border-left-color: var(--fg);
+        background: rgba(0, 0, 0, 0.03);
+      }
+
+      .doc {
+        max-width: 720px;
+        min-width: 0;
+      }
+      .doc > *:first-child {
+        margin-top: 0;
+      }
+
+      h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        line-height: 1.2;
+        margin-top: 4rem;
+        margin-bottom: 1rem;
+        padding-top: 2.5rem;
+        border-top: 1px solid var(--border);
+        scroll-margin-top: 1.5rem;
+      }
+      h2:first-child {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+      }
+      h3 {
+        font-size: 1.08rem;
+        font-weight: 600;
+        letter-spacing: -0.015em;
+        line-height: 1.3;
+        margin-top: 2rem;
+        margin-bottom: 0.6rem;
+        color: var(--fg);
+        scroll-margin-top: 1.5rem;
+      }
+      p {
+        margin-bottom: 1rem;
+        color: var(--fg2);
+        font-size: 0.95rem;
+        line-height: 1.7;
+      }
+      ul,
+      ol {
+        margin-bottom: 1rem;
+        padding-left: 1.25rem;
+        color: var(--fg2);
+        font-size: 0.95rem;
+        line-height: 1.7;
+      }
+      li {
+        margin-bottom: 0.4rem;
+      }
+      strong {
+        color: var(--fg);
+        font-weight: 600;
+      }
+
+      code {
+        font-family: var(--mono);
+        font-size: 0.82rem;
+        background: #f4f4f5;
+        border: 1px solid var(--border);
+        padding: 0.1rem 0.38rem;
+        border-radius: 5px;
+        color: var(--fg);
+      }
+      pre {
+        background: var(--surface);
+        color: #e4e4e7;
+        border-radius: 12px;
+        padding: 1.15rem 1.35rem;
+        margin-bottom: 1.25rem;
+        overflow-x: auto;
+        font-family: var(--mono);
+        font-size: 0.8rem;
+        line-height: 1.7;
+        scrollbar-width: none;
+        border: 1px solid rgba(255, 255, 255, 0.04);
+      }
+      pre::-webkit-scrollbar {
+        display: none;
+      }
+      pre code {
+        background: none;
+        border: none;
+        padding: 0;
+        color: inherit;
+        font-size: inherit;
+      }
+
+      .tabs input[type="radio"] {
+        display: none;
+      }
+      .tab-labels {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 0;
+      }
+      .tab-labels label {
+        padding: 0.55rem 0.9rem;
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: var(--faint);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+      .tab-labels label:hover {
+        color: var(--muted);
+      }
+      .tab-panel {
+        display: none;
+        padding: 1rem 0;
+      }
+      #tc-claude:checked ~ .tab-labels label[for="tc-claude"],
+      #tc-cursor:checked ~ .tab-labels label[for="tc-cursor"],
+      #tc-windsurf:checked ~ .tab-labels label[for="tc-windsurf"],
+      #tc-vscode:checked ~ .tab-labels label[for="tc-vscode"],
+      #tc-opencode:checked ~ .tab-labels label[for="tc-opencode"],
+      #tc-any:checked ~ .tab-labels label[for="tc-any"] {
+        color: var(--fg);
+        border-bottom-color: var(--accent);
+      }
+      #tc-claude:checked ~ .tab-panels .p-claude,
+      #tc-cursor:checked ~ .tab-panels .p-cursor,
+      #tc-windsurf:checked ~ .tab-panels .p-windsurf,
+      #tc-vscode:checked ~ .tab-panels .p-vscode,
+      #tc-opencode:checked ~ .tab-panels .p-opencode,
+      #tc-any:checked ~ .tab-panels .p-any {
+        display: block;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1.5rem;
+        font-size: 0.88rem;
+      }
+      th {
+        text-align: left;
+        font-weight: 600;
+        color: var(--fg);
+        padding: 0.55rem 0.75rem;
+        border-bottom: 2px solid var(--border);
+      }
+      td {
+        padding: 0.55rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        color: var(--fg2);
+      }
+      td code {
+        font-size: 0.76rem;
+      }
+
+      .shot {
+        margin: 1.75rem 0;
+      }
+      .shot img {
+        width: 100%;
+        display: block;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--white);
+      }
+      .shot-ph {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        aspect-ratio: 16/9;
+        width: 100%;
+        background: linear-gradient(180deg, #f4f4f5, #fafafa);
+        border: 1px dashed var(--border2);
+        border-radius: 12px;
+        color: var(--faint);
+        font-size: 0.78rem;
+        text-align: center;
+        padding: 1.25rem;
+        font-family: var(--mono);
+        letter-spacing: 0.02em;
+      }
+      .shot-ph svg {
+        color: var(--faint);
+        opacity: 0.6;
+      }
+      .shot-ph .label {
+        color: var(--muted);
+        font-weight: 500;
+        max-width: 420px;
+        line-height: 1.4;
+      }
+      .shot figcaption {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin-top: 0.6rem;
+        text-align: center;
+        font-style: italic;
+      }
+
+      .callout {
+        margin: 1.25rem 0;
+        padding: 0.9rem 1.1rem;
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--fg);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.015);
+        font-size: 0.88rem;
+        color: var(--fg2);
+        line-height: 1.6;
+      }
+      .callout strong {
+        color: var(--fg);
+      }
+      .callout p {
+        margin: 0;
+        color: inherit;
+        font-size: inherit;
+      }
+
+      footer {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 2.5rem 2rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.76rem;
+        color: var(--faint);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      footer a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      footer a:hover {
+        color: var(--fg);
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+          gap: 2rem;
+          padding: 2.5rem 1.5rem 4rem;
         }
-        html,body{scrollbar-width:none;-ms-overflow-style:none}
-        html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}
-        body{font-family:var(--sans);background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;line-height:1.7}
-        a{color:var(--fg);text-decoration:underline;text-decoration-color:var(--border2);text-underline-offset:2px}
-        a:hover{text-decoration-color:var(--fg)}
-
-
-        .doc{max-width:640px;margin:0 auto;padding:3rem 2rem 5rem}
-
-        h1{font-size:1.75rem;font-weight:700;letter-spacing:-.03em;line-height:1.15;margin-bottom:1.25rem}
-        h2{font-size:1.15rem;font-weight:700;letter-spacing:-.02em;margin-top:3rem;margin-bottom:.75rem;padding-top:1.5rem;border-top:1px solid var(--border)}
-        h3{font-size:.95rem;font-weight:600;margin-top:1.5rem;margin-bottom:.5rem}
-        p{margin-bottom:1rem;color:var(--fg2);font-size:.9rem}
-        ul,ol{margin-bottom:1rem;padding-left:1.25rem;color:var(--fg2);font-size:.9rem}
-        li{margin-bottom:.35rem}
-        strong{color:var(--fg);font-weight:600}
-
-        code{
-            font-family:var(--mono);font-size:.78rem;
-            background:var(--white);border:1px solid var(--border);
-            padding:.1rem .35rem;border-radius:4px;color:var(--fg);
+        aside.sidebar {
+          position: static;
+          max-height: none;
+          overflow: visible;
+          border-bottom: 1px solid var(--border);
+          padding-bottom: 1.25rem;
+          margin-bottom: 1rem;
         }
-        pre{
-            background:var(--surface);color:#e4e4e7;border-radius:10px;
-            padding:1rem 1.25rem;margin-bottom:1.25rem;overflow-x:auto;
-            font-family:var(--mono);font-size:.78rem;line-height:1.7;
-            scrollbar-width:none;
+        .sb-group {
+          margin-bottom: 1.25rem;
         }
-        pre::-webkit-scrollbar{display:none}
-        pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
-
-        .tabs input[type="radio"]{display:none}
-        .tab-labels{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--border);margin-bottom:0}
-        .tab-labels label{
-            padding:.5rem .85rem;font-size:.78rem;font-weight:500;color:var(--faint);
-            cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+        .hero-inner {
+          padding: 2.5rem 1.5rem 3rem;
         }
-        .tab-labels label:hover{color:var(--muted)}
-        .tab-panel{display:none;padding:1rem 0}
-        #tc-claude:checked ~ .tab-labels label[for="tc-claude"],
-        #tc-cursor:checked ~ .tab-labels label[for="tc-cursor"],
-        #tc-windsurf:checked ~ .tab-labels label[for="tc-windsurf"],
-        #tc-vscode:checked ~ .tab-labels label[for="tc-vscode"],
-        #tc-opencode:checked ~ .tab-labels label[for="tc-opencode"],
-        #tc-any:checked ~ .tab-labels label[for="tc-any"]{color:var(--fg);border-bottom-color:var(--accent)}
-        #tc-claude:checked ~ .tab-panels .p-claude,
-        #tc-cursor:checked ~ .tab-panels .p-cursor,
-        #tc-windsurf:checked ~ .tab-panels .p-windsurf,
-        #tc-vscode:checked ~ .tab-panels .p-vscode,
-        #tc-opencode:checked ~ .tab-panels .p-opencode,
-        #tc-any:checked ~ .tab-panels .p-any{display:block}
-
-        .prompt-card{
-            background:var(--white);border:1px solid var(--border);border-radius:10px;
-            padding:.85rem 1.1rem;margin-bottom:.6rem;
-        }
-        .prompt-card .say{font-size:.84rem;color:var(--fg);font-weight:500;margin-bottom:.2rem}
-        .prompt-card .does{font-size:.78rem;color:var(--muted)}
-
-        table{
-            width:100%;border-collapse:collapse;margin-bottom:1.25rem;font-size:.84rem;
-        }
-        th{text-align:left;font-weight:600;color:var(--fg);padding:.45rem .65rem;border-bottom:2px solid var(--border)}
-        td{padding:.45rem .65rem;border-bottom:1px solid var(--border);color:var(--fg2)}
-        td code{font-size:.72rem}
-
-        footer{
-            max-width:640px;margin:0 auto;padding:2rem;
-            border-top:1px solid var(--border);font-size:.72rem;color:var(--faint);
-            display:flex;justify-content:space-between;
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
+    <div class="hero-band">
+      {{template "partials/nav.html" .}}
 
-{{template "partials/nav.html" .}}
-
-<div class="doc">
-
-<h1>Documentation</h1>
-
-<p>WriteKit is an MCP-powered publishing tool. You create and manage pages and collections entirely through conversation with your AI assistant.</p>
-
-<h2>Get started</h2>
-
-<h3>1. Add the MCP server</h3>
-
-<div class="tabs">
-    <input type="radio" name="ct" id="tc-claude" checked>
-    <input type="radio" name="ct" id="tc-cursor">
-    <input type="radio" name="ct" id="tc-windsurf">
-    <input type="radio" name="ct" id="tc-vscode">
-    <input type="radio" name="ct" id="tc-opencode">
-    <input type="radio" name="ct" id="tc-any">
-
-    <div class="tab-labels">
-        <label for="tc-claude">Claude Code</label>
-        <label for="tc-cursor">Cursor</label>
-        <label for="tc-windsurf">Windsurf</label>
-        <label for="tc-vscode">VS Code</label>
-        <label for="tc-opencode">OpenCode</label>
-        <label for="tc-any">Any Client</label>
+      <div class="hero-inner">
+        <h1>Documentation</h1>
+        <p class="lede">
+          How to publish documents from Claude, Cursor, OpenCode or any MCP
+          client.
+        </p>
+      </div>
     </div>
 
-    <div class="tab-panels">
-        <div class="tab-panel p-claude">
-<pre><code>claude mcp add --transport http writekit https://writekit.dev/mcp</code></pre>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sb-group">
+          <div class="sb-title">Get started</div>
+          <a href="#connect-your-ai">Connect your AI</a>
+          <a href="#sign-in">Sign in</a>
+          <a href="#pick-a-subdomain">Pick a subdomain</a>
+          <a href="#start-writing">Start writing</a>
         </div>
-        <div class="tab-panel p-cursor">
-            <p>Add to <code>.cursor/mcp.json</code>:</p>
-<pre><code>{
+        <div class="sb-group">
+          <div class="sb-title">How it works</div>
+          <a href="#workflow">The writing loop</a>
+        </div>
+        <div class="sb-group">
+          <div class="sb-title">Core concepts</div>
+          <a href="#pages">Pages</a>
+          <a href="#collections">Collections</a>
+          <a href="#visibility">Visibility</a>
+          <a href="#teams">Teams</a>
+          <a href="#urls">URLs</a>
+        </div>
+        <div class="sb-group">
+          <div class="sb-title">Reference</div>
+          <a href="#mcp-tools">MCP tools</a>
+          <a href="#mcp-resources">MCP resources</a>
+          <a href="#markdown">Markdown</a>
+        </div>
+      </aside>
+
+      <article class="doc">
+        <h2 id="get-started">Get started</h2>
+
+        <p>
+          WriteKit plugs into your AI assistant. You tell it what to write, it
+          publishes to your site. No clicking around a dashboard, no
+          copy-pasting Markdown into forms.
+        </p>
+
+        <p>The setup is four steps. Takes about two minutes.</p>
+
+        <h3 id="connect-your-ai">1. Connect your AI</h3>
+
+        <p>
+          Pick your tool below and run the command (or paste the config). This
+          tells your AI about WriteKit.
+        </p>
+
+        <div class="tabs">
+          <input type="radio" name="ct" id="tc-claude" checked />
+          <input type="radio" name="ct" id="tc-cursor" />
+          <input type="radio" name="ct" id="tc-windsurf" />
+          <input type="radio" name="ct" id="tc-vscode" />
+          <input type="radio" name="ct" id="tc-opencode" />
+          <input type="radio" name="ct" id="tc-any" />
+
+          <div class="tab-labels">
+            <label for="tc-claude">Claude Code</label>
+            <label for="tc-cursor">Cursor</label>
+            <label for="tc-windsurf">Windsurf</label>
+            <label for="tc-vscode">VS Code</label>
+            <label for="tc-opencode">OpenCode</label>
+            <label for="tc-any">Any Client</label>
+          </div>
+
+          <div class="tab-panels">
+            <div class="tab-panel p-claude">
+              <pre><code>claude mcp add --transport http writekit https://writekit.dev/mcp</code></pre>
+            </div>
+            <div class="tab-panel p-cursor">
+              <p>Add to <code>.cursor/mcp.json</code>:</p>
+              <pre><code>{
   "mcpServers": {
     "writekit": {
       "url": "https://writekit.dev/mcp"
     }
   }
 }</code></pre>
-        </div>
-        <div class="tab-panel p-windsurf">
-            <p>Add to your Windsurf MCP config:</p>
-<pre><code>{
+            </div>
+            <div class="tab-panel p-windsurf">
+              <p>Add to your Windsurf MCP config:</p>
+              <pre><code>{
   "mcpServers": {
     "writekit": {
       "url": "https://writekit.dev/mcp"
     }
   }
 }</code></pre>
-        </div>
-        <div class="tab-panel p-vscode">
-            <p>Add to <code>.vscode/mcp.json</code>:</p>
-<pre><code>{
+            </div>
+            <div class="tab-panel p-vscode">
+              <p>Add to <code>.vscode/mcp.json</code>:</p>
+              <pre><code>{
   "servers": {
     "writekit": {
       "type": "http",
@@ -164,10 +561,10 @@
     }
   }
 }</code></pre>
-        </div>
-        <div class="tab-panel p-opencode">
-            <p>Add to <code>opencode.json</code> (project root or <code>~/.config/opencode/opencode.json</code>):</p>
-<pre><code>{
+            </div>
+            <div class="tab-panel p-opencode">
+              <p>Add to <code>opencode.json</code>:</p>
+              <pre><code>{
   "mcp": {
     "writekit": {
       "type": "remote",
@@ -175,146 +572,469 @@
     }
   }
 }</code></pre>
+            </div>
+            <div class="tab-panel p-any">
+              <p>Point any Streamable HTTP MCP client at:</p>
+              <pre><code>https://writekit.dev/mcp</code></pre>
+            </div>
+          </div>
         </div>
-        <div class="tab-panel p-any">
-            <p>Point any Streamable HTTP MCP client at:</p>
-<pre><code>https://writekit.dev/mcp</code></pre>
+
+        <figure class="shot">
+          <div class="shot-ph">
+            <svg
+              width="44"
+              height="44"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="4" width="18" height="14" rx="2" />
+              <path d="M8 21h8m-4-3v3" />
+              <path d="M7 9l3 2.5L7 14" />
+              <line x1="13" y1="14" x2="17" y2="14" />
+            </svg>
+            <span class="label"
+              >Screenshot: Claude Code showing "writekit" in the MCP server list
+              after running the command.</span
+            >
+          </div>
+          <figcaption>Your AI now knows about WriteKit.</figcaption>
+        </figure>
+
+        <h3 id="sign-in">2. Sign in</h3>
+
+        <p>
+          The first time your AI tries to use WriteKit, a browser tab opens.
+          Pick how you want to sign in — <strong>GitHub</strong>,
+          <strong>Google</strong>, <strong>Discord</strong>, or
+          <strong>email</strong>. That's it.
+        </p>
+
+        <figure class="shot">
+          <img
+            src="/static/docs/02-signin.png"
+            alt="WriteKit sign-in screen"
+            loading="lazy"
+          />
+          <figcaption>Pick a provider or drop in your email.</figcaption>
+        </figure>
+
+        <h3 id="pick-a-subdomain">3. Pick a subdomain</h3>
+
+        <p>
+          After signing in, you'll pick a name for your site. Your pages will
+          live at <code>yourname.writekit.dev</code>. You can bring a custom
+          domain later.
+        </p>
+
+        <figure class="shot">
+          <div class="shot-ph">
+            <svg
+              width="44"
+              height="44"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path
+                d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+              />
+            </svg>
+            <span class="label"
+              >Screenshot: Dashboard subdomain picker with live availability
+              check.</span
+            >
+          </div>
+        </figure>
+
+        <h3 id="start-writing">4. Start writing</h3>
+
+        <p>You're done. Now just talk to your AI.</p>
+
+        <div class="callout">
+          <p>
+            <strong>Try it:</strong> Ask your AI —
+            <em>"Write a short post about why I love Go, and publish it."</em>
+          </p>
         </div>
+
+        <p>
+          Your AI will create the page, show you a
+          <strong>preview link</strong>, and publish once you're happy with it.
+          You never touch a form.
+        </p>
+
+        <h2 id="workflow">The writing loop</h2>
+
+        <p>Every page follows the same flow:</p>
+
+        <ol>
+          <li>
+            <strong>Ask.</strong> Tell your AI what to write. It creates a draft
+            and returns a preview link.
+          </li>
+          <li>
+            <strong>Preview.</strong> Open the link — it reloads automatically
+            as the AI edits.
+          </li>
+          <li>
+            <strong>Iterate.</strong> "Make it shorter." "Add a section on X."
+            "Change the tone." The AI edits, the preview updates.
+          </li>
+          <li>
+            <strong>Publish.</strong> Say "publish it." Your page goes live at
+            <code>yourname.writekit.dev/{slug}</code>.
+          </li>
+        </ol>
+
+        <figure class="shot">
+          <div class="shot-ph">
+            <svg
+              width="44"
+              height="44"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+              />
+            </svg>
+            <span class="label"
+              >Screenshot: Chat with AI creating a page and returning a preview
+              URL.</span
+            >
+          </div>
+          <figcaption>A full write-and-publish round-trip.</figcaption>
+        </figure>
+
+        <p>
+          Every edit is saved as a version. If something got worse, add
+          <code>?v=N</code> to the preview URL to look at an earlier one.
+        </p>
+
+        <h2 id="core-concepts">Core concepts</h2>
+
+        <h3 id="pages">Pages</h3>
+        <p>
+          A page is one piece of writing. A post, a doc, a recipe — whatever.
+          Pages start as drafts, go live when you publish them, and get a URL
+          based on their slug.
+        </p>
+
+        <h3 id="collections">Collections</h3>
+        <p>
+          Collections are folders. Group related pages together — a "blog," a
+          "docs" collection, a newsletter archive. Pages can also live on their
+          own, outside any collection.
+        </p>
+
+        <p>
+          Collections can be ordered <strong>manually</strong> (good for docs in
+          a learning order) or <strong>by date</strong> (good for blogs).
+        </p>
+
+        <h3 id="visibility">Visibility</h3>
+        <p>Every page has a visibility setting:</p>
+        <ul>
+          <li>
+            <strong>Public</strong> — anyone can see it. Shown in your index and
+            search.
+          </li>
+          <li>
+            <strong>Unlisted</strong> — only people with the link. Hidden from
+            the index and search.
+          </li>
+          <li>
+            <strong>Private</strong> — only signed-in team members. Everyone
+            else gets a 404.
+          </li>
+        </ul>
+        <p>
+          A draft isn't visible at all — visibility only kicks in once you
+          publish.
+        </p>
+
+        <h3 id="teams">Teams</h3>
+        <p>Every site has a team. Invite people by email. Three roles:</p>
+        <ul>
+          <li>
+            <strong>Owner</strong> — full control: billing, settings, everyone,
+            everything.
+          </li>
+          <li>
+            <strong>Editor</strong> — can write, publish, and delete. Can see
+            private pages.
+          </li>
+          <li>
+            <strong>Viewer</strong> — read-only. Can see private pages but can't
+            change them.
+          </li>
+        </ul>
+
+        <h3 id="urls">URLs</h3>
+        <ul>
+          <li>Standalone page: <code>yourname.writekit.dev/{slug}</code></li>
+          <li>Collection: <code>yourname.writekit.dev/{collection}</code></li>
+          <li>
+            Page in collection:
+            <code>yourname.writekit.dev/{collection}/{slug}</code>
+          </li>
+          <li>Raw Markdown: add <code>.md</code> to any page URL</li>
+          <li>Search: <code>yourname.writekit.dev/search?q={query}</code></li>
+          <li>
+            Preview (for drafts):
+            <code>yourname.writekit.dev/preview/{token}</code>
+          </li>
+        </ul>
+
+        <h2 id="mcp-tools">MCP tools</h2>
+
+        <p>
+          Tools your AI can call once WriteKit is connected. You don't call
+          these directly — your AI does, when you ask for things.
+        </p>
+
+        <h3>Pages</h3>
+        <table>
+          <tr>
+            <th>Tool</th>
+            <th>What it does</th>
+          </tr>
+          <tr>
+            <td><code>create_page</code></td>
+            <td>Make a new draft</td>
+          </tr>
+          <tr>
+            <td><code>update_page</code></td>
+            <td>Change anything on an existing page</td>
+          </tr>
+          <tr>
+            <td><code>delete_page</code></td>
+            <td>Delete for good</td>
+          </tr>
+          <tr>
+            <td><code>publish_page</code></td>
+            <td>Go live — returns the URL</td>
+          </tr>
+          <tr>
+            <td><code>unpublish_page</code></td>
+            <td>Move back to draft</td>
+          </tr>
+          <tr>
+            <td><code>list_pages</code></td>
+            <td>List pages, filter by status/tag/collection</td>
+          </tr>
+          <tr>
+            <td><code>get_page</code></td>
+            <td>Fetch a page's full content</td>
+          </tr>
+          <tr>
+            <td><code>append_to_page</code></td>
+            <td>Add to the end without resending everything</td>
+          </tr>
+          <tr>
+            <td><code>search_pages</code></td>
+            <td>Full-text search</td>
+          </tr>
+        </table>
+
+        <h3>Collections</h3>
+        <table>
+          <tr>
+            <th>Tool</th>
+            <th>What it does</th>
+          </tr>
+          <tr>
+            <td><code>create_collection</code></td>
+            <td>Make a new collection</td>
+          </tr>
+          <tr>
+            <td><code>update_collection</code></td>
+            <td>Rename, re-slug, change sort order</td>
+          </tr>
+          <tr>
+            <td><code>delete_collection</code></td>
+            <td>Delete (pages inside become standalone)</td>
+          </tr>
+          <tr>
+            <td><code>list_collections</code></td>
+            <td>List all with page counts</td>
+          </tr>
+          <tr>
+            <td><code>get_collection</code></td>
+            <td>Details + pages inside</td>
+          </tr>
+          <tr>
+            <td><code>reorder_pages</code></td>
+            <td>Set manual page order</td>
+          </tr>
+        </table>
+
+        <h3>Settings &amp; teams</h3>
+        <table>
+          <tr>
+            <th>Tool</th>
+            <th>What it does</th>
+          </tr>
+          <tr>
+            <td><code>get_settings</code></td>
+            <td>Current site settings</td>
+          </tr>
+          <tr>
+            <td><code>update_settings</code></td>
+            <td>Change title, description</td>
+          </tr>
+          <tr>
+            <td><code>list_members</code></td>
+            <td>Show all team members</td>
+          </tr>
+          <tr>
+            <td><code>invite_member</code></td>
+            <td>Invite someone by email (owner only)</td>
+          </tr>
+          <tr>
+            <td><code>remove_member</code></td>
+            <td>Remove a member (owner only)</td>
+          </tr>
+          <tr>
+            <td><code>update_member_role</code></td>
+            <td>Change a member's role (owner only)</td>
+          </tr>
+        </table>
+
+        <h2 id="mcp-resources">MCP resources</h2>
+
+        <p>
+          Read-only context your AI can pull at any time — useful for "what's
+          going on with my site right now?" questions.
+        </p>
+
+        <table>
+          <tr>
+            <th>URI</th>
+            <th>What you get</th>
+          </tr>
+          <tr>
+            <td><code>writekit://site/stats</code></td>
+            <td>Page counts, collection counts</td>
+          </tr>
+          <tr>
+            <td><code>writekit://site/settings</code></td>
+            <td>Current site settings</td>
+          </tr>
+          <tr>
+            <td><code>writekit://site/recent-pages</code></td>
+            <td>Last 10 published</td>
+          </tr>
+          <tr>
+            <td><code>writekit://site/drafts</code></td>
+            <td>All drafts</td>
+          </tr>
+          <tr>
+            <td><code>writekit://site/collections</code></td>
+            <td>All collections with page counts</td>
+          </tr>
+        </table>
+
+        <h2 id="markdown">Markdown</h2>
+
+        <p>Pages are written in Markdown. On top of the basics, you get:</p>
+
+        <ul>
+          <li>
+            <strong>GitHub Flavored Markdown</strong> — tables, strikethrough,
+            auto-links, task lists
+          </li>
+          <li>
+            <strong>Syntax highlighting</strong> — fenced code blocks with a
+            language tag (<code>```go</code>, <code>```python</code>, etc.)
+          </li>
+          <li>
+            <strong>Callouts</strong> — <code>&gt; [!NOTE]</code>,
+            <code>&gt; [!TIP]</code>, <code>&gt; [!WARNING]</code>,
+            <code>&gt; [!DANGER]</code>
+          </li>
+          <li>
+            <strong>Embeds</strong> — <code>&lt;embed src="url" /&gt;</code> for
+            YouTube, Spotify, SoundCloud, Twitter/X, GitHub Gists
+          </li>
+          <li>
+            <strong>Diagrams</strong> — <code>```d2</code> blocks render as
+            architecture diagrams
+          </li>
+          <li>
+            <strong>Footnotes</strong>, auto heading IDs, and raw HTML when you
+            need it
+          </li>
+        </ul>
+      </article>
     </div>
-</div>
 
-<h3>2. Authenticate</h3>
-<p>On first tool use, a browser window opens to sign in with <strong>GitHub</strong>, <strong>Google</strong>, <strong>Discord</strong>, or <strong>email</strong> (magic link).</p>
+    <footer>
+      <span>&copy; 2026 WriteKit</span>
+      <a href="/">Home</a>
+    </footer>
 
-<h3>3. Create your site</h3>
-<p>After signing in, pick a subdomain at the dashboard. Your site lives at <code>yourname.writekit.dev</code>.</p>
+    <script>
+      (function () {
+        var links = document.querySelectorAll("aside.sidebar a");
+        var linkMap = {};
+        links.forEach(function (a) {
+          var href = a.getAttribute("href") || "";
+          if (href.indexOf("#") === 0) linkMap[href.slice(1)] = a;
+        });
+        var targets = [];
+        Object.keys(linkMap).forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) targets.push(el);
+        });
+        if (!targets.length || !("IntersectionObserver" in window)) return;
 
-<h3>4. Start publishing</h3>
-<p>Tell your AI assistant what to write. It creates pages, organizes them into collections, and publishes — all through conversation.</p>
+        var active = null;
+        function setActive(id) {
+          if (active === id) return;
+          active = id;
+          links.forEach(function (a) {
+            a.classList.remove("active");
+          });
+          if (linkMap[id]) linkMap[id].classList.add("active");
+        }
 
-<h2>Workflow</h2>
+        var io = new IntersectionObserver(
+          function (entries) {
+            var visible = entries.filter(function (e) {
+              return e.isIntersecting;
+            });
+            if (visible.length) {
+              visible.sort(function (a, b) {
+                return (
+                  a.target.getBoundingClientRect().top -
+                  b.target.getBoundingClientRect().top
+                );
+              });
+              setActive(visible[0].target.id);
+            }
+          },
+          { rootMargin: "-10% 0px -70% 0px", threshold: 0 },
+        );
 
-<ol>
-    <li>Ask your AI to create a page — it returns a <strong>preview link</strong></li>
-    <li>Open the preview in your browser — it <strong>auto-reloads</strong> on every edit</li>
-    <li>Iterate with the AI until you're happy with the content</li>
-    <li>Ask the AI to publish — it goes live at <code>yourname.writekit.dev/{slug}</code></li>
-</ol>
-<p>Every edit is versioned. Append <code>?v=N</code> to a preview URL to view a previous version.</p>
-
-<h2>Core concepts</h2>
-
-<h3>Pages</h3>
-<p>A page is any piece of markdown content — a doc, a blog post, a tutorial, a recipe. Pages start as drafts and can be published when ready. Each page gets a URL based on its slug.</p>
-
-<h3>Collections</h3>
-<p>Collections group related pages together. A "docs" collection, a "blog" collection, a "recipes" collection — whatever you need. Collections can be ordered manually (for docs/tutorials) or by date (for blog-style content). Pages can also exist standalone, outside any collection.</p>
-
-<h3>Visibility</h3>
-<p>Pages and collections have a visibility setting:</p>
-<ul>
-    <li><strong>Public</strong> (default) — visible to everyone, shown in index, sitemap, and search</li>
-    <li><strong>Unlisted</strong> — accessible via direct URL but hidden from index, sitemap, and search</li>
-    <li><strong>Private</strong> — only visible to authenticated team members. Everyone else gets a 404.</li>
-</ul>
-<p>Visibility is independent of status. A page must be <em>published</em> to be visible at all — visibility controls <em>who</em> can see it. A private collection cascades: all pages inside it are treated as private.</p>
-
-<h3>Teams</h3>
-<p>Each site has a team with role-based access:</p>
-<ul>
-    <li><strong>Owner</strong> — full control: billing, settings, team management, and content</li>
-    <li><strong>Editor</strong> — can create, edit, publish, and delete pages and collections. Can view private content.</li>
-    <li><strong>Viewer</strong> — can view private content only. Read-only access.</li>
-</ul>
-<p>Invite team members by email using the <code>invite_member</code> tool or via the dashboard at <code>app.writekit.dev</code>.</p>
-
-<h3>URLs</h3>
-<ul>
-    <li>Standalone page: <code>yourname.writekit.dev/{slug}</code></li>
-    <li>Collection index: <code>yourname.writekit.dev/{collection}</code></li>
-    <li>Page in collection: <code>yourname.writekit.dev/{collection}/{slug}</code></li>
-    <li>Raw markdown: append <code>.md</code> to any page URL (e.g. <code>/{slug}.md</code>)</li>
-    <li>Search: <code>yourname.writekit.dev/search?q={query}</code></li>
-    <li>Preview: <code>yourname.writekit.dev/preview/{token}</code> (expiring link for drafts)</li>
-</ul>
-
-<h2>MCP tools</h2>
-
-<p>These tools are available to your AI assistant when connected.</p>
-
-<h3>Pages</h3>
-<table>
-    <tr><th>Tool</th><th>Description</th></tr>
-    <tr><td><code>create_page</code></td><td>Create a new draft page with markdown content</td></tr>
-    <tr><td><code>update_page</code></td><td>Update any field of an existing page</td></tr>
-    <tr><td><code>delete_page</code></td><td>Permanently delete a page</td></tr>
-    <tr><td><code>publish_page</code></td><td>Publish a draft — returns the live URL</td></tr>
-    <tr><td><code>unpublish_page</code></td><td>Revert a published page to draft</td></tr>
-    <tr><td><code>list_pages</code></td><td>List pages, filter by status, tag, or collection</td></tr>
-    <tr><td><code>get_page</code></td><td>Get full page content by ID or slug</td></tr>
-    <tr><td><code>append_to_page</code></td><td>Append content to the end of a page without re-sending everything</td></tr>
-    <tr><td><code>search_pages</code></td><td>Full-text search across all pages</td></tr>
-</table>
-
-<h3>Collections</h3>
-<table>
-    <tr><th>Tool</th><th>Description</th></tr>
-    <tr><td><code>create_collection</code></td><td>Create a new collection (manual or date-sorted)</td></tr>
-    <tr><td><code>update_collection</code></td><td>Update collection title, description, slug, or sort order</td></tr>
-    <tr><td><code>delete_collection</code></td><td>Delete a collection (pages become standalone)</td></tr>
-    <tr><td><code>list_collections</code></td><td>List all collections with page counts</td></tr>
-    <tr><td><code>get_collection</code></td><td>Get collection details and its pages</td></tr>
-    <tr><td><code>reorder_pages</code></td><td>Set page order within a manually-ordered collection</td></tr>
-</table>
-
-<h3>Settings</h3>
-<table>
-    <tr><th>Tool</th><th>Description</th></tr>
-    <tr><td><code>get_settings</code></td><td>Get current site settings</td></tr>
-    <tr><td><code>update_settings</code></td><td>Update site title, description</td></tr>
-</table>
-
-<h3>Teams</h3>
-<table>
-    <tr><th>Tool</th><th>Description</th></tr>
-    <tr><td><code>list_members</code></td><td>List all team members and their roles</td></tr>
-    <tr><td><code>invite_member</code></td><td>Add a user to the team by email (owner only)</td></tr>
-    <tr><td><code>remove_member</code></td><td>Remove a team member (owner only)</td></tr>
-    <tr><td><code>update_member_role</code></td><td>Change a member's role (owner only)</td></tr>
-</table>
-
-<h2>MCP resources</h2>
-
-<p>Resources provide read-only context your AI can access at any time.</p>
-
-<table>
-    <tr><th>URI</th><th>Description</th></tr>
-    <tr><td><code>writekit://site/stats</code></td><td>Page counts, collection counts</td></tr>
-    <tr><td><code>writekit://site/settings</code></td><td>Current site settings</td></tr>
-    <tr><td><code>writekit://site/recent-pages</code></td><td>Last 10 published pages</td></tr>
-    <tr><td><code>writekit://site/drafts</code></td><td>All draft pages</td></tr>
-    <tr><td><code>writekit://site/collections</code></td><td>All collections with page counts</td></tr>
-</table>
-
-<h2>Markdown</h2>
-
-<p>Pages are written in markdown with the following extensions:</p>
-
-<ul>
-    <li><strong>GitHub Flavored Markdown</strong> — tables, strikethrough, autolinks, task lists</li>
-    <li><strong>Code blocks</strong> — syntax highlighting with language tags (<code>```go</code>, <code>```python</code>, etc.)</li>
-    <li><strong>Callout blocks</strong> — <code>&gt; [!NOTE]</code>, <code>&gt; [!TIP]</code>, <code>&gt; [!WARNING]</code>, <code>&gt; [!DANGER]</code> for styled alert boxes</li>
-    <li><strong>Media embeds</strong> — <code>&lt;embed src="url" /&gt;</code> for YouTube, Spotify, SoundCloud, Twitter/X, GitHub Gists</li>
-    <li><strong>D2 diagrams</strong> — <code>```d2</code> code blocks for architecture diagrams</li>
-    <li><strong>Footnotes</strong>, auto heading IDs, raw HTML</li>
-</ul>
-
-</div>
-
-<footer>
-    <span>&copy; 2026 WriteKit</span>
-    <a href="/">Home</a>
-</footer>
-
-</body>
+        targets.forEach(function (t) {
+          io.observe(t);
+        });
+      })();
+    </script>
+  </body>
 </html>

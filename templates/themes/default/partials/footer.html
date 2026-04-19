@@ -239,12 +239,14 @@
                 } else {
                     modal.setAttribute('open', '');
                 }
+                document.body.classList.add('search-modal-open');
                 setTimeout(function() { input.focus(); input.select(); }, 0);
             }
 
             function closeModal() {
                 if (typeof modal.close === 'function' && modal.open) modal.close();
                 else modal.removeAttribute('open');
+                document.body.classList.remove('search-modal-open');
                 setQueryParam('');
             }
 
@@ -259,8 +261,14 @@
                 if (e.target === modal) closeModal();
             });
 
-            modal.addEventListener('close', function() { setQueryParam(''); });
-            modal.addEventListener('cancel', function() { setQueryParam(''); });
+            modal.addEventListener('close', function() {
+                document.body.classList.remove('search-modal-open');
+                setQueryParam('');
+            });
+            modal.addEventListener('cancel', function() {
+                document.body.classList.remove('search-modal-open');
+                setQueryParam('');
+            });
 
             input.addEventListener('input', function() {
                 var val = input.value.trim();
