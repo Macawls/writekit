@@ -3,6 +3,7 @@ import { useStore } from '@nanostores/react'
 import { $user, $site, $loading, $error, loadAuth } from './stores/auth'
 import { $route } from './stores/router'
 import Layout from './components/Layout'
+import TitleBar from './components/TitleBar'
 import Onboarding from './pages/Onboarding'
 import Site from './pages/Site'
 import Team from './pages/Team'
@@ -77,37 +78,19 @@ export default function App() {
     setView('dashboard')
   }
 
-  if (error) {
-    return (
-      <div className="centered">
-        <p className="error">{error}</p>
-      </div>
-    )
-  }
-
-  if (view === 'loading' || loading || !user) {
-    return (
-      <div className="centered">
-        <p className="muted">Loading...</p>
-      </div>
-    )
-  }
-
-  if (!site) {
-    return (
-      <div className="centered">
-        <p className="muted">Setting up your site...</p>
-      </div>
-    )
-  }
-
-  if (view === 'onboarding') {
-    return <Onboarding user={user} site={site} onComplete={completeOnboarding} />
-  }
+  const isWails = !!(window as any).runtime
+  const body = (() => {
+    if (error) return <div className="centered"><p className="error">{error}</p></div>
+    if (view === 'loading' || loading || !user) return <div className="centered"><p className="muted">Loading...</p></div>
+    if (!site) return <div className="centered"><p className="muted">Setting up your site...</p></div>
+    if (view === 'onboarding') return <Onboarding user={user} site={site} onComplete={completeOnboarding} />
+    return <Layout><Router /></Layout>
+  })()
 
   return (
-    <Layout>
-      <Router />
-    </Layout>
+    <div className={isWails ? 'app-desktop' : ''}>
+      {isWails && <TitleBar />}
+      {body}
+    </div>
   )
 }

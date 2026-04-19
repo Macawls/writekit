@@ -11,11 +11,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	writekit "writekit"
@@ -39,6 +41,11 @@ func main() {
 	os.Setenv("LOCAL", "true")
 	if os.Getenv("HOST") == "" {
 		os.Setenv("HOST", "localhost")
+	}
+
+	if wakeExistingInstance() {
+		slog.Info("existing instance found, asked it to surface")
+		os.Exit(0)
 	}
 
 	listener, port, err := bindStablePort()
@@ -87,6 +94,13 @@ func main() {
 		return wailsruntime.OpenDirectoryDialog(wailsCtx, wailsruntime.OpenDialogOptions{Title: title})
 	}
 
+	desksettings.ShowWindow = func() {
+		if wailsCtx != nil {
+			wailsruntime.WindowShow(wailsCtx)
+			wailsruntime.WindowUnminimise(wailsCtx)
+		}
+	}
+
 	pool, err := tenant.NewPool(cfg.DataDir, cfg.MaxPoolSize)
 	if err != nil {
 		slog.Error("create tenant pool", "err", err)
@@ -97,8 +111,6 @@ func main() {
 	tFS, _ := fs.Sub(writekit.TemplatesFS, "templates")
 	sFS, _ := fs.Sub(writekit.StaticFS, "static")
 	application := app.New(cfg, (*platform.DB)(nil), pool, tFS, sFS, writekit.AppFS, writekit.AdminFS)
-
-	application.Worker.Start(context.Background())
 
 	server := &http.Server{
 		Handler:           application.Router,
@@ -151,7 +163,11 @@ func main() {
 		MinWidth:         900,
 		MinHeight:        600,
 		StartHidden:      startMinimized,
+		Frameless:        runtime.GOOS != "darwin",
 		BackgroundColour: &options.RGBA{R: 250, G: 250, B: 250, A: 255},
+		Mac: &mac.Options{
+			TitleBar: mac.TitleBarHiddenInset(),
+		},
 		AssetServer: &assetserver.Options{
 			Handler: proxy,
 		},
@@ -210,6 +226,43 @@ func writePortFile(port int) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(base, "port"), []byte(fmt.Sprintf("%d\n", port)), 0644)
+}
+
+func wakeExistingInstance() bool {
+	port, err := readPortFile()
+	if err != nil || port == 0 {
+		return false
+	}
+	client := &http.Client{Timeout: 500 * time.Millisecond}
+	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/api/local/info", port))
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/api/local/show", port), nil)
+	if resp2, err := client.Do(req); err == nil {
+		resp2.Body.Close()
+	}
+	return true
+}
+
+func readPortFile() (int, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return 0, err
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "WriteKit", "port"))
+	if err != nil {
+		return 0, err
+	}
+	var p int
+	if _, err := fmt.Sscanf(string(b), "%d", &p); err != nil {
+		return 0, err
+	}
+	return p, nil
 }
 
 func dataDirLooksUsed(dir string) bool {

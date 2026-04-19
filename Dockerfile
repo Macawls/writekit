@@ -2,6 +2,8 @@
 
 FROM oven/bun:1.2-alpine AS ui
 WORKDIR /ui
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
 COPY apps/user/package.json apps/user/bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile
 COPY apps/user/ ./
