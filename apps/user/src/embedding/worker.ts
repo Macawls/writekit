@@ -42,7 +42,7 @@ async function embed(jobId: string, text: string, prefix?: string) {
   }
   try {
     const input = prefix ? prefix + text : text
-    const result = await extractor(input, { pooling: 'mean', normalize: true, truncation: true })
+    const result = await extractor(input, { pooling: 'mean', normalize: true })
     const vec = Array.from(result.data as Float32Array)
     post({ type: 'embedded', jobId, vec, dims: vec.length })
   } catch (err) {
