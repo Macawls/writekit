@@ -17,7 +17,20 @@ apps/*/dist/
 
 /writekit-desktop
 /writekit-desktop.exe
-desktop/build/bin/
+desktop/build/
+desktop/desktop.exe
+desktop/.wails-bindings/
 
 # Claude Code local state
 .claude/
+
+# Playwright MCP scratch
+.playwright-mcp/
+
+# Frontend build bookkeeping
+apps/user/package.json.md5
+
+# Scratch screenshots / diagrams
+/tmp-*.png
+/diag-*.png
+/how-it-works-full.png
