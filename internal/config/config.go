@@ -37,9 +37,6 @@ type Config struct {
 	MaxPoolSize int
 
 	AdminEmails []string
-
-	OllamaHost     string
-	EmbeddingModel string
 }
 
 func Load() (*Config, error) {
@@ -70,13 +67,6 @@ func Load() (*Config, error) {
 		}
 	}
 
-	ollamaDefault := ""
-	embeddingDefault := ""
-	if local {
-		ollamaDefault = "http://127.0.0.1:11434"
-		embeddingDefault = "nomic-embed-text"
-	}
-
 	cfg := &Config{
 		Port:    port,
 		Host:    host,
@@ -104,9 +94,6 @@ func Load() (*Config, error) {
 		SESRegion: getenv("SES_REGION", ""),
 
 		MaxPoolSize: maxPool,
-
-		OllamaHost:     getenv("OLLAMA_HOST", ollamaDefault),
-		EmbeddingModel: getenv("EMBEDDING_MODEL", embeddingDefault),
 	}
 
 	if !local {

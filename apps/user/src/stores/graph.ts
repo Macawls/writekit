@@ -1,10 +1,12 @@
 import { atom, computed } from 'nanostores'
-import { fetchGraph } from '../api/graph'
-import type { GraphNode, GraphResponse, Visibility } from '../graph/types'
+import { fetchGraph, fetchEmbeddingSource } from '../api/graph'
+import type { GraphEdge, GraphNode, GraphResponse, Visibility } from '../graph/types'
 import { computeInsights } from '../graph/insights'
+import { computeEdges } from '../graph/edges'
+import { embeddingController, $vectorsTick } from '../embedding/controller'
+import { $embeddingPrefs } from '../embedding/settings'
 
 const STANDALONE_KEY = '__standalone__'
-const BACKFILL_POLL_MS = 5000
 
 export interface RelatedEntry {
   node: GraphNode
@@ -20,16 +22,25 @@ export const $excludedVis = atom<Set<Visibility>>(new Set())
 export const $excludedCols = atom<Set<string>>(new Set())
 export const $view3D = atom<boolean>(false)
 
+export const $edges = atom<GraphEdge[]>([])
+
+async function recomputeEdges() {
+  const vectors = await embeddingController.getVectors()
+  $edges.set(computeEdges(vectors.map(v => ({ pageId: v.pageId, vec: v.vec }))))
+}
+
+$vectorsTick.subscribe(() => { recomputeEdges() })
+
 export const $visibleData = computed(
-  [$graphData, $excludedVis, $excludedCols],
-  (data, exVis, exCols) => {
+  [$graphData, $edges, $excludedVis, $excludedCols],
+  (data, edges, exVis, exCols) => {
     if (!data) return null
     const nodes = data.nodes.filter(n =>
       !exVis.has(n.visibility) &&
       !exCols.has(n.collection_id ?? STANDALONE_KEY))
     const ids = new Set(nodes.map(n => n.id))
-    const edges = data.edges.filter(e => ids.has(e.source) && ids.has(e.target))
-    return { ...data, nodes, edges }
+    const filteredEdges = edges.filter(e => ids.has(e.source) && ids.has(e.target))
+    return { nodes, edges: filteredEdges, collections: data.collections }
   },
 )
 
@@ -66,17 +77,19 @@ export const $neighborIndex = computed($visibleData, vis => {
 
 export const $insights = computed($visibleData, vis => vis ? computeInsights(vis) : null)
 
-let pollTimer: ReturnType<typeof setTimeout> | undefined
-
-export async function loadGraph() {
+export async function loadGraph(tenantId: string) {
   $error.set(null)
   try {
     const d = await fetchGraph()
     $graphData.set(d)
     $loading.set(false)
-    if (pollTimer) { clearTimeout(pollTimer); pollTimer = undefined }
-    if (d.model && d.embedded_count < d.total_page_count) {
-      pollTimer = setTimeout(loadGraph, BACKFILL_POLL_MS)
+    await recomputeEdges()
+
+    const prefs = $embeddingPrefs.get()
+    if (prefs.enabled) {
+      await embeddingController.start(tenantId, prefs.modelId)
+      const sources = await fetchEmbeddingSource()
+      embeddingController.syncPages(sources)
     }
   } catch (e: unknown) {
     $error.set(e instanceof Error ? e.message : 'failed to load')
@@ -85,7 +98,7 @@ export async function loadGraph() {
 }
 
 export function stopGraphPolling() {
-  if (pollTimer) { clearTimeout(pollTimer); pollTimer = undefined }
+  // retained for backward compat; no-op now that backfill polling is gone
 }
 
 export function toggleVis(v: Visibility) {

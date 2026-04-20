@@ -38,7 +38,7 @@ Download WriteKit for your OS from [Releases](https://github.com/Macawls/writeki
 - **Collections**: group related pages (docs, a blog, a series). Ordered manually or by date.
 - **Visibility**: `public`, `unlisted` (URL-only), or `private` (team members only) — per page and per collection.
 - **Teams**: `owner` / `editor` / `viewer` roles on the hosted service; invite members by email.
-- **Semantic graph**: embedding-powered similarity graph of your pages, visualised in 2D or 3D. Uses [Ollama](https://ollama.com/download) for local embeddings.
+- **Semantic graph**: embedding-powered similarity graph of your pages, visualised in 2D or 3D. Embeddings run entirely in your browser via [transformers.js](https://huggingface.co/docs/transformers.js) — pick a model in Settings, it downloads once and caches locally.
 - **MCP tools**: `create_page`, `update_page`, `publish_page`, `list_pages`, `search_pages`, `create_collection`, `update_settings`, and more. See [writekit.dev/docs](https://writekit.dev/docs) for the full list.
 
 ## Markdown, plus
@@ -69,13 +69,13 @@ One codebase, two artifacts:
 ```bash
 git clone https://github.com/Macawls/writekit
 cd writekit
-docker compose up -d            # starts postgres + ollama
+docker compose up -d            # starts postgres
 export DATABASE_URL=postgres://writekit:writekit@localhost/writekit
 export SESSION_SECRET=$(openssl rand -hex 32)
 go run ./cmd/writekit
 ```
 
-Point DNS at your box with a wildcard `*.yourdomain.tld` record and you've got a multi-tenant publishing service. OAuth providers (Google/GitHub/Discord), AWS SES for magic-link email, and Ollama for embeddings are all optional — the server boots with any subset configured.
+Point DNS at your box with a wildcard `*.yourdomain.tld` record and you've got a multi-tenant publishing service. OAuth providers (Google/GitHub/Discord) and AWS SES for magic-link email are optional — the server boots with any subset configured. Embeddings are computed client-side in the user's browser, so the server never needs an embedding model installed.
 
 All env vars are declared in [`internal/config/config.go`](internal/config/config.go).
 

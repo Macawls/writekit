@@ -7,11 +7,14 @@ import {
   $graphData, $loading, $error, $focused, $hoverId,
   $excludedVis, $excludedCols, $view3D,
   $visibleData, $hiddenNodeIds, $neighborIndex, $insights,
-  loadGraph, stopGraphPolling, toggleVis, toggleCol,
+  loadGraph, toggleVis, toggleCol,
   focusNode, setHover, toggleView3D,
   STANDALONE_KEY,
   type RelatedEntry,
 } from '../stores/graph'
+import { $site } from '../stores/auth'
+import { $embeddingPrefs } from '../embedding/settings'
+import { $embeddingStatus } from '../embedding/controller'
 
 const ALL_VISIBILITIES: Visibility[] = ['public', 'unlisted', 'private']
 const ZOOM_IN = 1.3
@@ -34,21 +37,24 @@ export default function Graph() {
   const hiddenNodeIds = useStore($hiddenNodeIds)
   const neighborIndex = useStore($neighborIndex)
   const insights = useStore($insights)
+  const site = useStore($site)
+  const prefs = useStore($embeddingPrefs)
+  const embedStatus = useStore($embeddingStatus)
 
   useEffect(() => {
-    loadGraph()
-    return () => stopGraphPolling()
-  }, [])
+    if (site?.ID) loadGraph(site.ID)
+  }, [site?.ID])
 
   useEffect(() => {
     if (!data || !hostRef.current) return
     if (data.nodes.length === 0) return
 
+    const initialEdges = visibleData?.edges ?? []
     if (!rendererRef.current) {
       rendererRef.current = new GraphRenderer(
         hostRef.current,
         data.nodes,
-        data.edges,
+        initialEdges,
         {
           onNodeClick: (n) => focusNode(n),
           onBackgroundClick: () => focusNode(null),
@@ -58,7 +64,7 @@ export default function Graph() {
     } else {
       rendererRef.current.setGraph(
         visibleData?.nodes ?? data.nodes,
-        visibleData?.edges ?? data.edges,
+        initialEdges,
       )
     }
   }, [data, visibleData])
@@ -122,7 +128,6 @@ export default function Graph() {
     )
   }
 
-  const degraded = data.embedded_count < data.total_page_count
   const zoomIn = () => rendererRef.current?.zoomBy(ZOOM_IN)
   const zoomOut = () => rendererRef.current?.zoomBy(ZOOM_OUT)
   const fit = () => rendererRef.current?.fit()
@@ -143,12 +148,29 @@ export default function Graph() {
 
       <div className="graph-stats">
         <div className="graph-stats-pill">
-          {visibleData?.nodes.length ?? data.nodes.length} pages · {visibleData?.edges.length ?? data.edges.length} connections
-          {data.model && ` · ${data.model}`}
+          {visibleData?.nodes.length ?? data.nodes.length} pages · {visibleData?.edges.length ?? 0} connections
+          {prefs.enabled && ` · ${prefs.modelId.split('/').pop()}`}
         </div>
-        {degraded && (
+        {prefs.enabled && embedStatus.state === 'loading' && (
           <div className="graph-notice">
-            Computing relationships · {data.embedded_count}/{data.total_page_count}
+            Loading model… {embedStatus.loaded && embedStatus.total
+              ? `${Math.round((embedStatus.loaded / embedStatus.total) * 100)}%`
+              : ''}
+          </div>
+        )}
+        {prefs.enabled && embedStatus.state === 'ready' && embedStatus.pending > 0 && (
+          <div className="graph-notice">
+            Embedding {embedStatus.pending} page{embedStatus.pending === 1 ? '' : 's'}…
+          </div>
+        )}
+        {prefs.enabled && embedStatus.state === 'error' && (
+          <div className="graph-notice graph-notice-error">
+            Embedding error: {embedStatus.message || 'see console for details'}
+          </div>
+        )}
+        {!prefs.enabled && (
+          <div className="graph-notice">
+            Enable semantic graph in Settings to see connections.
           </div>
         )}
       </div>

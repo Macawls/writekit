@@ -39,6 +39,6 @@ Standard Markdown, plus:
 
 - Ask your assistant to write a real post
 - Group related posts into a **collection** (`create_collection`)
-- Check the **Graph** tab to see how your pages connect semantically (requires Ollama)
+- Check the **Graph** tab to see how your pages connect semantically (enable in Settings)
 
 Happy writing.

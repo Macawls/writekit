@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -17,7 +16,6 @@ import (
 	"writekit/internal/site"
 	"writekit/internal/config"
 	"writekit/internal/email"
-	"writekit/internal/embedding"
 	"writekit/internal/events"
 	"writekit/internal/httplog"
 	mcpserver "writekit/internal/mcp"
@@ -34,8 +32,6 @@ type App struct {
 	PlatformDB *platform.DB
 	Pool       *tenant.Pool
 	Bus        *events.Bus
-	Embedder   *embedding.Client
-	Worker     *EmbeddingWorker
 	Router     http.Handler
 }
 
@@ -57,17 +53,12 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		PlatformDB: platformDB,
 	}
 
-	embedClient := embedding.NewClient(cfg.OllamaHost, cfg.EmbeddingModel)
-
 	apiHandler := &api.Handler{
-		DB:       platformDB,
-		Pool:     pool,
-		Config:   cfg,
-		Embedder: embedClient,
-		Bus:      bus,
+		DB:     platformDB,
+		Pool:   pool,
+		Config: cfg,
+		Bus:    bus,
 	}
-
-	worker := NewEmbeddingWorker(pool, bus, embedClient)
 
 	var router http.Handler
 	if cfg.Local {
@@ -131,8 +122,6 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		PlatformDB: platformDB,
 		Pool:       pool,
 		Bus:        bus,
-		Embedder:   embedClient,
-		Worker:     worker,
 		Router:     router,
 	}
 }
@@ -303,7 +292,6 @@ func (a *App) ListenAddr() string {
 }
 
 func (a *App) Run() error {
-	a.Worker.Start(context.Background())
 	addr := a.ListenAddr()
 	slog.Info("server starting",
 		"addr", addr,
@@ -312,7 +300,6 @@ func (a *App) Run() error {
 		"base_url", a.Config.BaseURL,
 		"stripe_configured", a.Config.StripeSecretKey != "",
 		"email_configured", a.Config.SESFrom != "",
-		"embedding_configured", a.Embedder.Enabled(),
 	)
 	if err := http.ListenAndServe(addr, a.Router); err != nil {
 		slog.Error("http listen", "addr", addr, "err", err)

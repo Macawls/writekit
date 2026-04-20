@@ -1,4 +1,4 @@
-import type { GraphNode, GraphResponse } from './types'
+import type { GraphNode, GraphView } from './types'
 
 const ANCHOR_LIMIT = 3
 const ORPHAN_LIMIT = 5
@@ -15,7 +15,7 @@ export interface GraphInsights {
   orphanOverflow: number
 }
 
-export function computeInsights(data: GraphResponse): GraphInsights {
+export function computeInsights(data: GraphView): GraphInsights {
   const degree = new Map<string, number>()
   for (const e of data.edges) {
     degree.set(e.source, (degree.get(e.source) ?? 0) + 1)
@@ -40,7 +40,7 @@ export function computeInsights(data: GraphResponse): GraphInsights {
   }
 }
 
-function buildHeadline(data: GraphResponse, orphanCount: number, anchorCount: number): string {
+function buildHeadline(data: { nodes: GraphNode[]; edges: { source: string; target: string }[] }, orphanCount: number, anchorCount: number): string {
   const n = data.nodes.length
   if (n === 0) return 'No published pages yet'
   if (data.edges.length === 0) {

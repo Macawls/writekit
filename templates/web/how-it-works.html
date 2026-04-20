@@ -423,7 +423,7 @@
             <!-- events -->
             <rect x="530" y="115" width="130" height="44" rx="8" class="d-box"/>
             <text x="595" y="135" text-anchor="middle" class="d-label">events.Bus</text>
-            <text x="595" y="150" text-anchor="middle" class="d-sub">cache · embeddings</text>
+            <text x="595" y="150" text-anchor="middle" class="d-sub">cache invalidation</text>
 
             <!-- data -->
             <rect x="210" y="175" width="210" height="44" rx="8" class="d-box"/>
@@ -469,7 +469,7 @@
 
         <p>
           Each site gets its own SQLite file on disk. Pages, collections,
-          versions, embeddings, and settings all live together in that one
+          versions, and settings all live together in that one
           file. There's no shared content database and no row-level tenant
           column — tenancy is enforced by which file you open.
         </p>
@@ -512,8 +512,7 @@
             <text x="535" y="76" class="d-label">pages</text>
             <text x="535" y="98" class="d-label">collections</text>
             <text x="535" y="120" class="d-label">page_versions</text>
-            <text x="535" y="142" class="d-label">page_embeddings</text>
-            <text x="535" y="164" class="d-label">settings</text>
+            <text x="535" y="142" class="d-label">settings</text>
             <text x="535" y="192" class="d-sub">migrations/*.sql</text>
 
             <path d="M230,90 L300,56" class="d-arrow" marker-end="url(#hw-arr2)"/>
@@ -637,10 +636,11 @@
         </ul>
 
         <div class="callout">
-          The desktop build doesn't require internet access to run. If you
-          want semantic search, you can point it at a local
-          <a href="https://ollama.com" rel="noopener">Ollama</a> model for
-          embeddings, which also runs locally.
+          The desktop build doesn't require internet access to run. The
+          semantic graph uses
+          <a href="https://huggingface.co/docs/transformers.js" rel="noopener">transformers.js</a>
+          to compute embeddings entirely in the browser — models download
+          once and cache locally, so your content never leaves the machine.
         </div>
 
         <h2 id="open-source">Open source</h2>
@@ -654,8 +654,9 @@
 
         <p>
           The repo is self-hostable. The <code>docker compose</code> file used
-          for local development (Postgres and Ollama) is the same one that
-          can run a self-hosted instance.
+          for local development (Postgres) is the same one that can run a
+          self-hosted instance. No embedding service is required — embeddings
+          run client-side in the user's browser.
         </p>
 
         <h2 id="privacy">Data &amp; privacy</h2>
@@ -740,9 +741,9 @@
 
         <p>
           The desktop app doesn't send data to writekit.dev. It writes a
-          SQLite file to your user data directory, and the network is only
-          touched if you configure an external service (such as a local
-          Ollama instance for embeddings).
+          SQLite file to your user data directory. The only outbound traffic
+          is a one-time download of the embedding model from Hugging Face
+          when you opt into the semantic graph — after that it runs offline.
         </p>
 
         <div class="callout">

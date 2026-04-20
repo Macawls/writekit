@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '@nanostores/react'
-import { $user, $isDesktop, loadAuth } from '../stores/auth'
+import { $user, $site, $isDesktop, loadAuth } from '../stores/auth'
 import { api, type DesktopSettings } from '../api'
+import { $embeddingPrefs, setEmbeddingPrefs } from '../embedding/settings'
+import { $embeddingStatus, embeddingController } from '../embedding/controller'
+import { MODELS, findModel } from '../embedding/models'
+import { fetchEmbeddingSource } from '../api/graph'
+import { confirmDialog } from '../components/ConfirmDialog'
+import { Select } from '../components/Select'
 
 export default function Settings() {
   const user = useStore($user)
@@ -60,9 +66,160 @@ export default function Settings() {
         </form>
       </div>
 
+      <SemanticGraphSection />
+
       {isDesktop && <DesktopSection />}
     </>
   )
+}
+
+function SemanticGraphSection() {
+  const prefs = useStore($embeddingPrefs)
+  const status = useStore($embeddingStatus)
+  const site = useStore($site)
+  const [error, setError] = useState<string | null>(null)
+  const current = findModel(prefs.modelId)
+
+  const enable = async (modelId: string) => {
+    if (!site?.ID) return
+    setError(null)
+    const model = findModel(modelId)
+    if (!model) return
+    const ok = await confirmDialog({
+      title: 'Enable semantic graph?',
+      body: (
+        <>
+          This downloads <strong>{model.label}</strong> (~{model.approxSizeMB}MB) to this browser. It runs locally — your content stays on your machine.
+        </>
+      ),
+      confirmLabel: 'Download & enable',
+    })
+    if (!ok) return
+    setEmbeddingPrefs({ enabled: true, modelId })
+    try {
+      await embeddingController.start(site.ID, modelId)
+      const sources = await fetchEmbeddingSource()
+      embeddingController.syncPages(sources)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'failed to enable')
+    }
+  }
+
+  const disable = async () => {
+    setEmbeddingPrefs({ ...prefs, enabled: false })
+    await embeddingController.stop()
+  }
+
+  const switchModel = async (modelId: string) => {
+    if (!site?.ID) return
+    setError(null)
+    setEmbeddingPrefs({ ...prefs, modelId })
+    try {
+      await embeddingController.start(site.ID, modelId)
+      const sources = await fetchEmbeddingSource()
+      embeddingController.syncPages(sources)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'failed to switch model')
+    }
+  }
+
+  const clearCache = async () => {
+    const ok = await confirmDialog({
+      title: 'Clear cached embeddings?',
+      body: 'They\u2019ll be recomputed next time you open the graph.',
+      confirmLabel: 'Clear',
+      destructive: true,
+    })
+    if (!ok) return
+    await embeddingController.clear()
+  }
+
+  const progressPct = status.loaded && status.total
+    ? Math.round((status.loaded / status.total) * 100)
+    : null
+
+  return (
+    <div className="card" style={{ marginTop: '1.5rem' }}>
+      <h3>Semantic graph</h3>
+      <p style={{ marginTop: '.25rem', fontSize: '.85rem', color: 'var(--muted)' }}>
+        Generate embeddings in this browser to power the Graph view. Models run locally — content never leaves your machine.
+      </p>
+
+      {error && <p className="error" style={{ marginTop: '.5rem' }}>{error}</p>}
+
+      {!prefs.enabled ? (
+        <div style={{ marginTop: '.85rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+          <label style={{ fontSize: '.85rem', fontWeight: 500 }}>Model</label>
+          <Select
+            value={prefs.modelId}
+            onChange={v => setEmbeddingPrefs({ ...prefs, modelId: v })}
+            ariaLabel="Embedding model"
+            options={MODELS.map(m => ({
+              value: m.id,
+              label: m.label,
+              hint: `${m.dims}d · ~${m.approxSizeMB}MB`,
+            }))}
+            className="settings-model-select"
+          />
+          {current && (
+            <div style={{ fontSize: '.78rem', color: 'var(--muted)' }}>{current.description}</div>
+          )}
+          <button type="button" className="btn" onClick={() => enable(prefs.modelId)} style={{ alignSelf: 'flex-start', marginTop: '.35rem' }}>
+            Enable
+          </button>
+        </div>
+      ) : (
+        <div style={{ marginTop: '.85rem', display: 'flex', flexDirection: 'column', gap: '.65rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+            <label style={{ fontSize: '.85rem', fontWeight: 500, flexShrink: 0 }}>Model</label>
+            <Select
+              value={prefs.modelId}
+              onChange={v => switchModel(v)}
+              ariaLabel="Embedding model"
+              options={MODELS.map(m => ({
+                value: m.id,
+                label: m.label,
+                hint: `${m.dims}d · ~${m.approxSizeMB}MB`,
+              }))}
+              className="settings-model-select"
+            />
+          </div>
+          {current && (
+            <div style={{ fontSize: '.78rem', color: 'var(--muted)' }}>{current.description}</div>
+          )}
+
+          <StatusRow status={status} progressPct={progressPct} />
+
+          <div style={{ display: 'flex', gap: '.5rem', marginTop: '.25rem' }}>
+            <button type="button" onClick={clearCache}>Clear cached embeddings</button>
+            <button type="button" onClick={disable}>Disable</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StatusRow({ status, progressPct }: { status: ReturnType<typeof $embeddingStatus.get>; progressPct: number | null }) {
+  if (status.state === 'loading') {
+    return (
+      <div style={{ fontSize: '.8rem', color: 'var(--muted)' }}>
+        {status.message ?? 'Loading…'}{progressPct !== null && ` · ${progressPct}%`}
+      </div>
+    )
+  }
+  if (status.state === 'error') {
+    return <div className="error" style={{ fontSize: '.8rem' }}>{status.message ?? 'failed'}</div>
+  }
+  if (status.state === 'ready') {
+    return (
+      <div style={{ fontSize: '.8rem', color: 'var(--muted)' }}>
+        Embedded {status.embedded} of {status.total_pages} pages
+        {status.pending > 0 && ` · ${status.pending} in queue`}
+      </div>
+    )
+  }
+  return null
 }
 
 function DesktopSection() {
@@ -139,14 +296,32 @@ function DataFolderRow({
       const res = await api.pickDataFolder()
       if (!res.path) return
       if (res.has_existing_data) {
-        const ok = confirm(
-          `That folder already contains WriteKit data.\n\nUse the existing data at:\n${res.path}\n\nYour current data will be left in place — you can switch back by selecting the old folder.`,
-        )
+        const ok = await confirmDialog({
+          title: 'Use existing data?',
+          body: (
+            <>
+              That folder already contains WriteKit data:
+              <br /><code style={{ fontSize: '.78rem' }}>{res.path}</code>
+              <br /><br />
+              Your current data will be left in place — you can switch back by selecting the old folder.
+            </>
+          ),
+          confirmLabel: 'Use this folder',
+        })
         if (!ok) return
       } else {
-        const ok = confirm(
-          `Set data folder to:\n${res.path}\n\nWriteKit will use this folder for new content after restart. Existing data will remain at the old location.`,
-        )
+        const ok = await confirmDialog({
+          title: 'Set data folder?',
+          body: (
+            <>
+              WriteKit will use this folder for new content after restart:
+              <br /><code style={{ fontSize: '.78rem' }}>{res.path}</code>
+              <br /><br />
+              Existing data will remain at the old location.
+            </>
+          ),
+          confirmLabel: 'Set folder',
+        })
         if (!ok) return
       }
       await update({ data_dir: res.path })
@@ -159,7 +334,12 @@ function DataFolderRow({
   }
 
   const reset = async () => {
-    if (!confirm('Reset data folder to the default location? You will need to restart WriteKit.')) return
+    const ok = await confirmDialog({
+      title: 'Reset to default folder?',
+      body: 'You will need to restart WriteKit for the change to take effect.',
+      confirmLabel: 'Reset',
+    })
+    if (!ok) return
     try {
       await update({ data_dir: '' })
       setRestart(true)

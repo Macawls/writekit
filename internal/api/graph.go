@@ -1,31 +1,14 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
-	"log/slog"
-	"math"
 	"net/http"
-	"sort"
-	"sync"
-	"time"
 
-	"writekit/internal/events"
 	"writekit/internal/httplog"
 	"writekit/internal/tenant"
 )
 
-const (
-	graphMaxPages            = 10000
-	graphTopKNeighbors       = 6
-	graphMinSimilarity       = 0.22
-	graphBackfillMinInterval = 10 * time.Second
-)
-
-var (
-	backfillMu       sync.Mutex
-	backfillLastFire = map[string]time.Time{}
-)
+const graphMaxPages = 10000
 
 type graphNode struct {
 	ID           string   `json:"id"`
@@ -37,12 +20,6 @@ type graphNode struct {
 	Visibility   string   `json:"visibility"`
 }
 
-type graphEdge struct {
-	Source string  `json:"source"`
-	Target string  `json:"target"`
-	Weight float32 `json:"weight"`
-}
-
 type graphCollection struct {
 	ID    string `json:"id"`
 	Slug  string `json:"slug"`
@@ -50,12 +27,8 @@ type graphCollection struct {
 }
 
 type graphResponse struct {
-	Nodes          []graphNode       `json:"nodes"`
-	Edges          []graphEdge       `json:"edges"`
-	Collections    []graphCollection `json:"collections"`
-	Model          string            `json:"model"`
-	EmbeddedCount  int               `json:"embedded_count"`
-	TotalPageCount int               `json:"total_page_count"`
+	Nodes       []graphNode       `json:"nodes"`
+	Collections []graphCollection `json:"collections"`
 }
 
 func (h *Handler) Graph(w http.ResponseWriter, r *http.Request) {
@@ -75,15 +48,21 @@ func (h *Handler) Graph(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	siteBaseURL := "https://" + site.ID + "." + h.Config.Host
+	respondGraph(w, r, db, siteBaseURL)
+}
+
+func respondGraph(w http.ResponseWriter, r *http.Request, db *tenant.DB, siteBaseURL string) {
+	log := httplog.FromContext(r.Context())
+
 	pages, err := db.ListPages(r.Context(), tenant.PageFilter{Status: "published", Limit: graphMaxPages})
 	if err != nil {
-		log.Error("graph: list pages", "tenant", site.ID, "err", err)
+		log.Error("graph: list pages", "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list pages"})
 		return
 	}
 
 	nodes := make([]graphNode, 0, len(pages))
-	siteBaseURL := "https://" + site.ID + "." + h.Config.Host
 	for _, p := range pages {
 		nodes = append(nodes, graphNode{
 			ID:           p.ID,
@@ -98,75 +77,17 @@ func (h *Handler) Graph(w http.ResponseWriter, r *http.Request) {
 
 	collections, err := db.ListCollections(r.Context())
 	if err != nil {
-		log.Warn("graph: list collections", "tenant", site.ID, "err", err)
+		log.Warn("graph: list collections", "err", err)
 	}
 	graphCollections := make([]graphCollection, 0, len(collections))
 	for _, c := range collections {
 		graphCollections = append(graphCollections, graphCollection{ID: c.ID, Slug: c.Slug, Title: c.Title})
 	}
 
-	resp := graphResponse{
-		Nodes:          nodes,
-		Edges:          []graphEdge{},
-		Collections:    graphCollections,
-		TotalPageCount: len(nodes),
-	}
-
-	model := h.Embedder.Model()
-	storageTag := h.Embedder.StorageTag()
-	if h.Embedder.Enabled() && storageTag != "" {
-		resp.Model = model
-		embeddings, err := db.ListPageEmbeddings(r.Context(), storageTag)
-		if err != nil {
-			log.Warn("graph: list embeddings", "tenant", site.ID, "model", storageTag, "err", err)
-		} else if len(embeddings) > 1 {
-			normalize(embeddings)
-			center(embeddings)
-			normalize(embeddings)
-			resp.Edges = computeEdges(embeddings)
-		}
-		resp.EmbeddedCount = len(embeddings)
-
-		if resp.EmbeddedCount < resp.TotalPageCount {
-			go h.triggerBackfill(site.ID, storageTag)
-		}
-	}
-
-	writeJSON(w, http.StatusOK, resp)
-}
-
-func (h *Handler) triggerBackfill(tenantID, model string) {
-	defer func() {
-		if r := recover(); r != nil {
-			slog.Error("goroutine panic", "where", "graph backfill", "panic", r)
-		}
-	}()
-
-	if h.Bus == nil {
-		return
-	}
-
-	backfillMu.Lock()
-	if last, ok := backfillLastFire[tenantID]; ok && time.Since(last) < graphBackfillMinInterval {
-		backfillMu.Unlock()
-		return
-	}
-	backfillLastFire[tenantID] = time.Now()
-	backfillMu.Unlock()
-
-	db, err := h.Pool.Get(tenantID)
-	if err != nil {
-		slog.Warn("graph backfill: open tenant db", "tenant", tenantID, "err", err)
-		return
-	}
-	ids, err := db.ListStalePageIDs(context.Background(), model)
-	if err != nil {
-		slog.Warn("graph backfill: list stale page ids", "tenant", tenantID, "err", err)
-		return
-	}
-	for _, id := range ids {
-		h.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: id})
-	}
+	writeJSON(w, http.StatusOK, graphResponse{
+		Nodes:       nodes,
+		Collections: graphCollections,
+	})
 }
 
 func parseTags(raw string) []string {
@@ -187,111 +108,4 @@ func buildPageURL(base string, db *tenant.DB, r *http.Request, p tenant.Page) st
 		}
 	}
 	return base + "/" + p.Slug
-}
-
-func center(embeddings []tenant.PageEmbedding) {
-	if len(embeddings) < 2 {
-		return
-	}
-	dims := len(embeddings[0].Vec)
-	if dims == 0 {
-		return
-	}
-	mean := make([]float32, dims)
-	for i := range embeddings {
-		if len(embeddings[i].Vec) != dims {
-			return
-		}
-		for j, v := range embeddings[i].Vec {
-			mean[j] += v
-		}
-	}
-	inv := float32(1.0 / float64(len(embeddings)))
-	for j := range mean {
-		mean[j] *= inv
-	}
-	for i := range embeddings {
-		for j := range embeddings[i].Vec {
-			embeddings[i].Vec[j] -= mean[j]
-		}
-	}
-}
-
-func normalize(embeddings []tenant.PageEmbedding) {
-	for i := range embeddings {
-		var sum float64
-		for _, v := range embeddings[i].Vec {
-			sum += float64(v) * float64(v)
-		}
-		if sum == 0 {
-			continue
-		}
-		inv := float32(1.0 / math.Sqrt(sum))
-		for j := range embeddings[i].Vec {
-			embeddings[i].Vec[j] *= inv
-		}
-	}
-}
-
-type graphNeighbor struct {
-	idx    int
-	weight float32
-}
-
-func computeEdges(embeddings []tenant.PageEmbedding) []graphEdge {
-	n := len(embeddings)
-
-	edges := make([]graphEdge, 0, n*graphTopKNeighbors)
-	seen := make(map[string]bool, n*graphTopKNeighbors)
-
-	for i := range n {
-		top := make([]graphNeighbor, 0, graphTopKNeighbors)
-		for j := range n {
-			if i == j {
-				continue
-			}
-			sim := dot(embeddings[i].Vec, embeddings[j].Vec)
-			if sim < graphMinSimilarity {
-				continue
-			}
-			top = insertTop(top, graphNeighbor{idx: j, weight: sim})
-		}
-		for _, nb := range top {
-			a, b := embeddings[i].PageID, embeddings[nb.idx].PageID
-			key := edgeKey(a, b)
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			edges = append(edges, graphEdge{Source: a, Target: b, Weight: nb.weight})
-		}
-	}
-	return edges
-}
-
-func insertTop(top []graphNeighbor, cand graphNeighbor) []graphNeighbor {
-	top = append(top, cand)
-	sort.Slice(top, func(i, j int) bool {
-		return top[i].weight > top[j].weight
-	})
-	if len(top) > graphTopKNeighbors {
-		top = top[:graphTopKNeighbors]
-	}
-	return top
-}
-
-func dot(a, b []float32) float32 {
-	n := min(len(a), len(b))
-	var sum float32
-	for i := range n {
-		sum += a[i] * b[i]
-	}
-	return sum
-}
-
-func edgeKey(a, b string) string {
-	if a < b {
-		return a + "\x00" + b
-	}
-	return b + "\x00" + a
 }

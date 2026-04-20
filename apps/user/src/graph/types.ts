@@ -24,9 +24,11 @@ export interface GraphCollection {
 
 export interface GraphResponse {
   nodes: GraphNode[]
+  collections: GraphCollection[]
+}
+
+export interface GraphView {
+  nodes: GraphNode[]
   edges: GraphEdge[]
   collections: GraphCollection[]
-  model: string
-  embedded_count: number
-  total_page_count: number
 }
