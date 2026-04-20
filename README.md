@@ -34,8 +34,8 @@ Download WriteKit for your OS from [Releases](https://github.com/Macawls/writeki
 
 ## What you get
 
-- **Pages**: any markdown content — a doc, blog post, tutorial. Start as drafts, publish when ready.
-- **Collections**: group related pages (docs, a blog, a series). Ordered manually or by date.
+- **Pages**: any markdown content — a doc, guide, tutorial. Start as drafts, publish when ready.
+- **Collections**: group related pages (docs, a tutorial series, a changelog). Ordered manually or by date.
 - **Visibility**: `public`, `unlisted` (URL-only), or `private` (team members only) — per page and per collection.
 - **Teams**: `owner` / `editor` / `viewer` roles on the hosted service; invite members by email.
 - **Semantic graph**: embedding-powered similarity graph of your pages, visualised in 2D or 3D. Embeddings run entirely in your browser via [transformers.js](https://huggingface.co/docs/transformers.js) — pick a model in Settings, it downloads once and caches locally.

@@ -1,5 +1,11 @@
 # WriteKit — Agent Guidelines
 
+## What WriteKit Is
+
+WriteKit is a markdown publishing platform managed primarily through an MCP server — users (and their AI assistants) create, organise, and publish pages by calling tools rather than clicking around a dashboard. Content is structured as **pages** (markdown documents) and **collections** (ordered groups of pages), suitable for documentation, guides, tutorials, changelogs, and long-form writing. It ships as two artifacts from one codebase: a hosted multi-tenant service (`writekit.dev`, Postgres + per-tenant SQLite, OAuth, Stripe) and a local-first desktop app (Wails, SQLite only, loopback-trust MCP).
+
+Avoid "blog" terminology in UI, docs, and code — prefer "site", "page", "doc", or "collection".
+
 ## Go Style
 
 - Follow [Google's Go style guide](https://google.github.io/styleguide/go).
@@ -45,11 +51,13 @@ The Go binary embeds `templates/`, `static/`, `apps/user/dist/`, and `apps/admin
 **Two build targets, one codebase.** `cmd/writekit` is the hosted multi-tenant server; `desktop/` is a Wails wrapper that imports the same `internal/app` package with `LOCAL=true`. Branching happens in `internal/app/app.go` (`buildLocalRouter` vs `buildRouter`). Local mode has no `platform` DB, no OAuth, no Stripe, no subdomains — identity is injected via context from loopback.
 
 **Request routing (hosted):** `internal/app/app.go` dispatches by host:
+
 - apex (`writekit.dev`) → `web` (auth, billing, docs, settings) + `admin` SPA + MCP endpoint
-- subdomain (`{slug}.writekit.dev`) → `site` (rendered blog) + `api` (graph/embeddings) + user SPA
+- subdomain (`{slug}.writekit.dev`) → `site` (rendered pages) + `api` (graph/embeddings) + user SPA
 - custom domain → resolved through `platform.DB` to a tenant, served as site
 
 **Data layers:**
+
 - `internal/platform/` — Postgres. Users, tenants, sessions, OAuth linked accounts, team members, magic links, Stripe. Hosted only.
 - `internal/tenant/` — per-tenant SQLite file in `DataDir`, managed by a WAL+LRU `Pool`. Holds pages, collections, page_versions, page_embeddings, settings. The only DB in desktop mode.
 - Migrations are embedded SQL under each package's `migrations/` directory and run at startup.

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Set up your blog — WriteKit</title>
+    <title>Set up your site — WriteKit</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -102,8 +102,8 @@
 <div class="setup">
     <span class="logo">writekit</span>
 
-    <h1>Set up your blog</h1>
-    <p class="subtitle">Choose your name and blog address</p>
+    <h1>Set up your site</h1>
+    <p class="subtitle">Choose your name and site address</p>
 
     {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
 
@@ -115,17 +115,17 @@
         </div>
 
         <div class="field">
-            <label for="subdomain">Blog address</label>
+            <label for="subdomain">Site address</label>
             <div class="slug-wrap">
                 <input type="text" id="subdomain" name="subdomain"
-                       placeholder="my-blog" value="{{.Subdomain}}" required
+                       placeholder="my-site" value="{{.Subdomain}}" required
                        pattern="[a-z0-9][a-z0-9-]{1,62}[a-z0-9]" autocomplete="off">
                 <span class="slug-suffix">.{{.Host}}</span>
             </div>
             <div class="slug-status" id="slug-status"></div>
         </div>
 
-        <button type="submit" class="submit-btn" id="submit-btn">Create my blog</button>
+        <button type="submit" class="submit-btn" id="submit-btn">Create my site</button>
     </form>
 </div>
 
