@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -12,14 +13,16 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"writekit/internal/httplog"
 )
 
 const (
-	dbMaxRows    = 500
-	dbQueryLimit = 5 * time.Second
+	dbMaxRows      = 500
+	dbQueryLimit   = 5 * time.Second
+	dbMaxCellBytes = 2048
 )
 
 type dbTableInfo struct {
@@ -154,7 +157,21 @@ func (h *Handler) DBTableRows(w http.ResponseWriter, r *http.Request) {
 	var total int64
 	_ = db.DB.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM \""+name+"\"").Scan(&total)
 
-	rows, err := db.DB.QueryContext(r.Context(), "SELECT * FROM \""+name+"\" LIMIT ? OFFSET ?", limit, offset)
+	orderBy := ""
+	if sort := r.URL.Query().Get("sort"); sort != "" && isSafeIdentifier(sort) {
+		dir := strings.ToUpper(r.URL.Query().Get("dir"))
+		if dir != "ASC" && dir != "DESC" {
+			dir = "ASC"
+		}
+		for _, c := range schema {
+			if c.Name == sort {
+				orderBy = " ORDER BY \"" + sort + "\" " + dir
+				break
+			}
+		}
+	}
+
+	rows, err := db.DB.QueryContext(r.Context(), "SELECT * FROM \""+name+"\""+orderBy+" LIMIT ? OFFSET ?", limit, offset)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -230,6 +247,114 @@ func (h *Handler) DBQuery(w http.ResponseWriter, r *http.Request) {
 		Rows:      data,
 		Truncated: len(data) >= dbMaxRows,
 	})
+}
+
+type dbSchemaResponse struct {
+	Name        string          `json:"name"`
+	Type        string          `json:"type"`
+	CreateSQL   string          `json:"create_sql"`
+	Columns     []dbColumnInfo  `json:"columns"`
+	Indexes     []dbIndexInfo   `json:"indexes"`
+	ForeignKeys []dbFKInfo      `json:"foreign_keys"`
+	RowCount    int64           `json:"row_count"`
+}
+
+type dbIndexInfo struct {
+	Name    string   `json:"name"`
+	Unique  bool     `json:"unique"`
+	Partial bool     `json:"partial"`
+	Origin  string   `json:"origin"`
+	Columns []string `json:"columns"`
+}
+
+type dbFKInfo struct {
+	From     string `json:"from"`
+	Table    string `json:"table"`
+	To       string `json:"to"`
+	OnUpdate string `json:"on_update"`
+	OnDelete string `json:"on_delete"`
+}
+
+func (h *Handler) DBSchema(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
+	tenantID, ok := h.resolveViewerTenantID(r)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no site"})
+		return
+	}
+	db, err := h.Pool.Get(tenantID)
+	if err != nil {
+		log.Error("db schema: open", "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	name := chi.URLParam(r, "name")
+	if !isSafeIdentifier(name) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid table name"})
+		return
+	}
+
+	var out dbSchemaResponse
+	out.Name = name
+	err = db.DB.QueryRowContext(r.Context(),
+		"SELECT type, COALESCE(sql,'') FROM sqlite_master WHERE name = ? AND type IN ('table','view')", name).
+		Scan(&out.Type, &out.CreateSQL)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "table not found"})
+		return
+	}
+
+	cols, err := readTableSchema(r, db.DB, name)
+	if err == nil {
+		out.Columns = cols
+	}
+
+	_ = db.DB.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM \""+name+"\"").Scan(&out.RowCount)
+
+	if idxRows, err := db.DB.QueryContext(r.Context(), "PRAGMA index_list(\""+name+"\")"); err == nil {
+		type idxMeta struct {
+			seq     int
+			name    string
+			unique  int
+			origin  string
+			partial int
+		}
+		var metas []idxMeta
+		for idxRows.Next() {
+			var m idxMeta
+			if err := idxRows.Scan(&m.seq, &m.name, &m.unique, &m.origin, &m.partial); err == nil {
+				metas = append(metas, m)
+			}
+		}
+		idxRows.Close()
+		for _, m := range metas {
+			info := dbIndexInfo{Name: m.name, Unique: m.unique == 1, Partial: m.partial == 1, Origin: m.origin}
+			if colRows, err := db.DB.QueryContext(r.Context(), "PRAGMA index_info(\""+m.name+"\")"); err == nil {
+				for colRows.Next() {
+					var seqno, cid int
+					var cname sql.NullString
+					if err := colRows.Scan(&seqno, &cid, &cname); err == nil && cname.Valid {
+						info.Columns = append(info.Columns, cname.String)
+					}
+				}
+				colRows.Close()
+			}
+			out.Indexes = append(out.Indexes, info)
+		}
+	}
+
+	if fkRows, err := db.DB.QueryContext(r.Context(), "PRAGMA foreign_key_list(\""+name+"\")"); err == nil {
+		for fkRows.Next() {
+			var id, seq int
+			var table, from, to, onUpdate, onDelete, match string
+			if err := fkRows.Scan(&id, &seq, &table, &from, &to, &onUpdate, &onDelete, &match); err == nil {
+				out.ForeignKeys = append(out.ForeignKeys, dbFKInfo{From: from, Table: table, To: to, OnUpdate: onUpdate, OnDelete: onDelete})
+			}
+		}
+		fkRows.Close()
+	}
+
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) DBExport(w http.ResponseWriter, r *http.Request) {
@@ -339,16 +464,36 @@ func scanAllRowsLimited(rows *sql.Rows, limit int) ([]string, []string, [][]any,
 			return nil, nil, nil, err
 		}
 		for i, v := range vals {
-			switch b := v.(type) {
-			case []byte:
-				vals[i] = string(b)
-			default:
-				_ = b
+			if b, ok := v.([]byte); ok {
+				if utf8.Valid(b) && !bytes.ContainsRune(b, 0) {
+					vals[i] = string(b)
+				} else {
+					vals[i] = map[string]any{"__blob": true, "size": len(b)}
+					continue
+				}
+			}
+			if s, ok := vals[i].(string); ok && len(s) > dbMaxCellBytes {
+				preview := s
+				if len(preview) > dbMaxCellBytes {
+					preview = safeTruncateUTF8(preview, dbMaxCellBytes)
+				}
+				vals[i] = map[string]any{"__truncated": true, "size": len(s), "preview": preview}
 			}
 		}
 		out = append(out, vals)
 	}
 	return cols, types, out, nil
+}
+
+func safeTruncateUTF8(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	cut := max
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 func isSafeIdentifier(s string) bool {

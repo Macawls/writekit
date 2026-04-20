@@ -35,6 +35,7 @@ type PageFilter struct {
 	Status       string
 	Visibility   string
 	Tag          string
+	Search       string
 	CollectionID *string
 	Limit        int
 	Offset       int
@@ -129,6 +130,11 @@ func (db *DB) ListPages(ctx context.Context, f PageFilter) ([]Page, error) {
 			where = append(where, "collection_id = ?")
 			args = append(args, *f.CollectionID)
 		}
+	}
+	if s := strings.TrimSpace(f.Search); s != "" {
+		like := "%" + strings.ToLower(s) + "%"
+		where = append(where, "(LOWER(title) LIKE ? OR LOWER(slug) LIKE ? OR LOWER(search_text) LIKE ?)")
+		args = append(args, like, like, like)
 	}
 
 	query := pageSelect

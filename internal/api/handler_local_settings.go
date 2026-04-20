@@ -103,6 +103,13 @@ func (h *Handler) LocalPutSettings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) LocalShow(w http.ResponseWriter, r *http.Request) {
+	if desksettings.ShowWindow != nil {
+		desksettings.ShowWindow()
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 func (h *Handler) LocalPickFolder(w http.ResponseWriter, r *http.Request) {
 	if desksettings.PickFolder == nil {
 		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "folder picker unavailable"})

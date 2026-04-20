@@ -65,7 +65,8 @@ interface Props {
 }
 
 export default function Onboarding({ user, site, onComplete }: Props) {
-  const [step, setStep] = useState<Step>('welcome')
+  const isDesktop = user.id === 'local'
+  const [step, setStep] = useState<Step>(isDesktop ? 'connect' : 'welcome')
   const [visible, setVisible] = useState(false)
   const [slug, setSlug] = useState(site.ID)
   const [saving, setSaving] = useState(false)
@@ -73,7 +74,6 @@ export default function Onboarding({ user, site, onComplete }: Props) {
   const [client, setClient] = useState<Client>('Claude Code')
   const [copied, setCopied] = useState(false)
 
-  const isDesktop = user.id === 'local'
   const host = window.location.hostname.replace(/^app\./, '')
   const siteUrl = isDesktop
     ? `${window.location.origin}/site`
@@ -409,7 +409,7 @@ export default function Onboarding({ user, site, onComplete }: Props) {
         <div className="ob-brand">writekit</div>
 
         <div className="ob-steps-indicator">
-          <div className={`ob-dot ${step === 'welcome' ? 'active' : ''}`} />
+          {!isDesktop && <div className={`ob-dot ${step === 'welcome' ? 'active' : ''}`} />}
           <div className={`ob-dot ${step === 'connect' ? 'active' : ''}`} />
           <div className={`ob-dot ${step === 'done' ? 'active' : ''}`} />
         </div>
@@ -448,17 +448,13 @@ export default function Onboarding({ user, site, onComplete }: Props) {
 
         {step === 'connect' && isDesktop && (
           <>
-            <h1>Connect your assistant</h1>
+            <h1>{firstName ? `Hey ${firstName}` : 'Welcome'}</h1>
             <p className="desc">
-              WriteKit runs a local MCP server on this machine. Once you finish setup, open the <strong>Connect</strong> tab — one click adds WriteKit to Claude Desktop, Cursor, Windsurf, and more.
+              Open the <strong>Connect</strong> tab to link WriteKit to Claude, Cursor, or any MCP client.
             </p>
 
             <button className="ob-btn" onClick={() => transition('done')}>
               Got it
-            </button>
-            <br />
-            <button className="ob-btn-ghost" onClick={() => transition('welcome')}>
-              Back
             </button>
           </>
         )}
@@ -525,7 +521,7 @@ export default function Onboarding({ user, site, onComplete }: Props) {
               target={isDesktop ? undefined : '_blank'}
               rel={isDesktop ? undefined : 'noopener noreferrer'}
             >
-              {isDesktop ? 'Open my site' : `${slug}.${host}`} <span className="arrow">&rarr;</span>
+              {isDesktop ? 'View my pages' : `${slug}.${host}`} <span className="arrow">&rarr;</span>
             </a>
 
             <button className="ob-btn" onClick={onComplete}>

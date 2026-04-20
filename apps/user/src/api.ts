@@ -81,9 +81,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     window.location.href = `${window.location.protocol}//${host}/auth/login`
     throw new Error('unauthorized')
   }
-  const data = await res.json()
+  const text = await res.text()
+  let data: any
+  try {
+    data = text === '' ? null : JSON.parse(text)
+  } catch (e) {
+    const preview = text.slice(0, 120).replace(/\s+/g, ' ')
+    throw new Error(`bad JSON from ${method} ${path} (status ${res.status}): ${preview}`)
+  }
   if (!res.ok) {
-    throw new Error(data.error || 'request failed')
+    throw new Error(data?.error || `request failed (${res.status})`)
   }
   return data as T
 }
@@ -106,10 +113,77 @@ export const api = {
   getDesktopSettings: () => request<DesktopSettings>('GET', '/api/local/settings'),
   updateDesktopSettings: (s: DesktopSettings) => request<DesktopSettings>('PUT', '/api/local/settings', s),
   pickDataFolder: () => request<PickFolderResult>('POST', '/api/local/pick-folder'),
+  listPages: (params: { limit?: number; offset?: number; status?: string; collection?: string; visibility?: string; q?: string } = {}) => {
+    const qs = new URLSearchParams()
+    if (params.limit) qs.set('limit', String(params.limit))
+    if (params.offset) qs.set('offset', String(params.offset))
+    if (params.status && params.status !== 'all') qs.set('status', params.status)
+    if (params.collection && params.collection !== 'all') qs.set('collection', params.collection)
+    if (params.visibility && params.visibility !== 'all') qs.set('visibility', params.visibility)
+    if (params.q && params.q.trim()) qs.set('q', params.q.trim())
+    const q = qs.toString()
+    return request<PageListResponse>('GET', q ? `/api/pages?${q}` : '/api/pages')
+  },
   dbTables: () => request<DBTable[]>('GET', '/api/db/tables'),
-  dbTableRows: (name: string, limit: number, offset: number) =>
-    request<DBTableRows>('GET', `/api/db/tables/${encodeURIComponent(name)}?limit=${limit}&offset=${offset}`),
+  dbTableRows: (name: string, limit: number, offset: number, sort?: string, dir?: 'asc' | 'desc') => {
+    const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+    if (sort) qs.set('sort', sort)
+    if (dir) qs.set('dir', dir)
+    return request<DBTableRows>('GET', `/api/db/tables/${encodeURIComponent(name)}?${qs}`)
+  },
+  dbTableSchema: (name: string) => request<DBSchema>('GET', `/api/db/tables/${encodeURIComponent(name)}/schema`),
   dbQuery: (sql: string) => request<DBQueryResult>('POST', '/api/db/query', { sql }),
+}
+
+export interface PageListItem {
+  id: string
+  title: string
+  slug: string
+  status: string
+  visibility: string
+  collection_id?: string | null
+  updated_at: string
+  published_at?: string | null
+}
+
+export interface CollectionLight {
+  id: string
+  title: string
+  slug: string
+}
+
+export interface PageListResponse {
+  pages: PageListItem[]
+  collections: CollectionLight[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface DBSchema {
+  name: string
+  type: string
+  create_sql: string
+  columns: DBColumnInfo[]
+  indexes: DBIndexInfo[]
+  foreign_keys: DBFKInfo[]
+  row_count: number
+}
+
+export interface DBIndexInfo {
+  name: string
+  unique: boolean
+  partial: boolean
+  origin: string
+  columns: string[]
+}
+
+export interface DBFKInfo {
+  from: string
+  table: string
+  to: string
+  on_update: string
+  on_delete: string
 }
 
 export interface DBTable {

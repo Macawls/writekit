@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useStore } from '@nanostores/react'
+import { $route, $pageSlug, navigate, type Route } from '../stores/router'
+import { api } from '../api'
 
 type Platform = 'darwin' | 'windows' | 'linux' | ''
 
@@ -15,11 +18,27 @@ declare global {
   }
 }
 
+const routeLabels: Record<Route, string> = {
+  site: 'Site',
+  pages: 'Pages',
+  pageView: 'Pages',
+  team: 'Team',
+  settings: 'Settings',
+  billing: 'Billing',
+  graph: 'Graph',
+  connect: 'Connect',
+  database: 'Database',
+}
+
 export default function TitleBar() {
   const [platform, setPlatform] = useState<Platform>('')
+  const [port, setPort] = useState<number | null>(null)
+  const route = useStore($route)
+  const pageSlug = useStore($pageSlug)
 
   useEffect(() => {
     window.runtime?.Environment().then(e => setPlatform(e.platform as Platform))
+    api.localInfo().then(i => setPort(i.port)).catch(() => setPort(null))
   }, [])
 
   if (!window.runtime) return null
@@ -33,10 +52,35 @@ export default function TitleBar() {
   return (
     <div
       className="titlebar"
-      style={{ paddingLeft: isMac ? 78 : 12 } as React.CSSProperties}
+      style={{ paddingLeft: isMac ? 78 : 0 } as React.CSSProperties}
       onDoubleClick={onDoubleClick}
     >
-      <span className="titlebar-title">WriteKit</span>
+      <span className="titlebar-brand">WriteKit</span>
+      <span className="titlebar-sep">/</span>
+      {route === 'pageView' ? (
+        <>
+          <button type="button" className="titlebar-crumb" onClick={() => navigate('pages')}>Pages</button>
+          <span className="titlebar-sep">/</span>
+          <span className="titlebar-route" title={pageSlug}>{pageSlug}</span>
+        </>
+      ) : (
+        <span className="titlebar-route">{routeLabels[route] ?? ''}</span>
+      )}
+
+      <div className="titlebar-spacer" />
+
+      {port !== null && (
+        <button
+          className="titlebar-chip"
+          onClick={() => navigate('connect')}
+          title="Local MCP server — click to open Connect"
+        >
+          <span className="titlebar-dot" />
+          <span className="titlebar-chip-label">MCP</span>
+          <span className="titlebar-chip-port">:{port}</span>
+        </button>
+      )}
+
       {!isMac && (
         <div className="titlebar-controls">
           <button

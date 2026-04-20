@@ -26,6 +26,8 @@ func Default() Settings {
 
 var PickFolder func(title string) (string, error)
 
+var ShowWindow func()
+
 type Store struct {
 	mu   sync.Mutex
 	path string

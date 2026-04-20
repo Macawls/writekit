@@ -13,7 +13,6 @@ import (
 	billingportal "github.com/stripe/stripe-go/v82/billingportal/session"
 	checkout "github.com/stripe/stripe-go/v82/checkout/session"
 	"writekit/internal/config"
-	"writekit/internal/embedding"
 	"writekit/internal/events"
 	"writekit/internal/httplog"
 	"writekit/internal/platform"
@@ -21,11 +20,10 @@ import (
 )
 
 type Handler struct {
-	DB       *platform.DB
-	Pool     *tenant.Pool
-	Config   *config.Config
-	Embedder *embedding.Client
-	Bus      *events.Bus
+	DB     *platform.DB
+	Pool   *tenant.Pool
+	Config *config.Config
+	Bus    *events.Bus
 }
 
 type contextKey string
@@ -51,8 +49,11 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Put("/api/team/{userId}", h.UpdateTeamMemberRole)
 	r.Delete("/api/team/{userId}", h.RemoveTeamMember)
 	r.Get("/api/graph", h.Graph)
+	r.Get("/api/embedding-source", h.EmbeddingSource)
+	r.Get("/api/pages", h.ListPagesAPI)
 	r.Get("/api/db/tables", h.DBTables)
 	r.Get("/api/db/tables/{name}", h.DBTableRows)
+	r.Get("/api/db/tables/{name}/schema", h.DBSchema)
 	r.Post("/api/db/query", h.DBQuery)
 	r.Get("/api/db/export", h.DBExport)
 }

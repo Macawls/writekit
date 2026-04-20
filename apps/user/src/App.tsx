@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '@nanostores/react'
-import { $user, $site, $loading, $error, loadAuth } from './stores/auth'
+import { $user, $site, $loading, $error, $isDesktop, loadAuth } from './stores/auth'
 import { $route } from './stores/router'
 import Layout from './components/Layout'
 import TitleBar from './components/TitleBar'
 import Onboarding from './pages/Onboarding'
 import Site from './pages/Site'
+import Pages from './pages/Pages'
+import PageView from './pages/PageView'
 import Team from './pages/Team'
 import Settings from './pages/Settings'
 import Billing from './pages/Billing'
 import Graph from './pages/Graph'
 import Connect from './pages/Connect'
 import Database from './pages/Database'
+import { ConfirmHost } from './components/ConfirmDialog'
 
 const ONBOARDED_KEY = 'writekit_onboarded'
 const POLL_INTERVAL = 2000
@@ -19,8 +22,12 @@ const MAX_RETRIES = 7
 
 function Router() {
   const route = useStore($route)
+  const isDesktop = useStore($isDesktop)
+  if (route === 'site' && isDesktop) return <Pages />
   switch (route) {
     case 'site': return <Site />
+    case 'pages': return <Pages />
+    case 'pageView': return <PageView />
     case 'team': return <Team />
     case 'settings': return <Settings />
     case 'billing': return <Billing />
@@ -32,6 +39,9 @@ function Router() {
 }
 
 export default function App() {
+  if (typeof window !== 'undefined' && window.top !== window.self) {
+    return <div style={{ padding: '2rem', fontSize: '.85rem', color: '#71717a' }}>WriteKit cannot be embedded.</div>
+  }
   const user = useStore($user)
   const site = useStore($site)
   const loading = useStore($loading)
@@ -91,6 +101,7 @@ export default function App() {
     <div className={isWails ? 'app-desktop' : ''}>
       {isWails && <TitleBar />}
       {body}
+      <ConfirmHost />
     </div>
   )
 }

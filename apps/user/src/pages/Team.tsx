@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useStore } from '@nanostores/react'
 import { $members, $membersLoading, loadMembers, inviteMember, removeMember, updateRole } from '../stores/team'
 import { $user, $isOwner } from '../stores/auth'
+import { confirmDialog } from '../components/ConfirmDialog'
+import { Select } from '../components/Select'
 
 export default function Team() {
   const members = useStore($members)
@@ -34,7 +36,13 @@ export default function Team() {
   }
 
   const handleRemove = async (userId: string, memberEmail: string) => {
-    if (!confirm(`Remove ${memberEmail} from the team?`)) return
+    const ok = await confirmDialog({
+      title: 'Remove team member?',
+      body: <>Remove <strong>{memberEmail}</strong> from the team?</>,
+      confirmLabel: 'Remove',
+      destructive: true,
+    })
+    if (!ok) return
     try {
       await removeMember(userId)
     } catch (err) {
@@ -67,10 +75,15 @@ export default function Team() {
                 onChange={e => { setEmail(e.target.value); setError(null); setSuccess(null) }}
                 required
               />
-              <select value={role} onChange={e => setRole(e.target.value)}>
-                <option value="editor">Editor</option>
-                <option value="viewer">Viewer</option>
-              </select>
+              <Select
+                value={role}
+                onChange={setRole}
+                ariaLabel="Role"
+                options={[
+                  { value: 'editor', label: 'Editor' },
+                  { value: 'viewer', label: 'Viewer' },
+                ]}
+              />
               <button type="submit" className="btn" disabled={inviting}>
                 {inviting ? 'Inviting...' : 'Invite'}
               </button>
@@ -107,15 +120,17 @@ export default function Team() {
                 <div className="member-actions">
                   {isOwner && m.user_id !== user?.id ? (
                     <>
-                      <select
+                      <Select
                         className="role-select"
                         value={m.role}
-                        onChange={e => handleRoleChange(m.user_id, e.target.value)}
-                      >
-                        <option value="owner">Owner</option>
-                        <option value="editor">Editor</option>
-                        <option value="viewer">Viewer</option>
-                      </select>
+                        onChange={v => handleRoleChange(m.user_id, v)}
+                        ariaLabel="Role"
+                        options={[
+                          { value: 'owner', label: 'Owner' },
+                          { value: 'editor', label: 'Editor' },
+                          { value: 'viewer', label: 'Viewer' },
+                        ]}
+                      />
                       <button
                         className="remove-btn"
                         onClick={() => handleRemove(m.user_id, m.email)}
