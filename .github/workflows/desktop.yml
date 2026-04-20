@@ -57,6 +57,9 @@ jobs:
       - name: Install frontend deps
         run: cd apps/user && bun install --frozen-lockfile
 
+      - name: Build user SPA
+        run: cd apps/user && bun run build
+
       - name: Build
         working-directory: desktop
         run: wails build -platform ${{ matrix.platform }} -clean -trimpath -ldflags "-s -w" ${{ matrix.tags && format('-tags {0}', matrix.tags) || '' }}
