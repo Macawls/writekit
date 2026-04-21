@@ -37,9 +37,9 @@
 
     {{if gt .TotalPages 1}}
     <nav class="pagination" aria-label="Pagination">
-        {{if .PrevPage}}<a class="pagination__link pagination__prev" href="/?page={{.PrevPage}}">← Newer</a>{{else}}<span class="pagination__link pagination__link--disabled">← Newer</span>{{end}}
+        {{if .PrevPage}}<a class="pagination__link pagination__prev" href="{{if eq .PrevPage 1}}/{{else}}/page/{{.PrevPage}}{{end}}">← Newer</a>{{else}}<span class="pagination__link pagination__link--disabled">← Newer</span>{{end}}
         <span class="pagination__status">Page {{.Page}} of {{.TotalPages}}</span>
-        {{if .NextPage}}<a class="pagination__link pagination__next" href="/?page={{.NextPage}}">Older →</a>{{else}}<span class="pagination__link pagination__link--disabled">Older →</span>{{end}}
+        {{if .NextPage}}<a class="pagination__link pagination__next" href="/page/{{.NextPage}}">Older →</a>{{else}}<span class="pagination__link pagination__link--disabled">Older →</span>{{end}}
     </nav>
     {{end}}
 </section>

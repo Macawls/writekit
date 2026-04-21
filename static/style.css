@@ -220,7 +220,8 @@ input, textarea, select { font-family: var(--sans); font-size: .9rem; }
 
 /* Search modal */
 body.search-modal-open { overflow: hidden; }
-.search-modal { position: fixed; inset: 0; margin: auto; padding: 0; border: 1px solid var(--border); border-radius: 10px; width: min(560px, 92vw); max-height: min(560px, 80vh); background: var(--bg); color: var(--fg); box-shadow: 0 20px 60px rgba(0,0,0,.18); display: flex; flex-direction: column; overflow: hidden; }
+.search-modal { position: fixed; inset: 0; margin: auto; padding: 0; border: 1px solid var(--border); border-radius: 10px; width: min(560px, 92vw); max-height: min(560px, 80vh); background: var(--bg); color: var(--fg); box-shadow: 0 20px 60px rgba(0,0,0,.18); flex-direction: column; overflow: hidden; }
+.search-modal[open] { display: flex; }
 .search-modal::backdrop { background: rgba(15, 15, 15, .35); backdrop-filter: blur(2px); }
 .search-modal__form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .search-modal__input-row { display: flex; align-items: center; gap: .6rem; padding: .85rem 1rem; border-bottom: 1px solid var(--border); flex-shrink: 0; }

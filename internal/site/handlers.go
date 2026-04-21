@@ -152,9 +152,19 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		log.Error("site index: list collections", "tenant", tenantID, "err", err)
 	}
 
-	pageNum, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if pageNum < 1 {
-		pageNum = 1
+	if q := r.URL.Query().Get("page"); q != "" {
+		http.Redirect(w, r, "/page/"+q, http.StatusMovedPermanently)
+		return
+	}
+	pageNum := 1
+	if raw := chi.URLParam(r, "num"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			pageNum = n
+		}
+	}
+	if pageNum == 1 && strings.HasPrefix(r.URL.Path, "/page/") {
+		http.Redirect(w, r, "/", http.StatusMovedPermanently)
+		return
 	}
 	totalStandalone, err := db.CountStandalonePages(r.Context(), "published")
 	if err != nil {
