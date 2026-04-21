@@ -2,13 +2,16 @@ package render
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
+	"unicode"
 
 	"writekit/internal/markdown"
 )
@@ -39,10 +42,51 @@ func New(fsys fs.FS, dev bool) *Engine {
 				}
 				return "/" + pageSlug
 			},
+			"parseTags": func(raw string) []map[string]string {
+				if raw == "" {
+					return nil
+				}
+				var tags []string
+				if err := json.Unmarshal([]byte(raw), &tags); err != nil {
+					return nil
+				}
+				out := make([]map[string]string, 0, len(tags))
+				for _, name := range tags {
+					name = strings.TrimSpace(name)
+					if name == "" {
+						continue
+					}
+					slug := tagSlug(name)
+					if slug == "" {
+						continue
+					}
+					out = append(out, map[string]string{"Name": name, "Slug": slug})
+				}
+				return out
+			},
 		},
 		dev:  dev,
 		fsys: fsys,
 	}
+}
+
+func tagSlug(name string) string {
+	var b strings.Builder
+	b.Grow(len(name))
+	prevDash := true
+	for _, r := range strings.ToLower(name) {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			b.WriteRune(r)
+			prevDash = false
+		default:
+			if !prevDash {
+				b.WriteByte('-')
+				prevDash = true
+			}
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 func (e *Engine) Render(w io.Writer, name string, data any) error {

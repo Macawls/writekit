@@ -1,0 +1,5 @@
+{{with parseTags .Tags}}
+<ul class="tag-chips">
+    {{range .}}<li><a class="tag-chip" href="/tag/{{.Slug}}">{{.Name}}</a></li>{{end}}
+</ul>
+{{end}}

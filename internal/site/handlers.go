@@ -105,6 +105,14 @@ func (h *Handler) TenantSitemap(w http.ResponseWriter, r *http.Request) {
 		lastmod := p.UpdatedAt.Format("2006-01-02")
 		fmt.Fprintf(w, "  <url><loc>%s</loc><lastmod>%s</lastmod></url>\n", loc, lastmod)
 	}
+
+	if tags, err := db.ListTagCounts(r.Context(), false); err == nil && len(tags) > 0 {
+		fmt.Fprintf(w, "  <url><loc>%s/tags</loc></url>\n", baseURL)
+		for _, tc := range tags {
+			fmt.Fprintf(w, "  <url><loc>%s/tag/%s</loc></url>\n", baseURL, tc.Slug)
+		}
+	}
+
 	fmt.Fprint(w, `</urlset>`)
 }
 

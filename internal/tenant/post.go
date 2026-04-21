@@ -115,6 +115,55 @@ func (db *DB) ClearPageRenders(ctx context.Context) error {
 	return nil
 }
 
+func (db *DB) GetTagRender(ctx context.Context, slug string) ([]byte, string, error) {
+	var html []byte
+	var name string
+	err := db.DB.QueryRowContext(ctx, `SELECT html, name FROM tag_renders WHERE slug = ?`, slug).Scan(&html, &name)
+	if err != nil {
+		return nil, "", err
+	}
+	return html, name, nil
+}
+
+func (db *DB) SetTagRender(ctx context.Context, slug, name string, html []byte) error {
+	_, err := db.DB.ExecContext(ctx, `
+		INSERT INTO tag_renders (slug, name, html) VALUES (?, ?, ?)
+		ON CONFLICT(slug) DO UPDATE SET name = excluded.name, html = excluded.html, updated_at = datetime('now')
+	`, slug, name, html)
+	if err != nil {
+		return fmt.Errorf("set tag render %s: %w", slug, err)
+	}
+	return nil
+}
+
+func (db *DB) ClearTagRenders(ctx context.Context) error {
+	_, err := db.DB.ExecContext(ctx, `DELETE FROM tag_renders`)
+	if err != nil {
+		return fmt.Errorf("clear tag renders: %w", err)
+	}
+	return nil
+}
+
+func (db *DB) GetTagIndexRender(ctx context.Context) ([]byte, error) {
+	var html []byte
+	err := db.DB.QueryRowContext(ctx, `SELECT html FROM tag_index_render WHERE id = 1`).Scan(&html)
+	if err != nil {
+		return nil, err
+	}
+	return html, nil
+}
+
+func (db *DB) SetTagIndexRender(ctx context.Context, html []byte) error {
+	_, err := db.DB.ExecContext(ctx, `
+		INSERT INTO tag_index_render (id, html) VALUES (1, ?)
+		ON CONFLICT(id) DO UPDATE SET html = excluded.html, updated_at = datetime('now')
+	`, html)
+	if err != nil {
+		return fmt.Errorf("set tag index render: %w", err)
+	}
+	return nil
+}
+
 func (db *DB) GetPage(ctx context.Context, id string) (*Page, error) {
 	return scanPage(db.DB.QueryRowContext(ctx,
 		pageSelect+" WHERE id = ?", id))

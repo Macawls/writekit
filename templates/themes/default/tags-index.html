@@ -1,0 +1,15 @@
+{{template "partials/header.html" .}}
+
+<h1 class="tag-heading">Tags</h1>
+
+{{if .Tags}}
+<ul class="tag-cloud">
+    {{range .Tags}}
+    <li><a class="tag-chip" href="/tag/{{.Slug}}">{{.Name}} <span class="tag-count-badge">{{.Count}}</span></a></li>
+    {{end}}
+</ul>
+{{else}}
+<p style="color: var(--muted);">No tags yet.</p>
+{{end}}
+
+{{template "partials/footer.html" .}}

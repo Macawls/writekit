@@ -31,7 +31,9 @@
 
 {{if .Collection}}
 <nav class="breadcrumb">
-    <a href="/">Home</a> &rsaquo; <a href="/{{.Collection.Slug}}">{{.Collection.Title}}</a>
+    <a href="/">Home</a>
+    <span class="breadcrumb-sep">&rsaquo;</span>
+    <a href="/{{.Collection.Slug}}">{{.Collection.Title}}</a>
 </nav>
 {{end}}
 
@@ -43,6 +45,7 @@
     <div class="post-content">
         {{safe .Page.ContentHTML}}
     </div>
+    {{template "partials/tag-chips.html" .Page}}
 </article>
 
 {{template "partials/footer.html" .}}

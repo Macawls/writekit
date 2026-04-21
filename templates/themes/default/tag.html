@@ -1,0 +1,32 @@
+{{template "partials/header.html" .}}
+
+<nav class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumb-sep">&rsaquo;</span>
+    <a href="/tags">Tags</a>
+    <span class="breadcrumb-sep">&rsaquo;</span>
+    <span class="breadcrumb-current">{{.TagName}}</span>
+</nav>
+
+<h1 class="tag-heading">#{{.TagName}}</h1>
+<p class="tag-count">{{len .Pages}} page{{if ne (len .Pages) 1}}s{{end}}</p>
+
+{{if .Pages}}
+<section class="pages">
+    <ul class="post-list">
+        {{range .Pages}}
+        <li class="post-item">
+            <h2><a href="{{pageURL "" .Slug}}">{{.Title}}</a></h2>
+            <div class="post-meta">
+                <span>{{if .PublishedAt}}{{.PublishedAt.Format "January 2, 2006"}}{{end}}</span>
+            </div>
+            {{if .Excerpt}}<p class="post-excerpt">{{.Excerpt}}</p>{{end}}
+        </li>
+        {{end}}
+    </ul>
+</section>
+{{else}}
+<p style="color: var(--muted);">No pages tagged with {{.TagName}}.</p>
+{{end}}
+
+{{template "partials/footer.html" .}}

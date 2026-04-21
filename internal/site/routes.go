@@ -31,6 +31,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/sitemap.xml", h.TenantSitemap)
 	r.Get("/", h.Index)
 	r.Get("/page/{num}", h.Index)
+	r.Get("/tags", h.TagsIndex)
+	r.Get("/tag/{slug}", h.TagPage)
 	r.Get("/search.json", h.SearchJSON)
 	r.Get("/preview/{token}", h.Preview)
 	r.Get("/preview/{token}/events", h.PreviewSSE)

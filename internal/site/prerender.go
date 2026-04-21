@@ -20,15 +20,19 @@ type PreRenderer struct {
 
 func (p *PreRenderer) Start() {
 	handler := func(e events.Event) {
-		if e.PageID == "" || e.TenantID == "" {
+		if e.TenantID == "" {
 			return
 		}
-		p.renderPage(e.TenantID, e.PageID)
+		if e.PageID != "" {
+			p.renderPage(e.TenantID, e.PageID)
+		}
+		p.renderTagSurfaces(e.TenantID)
 	}
 	p.Bus.On(events.PageCreated, handler)
 	p.Bus.On(events.PageUpdated, handler)
 	p.Bus.On(events.PagePublished, handler)
 	p.Bus.On(events.PageContentSaved, handler)
+	p.Bus.On(events.PageDeleted, handler)
 
 	p.Bus.On(events.CollectionUpdated, func(e events.Event) {
 		if e.TenantID == "" {
@@ -102,6 +106,64 @@ func isCachable(p *tenant.Page) bool {
 		return false
 	}
 	return p.Visibility == "public" || p.Visibility == "unlisted"
+}
+
+func (p *PreRenderer) renderTagSurfaces(tenantID string) {
+	ctx := context.Background()
+	db, err := p.Pool.Get(tenantID)
+	if err != nil {
+		return
+	}
+	tags, err := db.ListTagCounts(ctx, false)
+	if err != nil {
+		slog.Warn("prerender tags: list", "tenant", tenantID, "err", err)
+		return
+	}
+	settings, _ := db.GetSettings(ctx)
+
+	if err := db.ClearTagRenders(ctx); err != nil {
+		slog.Warn("prerender tags: clear", "tenant", tenantID, "err", err)
+	}
+
+	for _, tc := range tags {
+		pages, displayName, err := db.PagesByTagSlug(ctx, tc.Slug, false)
+		if err != nil || displayName == "" {
+			continue
+		}
+		var buf bytes.Buffer
+		if err := p.Engine.Render(&buf, "tag.html", map[string]any{
+			"Pages":           pages,
+			"TagName":         displayName,
+			"TagSlug":         tc.Slug,
+			"Settings":        settings,
+			"TenantID":        tenantID,
+			"Host":            p.Config.Host,
+			"PageTitle":       "#" + displayName,
+			"PageDescription": "Pages tagged " + displayName + ".",
+		}); err != nil {
+			slog.Warn("prerender tag page: render", "tenant", tenantID, "slug", tc.Slug, "err", err)
+			continue
+		}
+		if err := db.SetTagRender(ctx, tc.Slug, displayName, buf.Bytes()); err != nil {
+			slog.Warn("prerender tag page: store", "tenant", tenantID, "slug", tc.Slug, "err", err)
+		}
+	}
+
+	var idxBuf bytes.Buffer
+	if err := p.Engine.Render(&idxBuf, "tags-index.html", map[string]any{
+		"Tags":            tags,
+		"Settings":        settings,
+		"TenantID":        tenantID,
+		"Host":            p.Config.Host,
+		"PageTitle":       "Tags",
+		"PageDescription": "Browse pages by tag.",
+	}); err != nil {
+		slog.Warn("prerender tags index: render", "tenant", tenantID, "err", err)
+		return
+	}
+	if err := db.SetTagIndexRender(ctx, idxBuf.Bytes()); err != nil {
+		slog.Warn("prerender tags index: store", "tenant", tenantID, "err", err)
+	}
 }
 
 func ogImageURL(tenantID, host, collectionSlug, pageSlug string) string {

@@ -52,7 +52,7 @@
             var li = document.createElement('li');
             li.className = 'search-modal__result';
             li.innerHTML = '<a href="' + escapeHtml(r.url) + '">' +
-                '<span class="search-modal__result-title">' + (r.titleHtml || escapeHtml(r.title || '')) + '</span>' +
+                '<span class="search-modal__result-title">' + escapeHtml(r.title || '') + '</span>' +
                 (r.collection ? '<span class="search-modal__result-collection">' + escapeHtml(r.collection) + '</span>' : '') +
                 (r.snippetHtml ? '<span class="search-modal__result-excerpt">' + r.snippetHtml + '</span>' : '') +
                 '</a>';
