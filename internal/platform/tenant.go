@@ -30,6 +30,7 @@ var ReservedSlugs = map[string]bool{
 	"www":   true,
 	"api":   true,
 	"admin": true,
+	"mcp":   true,
 }
 
 func (db *DB) SlugAvailable(ctx context.Context, slug, excludeTenantID string) (bool, error) {

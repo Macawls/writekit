@@ -92,7 +92,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 				cfg.BaseURL+"/auth/callback")
 		}
 
-		mcpAuth := &auth.MCPAuth{DB: platformDB, BaseURL: cfg.BaseURL}
+		mcpAuth := &auth.MCPAuth{DB: platformDB, BaseURL: cfg.BaseURL, MCPBaseURL: cfg.MCPBaseURL}
 		emailSender := email.NewSender(cfg.SESFrom, cfg.SESRegion)
 		subscribeEmailHandlers(bus, emailSender, cfg)
 
@@ -123,7 +123,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 			Email:  emailSender,
 		}
 
-		router = buildRouter(cfg, webHandler, siteHandler, apiHandler, adminHandler, mcpSrv, platformDB, staticFS, appFS, adminFS)
+		router = buildRouter(cfg, webHandler, siteHandler, apiHandler, adminHandler, mcpSrv, mcpAuth, platformDB, staticFS, appFS, adminFS)
 	}
 
 	return &App{
@@ -188,7 +188,7 @@ func buildLocalRouter(cfg *config.Config, siteHandler *site.Handler, apiHandler 
 	return root
 }
 
-func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.Handler, apiHandler *api.Handler, adminHandler *admin.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB, staticFS, appFS, adminFS fs.FS) http.Handler {
+func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.Handler, apiHandler *api.Handler, adminHandler *admin.Handler, mcpSrv *mcpserver.Server, mcpAuth *auth.MCPAuth, platformDB *platform.DB, staticFS, appFS, adminFS fs.FS) http.Handler {
 	root := chi.NewRouter()
 	root.Use(chimw.RealIP)
 	root.Use(httplog.RequestIDMiddleware)
@@ -197,7 +197,8 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.
 
 	root.Handle("/static/*", http.StripPrefix("/static/", staticFileServer(cfg, staticFS)))
 
-	webR := webRouter(cfg, webHandler, mcpSrv, platformDB)
+	webR := webRouter(webHandler)
+	mcpR := mcpHostRouter(cfg, mcpSrv, mcpAuth, platformDB)
 	siteR := siteRouter(siteHandler)
 	spaR := spaRouter(apiHandler, appFS, cfg, platformDB)
 	adminR := adminSpaRouter(adminHandler, adminFS)
@@ -209,6 +210,8 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.
 		}
 
 		switch {
+		case host == cfg.MCPHost || (cfg.Dev && host == "mcp.localhost"):
+			mcpR.ServeHTTP(w, r)
 		case host == "app."+cfg.Host || (cfg.Dev && host == "app.localhost"):
 			spaR.ServeHTTP(w, r)
 		case host == "admin."+cfg.Host || (cfg.Dev && host == "admin.localhost"):
@@ -234,14 +237,20 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.
 	return root
 }
 
-func webRouter(cfg *config.Config, webHandler *web.Handler, mcpSrv *mcpserver.Server, platformDB *platform.DB) http.Handler {
+func webRouter(webHandler *web.Handler) http.Handler {
+	r := chi.NewRouter()
+	webHandler.Routes(r)
+	return r
+}
+
+func mcpHostRouter(cfg *config.Config, mcpSrv *mcpserver.Server, mcpAuth *auth.MCPAuth, platformDB *platform.DB) http.Handler {
 	r := chi.NewRouter()
 
-	webHandler.Routes(r)
+	r.Method("GET", "/.well-known/oauth-protected-resource", mcpAuth.ProtectedResourceHandler())
 
 	r.Group(func(r chi.Router) {
-		r.Use(auth.MCPBearerAuth(platformDB, cfg.BaseURL))
-		r.Handle("/mcp", mcpSrv.Handler())
+		r.Use(auth.MCPBearerAuth(platformDB, cfg.MCPBaseURL))
+		r.Handle("/", mcpSrv.Handler())
 	})
 
 	return r

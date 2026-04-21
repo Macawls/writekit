@@ -9,11 +9,13 @@ import (
 )
 
 type Config struct {
-	Port    int
-	Host    string
-	BaseURL string
-	Dev     bool
-	Local   bool
+	Port       int
+	Host       string
+	BaseURL    string
+	MCPHost    string
+	MCPBaseURL string
+	Dev        bool
+	Local      bool
 
 	DatabaseURL string
 	DataDir     string
@@ -60,6 +62,15 @@ func Load() (*Config, error) {
 		baseURL = fmt.Sprintf("http://127.0.0.1:%d", port)
 	}
 
+	mcpHost := getenv("MCP_HOST", "mcp."+host)
+	mcpBaseURL := fmt.Sprintf("%s://%s", scheme, mcpHost)
+	if dev {
+		mcpBaseURL = fmt.Sprintf("http://mcp.localhost:%d", port)
+	}
+	if local {
+		mcpBaseURL = baseURL
+	}
+
 	dataDirDefault := "./data/tenants"
 	if local {
 		if ucd, err := os.UserConfigDir(); err == nil {
@@ -68,11 +79,13 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Port:    port,
-		Host:    host,
-		BaseURL: baseURL,
-		Dev:     dev,
-		Local:   local,
+		Port:       port,
+		Host:       host,
+		BaseURL:    baseURL,
+		MCPHost:    mcpHost,
+		MCPBaseURL: mcpBaseURL,
+		Dev:        dev,
+		Local:      local,
 
 		DatabaseURL: getenv("DATABASE_URL", ""),
 		DataDir:     getenv("DATA_DIR", dataDirDefault),

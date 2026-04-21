@@ -39,7 +39,6 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/invitations/accept", h.AcceptInvitation)
 
 	r.Get("/.well-known/oauth-authorization-server", h.MCPAuth.WellKnown)
-	r.Method("GET", "/.well-known/oauth-protected-resource", h.MCPAuth.ProtectedResourceHandler())
 	r.Post("/oauth/register", h.MCPAuth.Register)
 	r.Get("/oauth/authorize", h.OAuthAuthorize)
 	r.Post("/oauth/token", h.MCPAuth.TokenExchange)

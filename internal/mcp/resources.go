@@ -15,7 +15,7 @@ func (s *Server) registerResources(mcpServer *mcpsdk.Server) {
 	mcpServer.AddResource(&mcpsdk.Resource{
 		URI:         "writekit://site/stats",
 		Name:        "Site Stats",
-		Description: "Page counts, collection counts, comment counts",
+		Description: "Page counts, collection counts",
 		MIMEType:    "application/json",
 	}, s.statsResource)
 

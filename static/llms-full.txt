@@ -18,13 +18,13 @@ WriteKit is a hosted publishing platform where content is managed entirely via M
 
 ## MCP Server
 
-- URL: `https://writekit.dev/mcp`
+- URL: `https://mcp.writekit.dev`
 - Transport: Streamable HTTP
 - Auth: OAuth 2.0 with PKCE (automatic browser flow on first use)
 
 ### Claude Code setup
 ```
-claude mcp add --transport http writekit https://writekit.dev/mcp
+claude mcp add --transport http writekit https://mcp.writekit.dev
 ```
 
 ### Cursor / Windsurf setup
@@ -33,7 +33,7 @@ Add to `.cursor/mcp.json` or Windsurf MCP config:
 {
   "mcpServers": {
     "writekit": {
-      "url": "https://writekit.dev/mcp"
+      "url": "https://mcp.writekit.dev"
     }
   }
 }
@@ -46,7 +46,7 @@ Add to `.vscode/mcp.json`:
   "servers": {
     "writekit": {
       "type": "http",
-      "url": "https://writekit.dev/mcp"
+      "url": "https://mcp.writekit.dev"
     }
   }
 }
@@ -258,4 +258,4 @@ Every page update creates a version snapshot. The last 20 versions are kept per 
 
 - Website: https://writekit.dev
 - Documentation: https://writekit.dev/docs
-- MCP Server: https://writekit.dev/mcp
+- MCP Server: https://mcp.writekit.dev

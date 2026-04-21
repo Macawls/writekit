@@ -23,7 +23,7 @@ WriteKit is a publishing platform with an [MCP](https://modelcontextprotocol.io)
 **Hosted — zero setup.**
 
 ```bash
-claude mcp add --transport http writekit https://writekit.dev/mcp
+claude mcp add --transport http writekit https://mcp.writekit.dev
 ```
 
 Sign in at [writekit.dev](https://writekit.dev) with Google, GitHub, or Discord, pick a subdomain, and start telling your assistant what to write.

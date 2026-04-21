@@ -475,20 +475,32 @@
         <div class="sb-group">
           <div class="sb-title">How it works</div>
           <a href="#workflow">The writing loop</a>
+          <a href="#live-preview">Live preview</a>
+          <a href="#versions">Versions &amp; rewinding</a>
         </div>
         <div class="sb-group">
           <div class="sb-title">Core concepts</div>
           <a href="#pages">Pages</a>
           <a href="#collections">Collections</a>
+          <a href="#tags">Tags</a>
           <a href="#visibility">Visibility</a>
           <a href="#teams">Teams</a>
           <a href="#urls">URLs</a>
         </div>
         <div class="sb-group">
-          <div class="sb-title">Reference</div>
-          <a href="#mcp-tools">MCP tools</a>
-          <a href="#mcp-resources">MCP resources</a>
+          <div class="sb-title">MCP reference</div>
+          <a href="#mcp-tools-pages">Pages tools</a>
+          <a href="#mcp-tools-collections">Collections tools</a>
+          <a href="#mcp-tools-settings">Settings tools</a>
+          <a href="#mcp-tools-teams">Team tools</a>
+          <a href="#mcp-resources">Resources</a>
+          <a href="#mcp-prompts">Prompts</a>
+        </div>
+        <div class="sb-group">
+          <div class="sb-title">More</div>
           <a href="#markdown">Markdown</a>
+          <a href="#custom-domain">Custom domain</a>
+          <a href="#self-hosting">Self-hosting &amp; desktop</a>
         </div>
       </aside>
 
@@ -529,14 +541,14 @@
 
           <div class="tab-panels">
             <div class="tab-panel p-claude">
-              <pre><code>claude mcp add --transport http writekit https://writekit.dev/mcp</code></pre>
+              <pre><code>claude mcp add --transport http writekit https://mcp.writekit.dev</code></pre>
             </div>
             <div class="tab-panel p-cursor">
               <p>Add to <code>.cursor/mcp.json</code>:</p>
               <pre><code>{
   "mcpServers": {
     "writekit": {
-      "url": "https://writekit.dev/mcp"
+      "url": "https://mcp.writekit.dev"
     }
   }
 }</code></pre>
@@ -546,7 +558,7 @@
               <pre><code>{
   "mcpServers": {
     "writekit": {
-      "url": "https://writekit.dev/mcp"
+      "url": "https://mcp.writekit.dev"
     }
   }
 }</code></pre>
@@ -557,7 +569,7 @@
   "servers": {
     "writekit": {
       "type": "http",
-      "url": "https://writekit.dev/mcp"
+      "url": "https://mcp.writekit.dev"
     }
   }
 }</code></pre>
@@ -568,14 +580,14 @@
   "mcp": {
     "writekit": {
       "type": "remote",
-      "url": "https://writekit.dev/mcp"
+      "url": "https://mcp.writekit.dev"
     }
   }
 }</code></pre>
             </div>
             <div class="tab-panel p-any">
               <p>Point any Streamable HTTP MCP client at:</p>
-              <pre><code>https://writekit.dev/mcp</code></pre>
+              <pre><code>https://mcp.writekit.dev</code></pre>
             </div>
           </div>
         </div>
@@ -608,11 +620,20 @@
         <h3 id="sign-in">2. Sign in</h3>
 
         <p>
-          The first time your AI tries to use WriteKit, a browser tab opens.
-          Pick how you want to sign in — <strong>GitHub</strong>,
-          <strong>Google</strong>, <strong>Discord</strong>, or
-          <strong>email</strong>. That's it.
+          The first time your AI tries to use WriteKit, a browser tab opens and
+          walks you through OAuth. Pick how you want to sign in —
+          <strong>GitHub</strong>, <strong>Google</strong>,
+          <strong>Discord</strong>, or <strong>email</strong> — approve the
+          connection, and the tab hands control back to your AI.
         </p>
+
+        <div class="callout">
+          <p>
+            <strong>Under the hood:</strong> MCP authenticates with OAuth 2.0 +
+            PKCE. No API keys to copy around, no tokens in config files. Your
+            AI gets a scoped token you can revoke any time from site settings.
+          </p>
+        </div>
 
         <figure class="shot">
           <img
@@ -627,8 +648,10 @@
 
         <p>
           After signing in, you'll pick a name for your site. Your pages will
-          live at <code>yourname.writekit.dev</code>. You can bring a custom
-          domain later.
+          live at <code>yourname.writekit.dev</code>. You can rename it later
+          (the MCP tool <code>rename_subdomain</code> handles it and sets up a
+          redirect from the old URL), or attach a
+          <a href="#custom-domain">custom domain</a>.
         </p>
 
         <figure class="shot">
@@ -720,9 +743,41 @@
           <figcaption>A full write-and-publish round-trip.</figcaption>
         </figure>
 
+        <h3 id="live-preview">Live preview</h3>
+
         <p>
-          Every edit is saved as a version. If something got worse, add
-          <code>?v=N</code> to the preview URL to look at an earlier one.
+          The preview page holds an open server-sent-events connection to
+          <code>/preview/{token}/events</code>. When your AI calls
+          <code>update_page</code>, the server pushes a <code>rendered</code>
+          signal and the tab refreshes itself — no F5, no polling, no manual
+          URL swapping. Leave the preview open in a side panel while you chat
+          and it will keep showing the latest version automatically.
+        </p>
+
+        <h3 id="versions">Versions &amp; rewinding</h3>
+
+        <p>
+          Every edit is saved as a version (v1, v2, v3…). You don't have to
+          think about <code>?v=N</code> during a normal write-and-iterate loop
+          — the preview tab auto-reloads to the latest on every edit via SSE
+          (see <a href="#live-preview">Live preview</a>).
+        </p>
+
+        <p>
+          <code>?v=N</code> only matters when you want to
+          <strong>rewind</strong> to an earlier revision. Add it to any
+          preview or published page URL:
+        </p>
+
+        <pre><code>yourname.writekit.dev/preview/{token}?v=3</code></pre>
+
+        <p>
+          The tab will stay pinned to that version across auto-reloads (the
+          query string sticks), so you can compare old against new side by
+          side. When an edit made things worse, the simplest flow is to tell
+          your AI: <em>"go back to v3 and continue from there"</em> — it calls
+          <code>update_page</code> with the v3 content and you're back on the
+          live cycle.
         </p>
 
         <h2 id="core-concepts">Core concepts</h2>
@@ -730,32 +785,73 @@
         <h3 id="pages">Pages</h3>
         <p>
           A page is one piece of writing. A post, a doc, a recipe — whatever.
-          Pages start as drafts, go live when you publish them, and get a URL
-          based on their slug.
+          Pages have a <strong>title</strong>, <strong>slug</strong>,
+          <strong>content</strong> (Markdown), an optional
+          <strong>excerpt</strong>, a list of <strong>tags</strong>, a
+          <strong>visibility</strong> setting, and a
+          <strong>status</strong> (draft or published). They can live on their
+          own or inside a collection.
+        </p>
+        <p>
+          Drafts never appear on the live site — not in the index, not at
+          their slug URL, not in search. The only way to see a draft is
+          through its <strong>preview URL</strong>, which your AI hands back
+          when it creates or updates the page. Preview URLs are
+          capability-based: anyone with the link can view (no sign-in
+          needed), and they expire 24 hours after the token is issued. Share
+          them like you'd share a private Google Doc link — convenient, but
+          don't post them publicly.
         </p>
 
         <h3 id="collections">Collections</h3>
         <p>
           Collections are folders. Group related pages together — a tutorial
-          series, a "docs" collection, a changelog. Pages can also live on their
-          own, outside any collection.
+          series, a docs set, a changelog. Pages can also live on their own,
+          outside any collection.
         </p>
 
         <p>
-          Collections can be ordered <strong>manually</strong> (good for docs in
-          a learning order) or <strong>by date</strong> (good for changelogs).
+          Collections can be ordered <strong>manually</strong> (good for docs
+          in a learning order) or <strong>by date</strong> (good for
+          changelogs). They also have their own
+          <a href="#visibility">visibility</a> — marking a collection private
+          hides every page inside it, regardless of each page's own setting.
         </p>
 
-        <h3 id="visibility">Visibility</h3>
-        <p>Every page has a visibility setting:</p>
+        <h3 id="tags">Tags</h3>
+        <p>
+          Tags are free-form labels attached to a page. Use them for topics
+          (<code>go</code>, <code>design</code>), types
+          (<code>tutorial</code>, <code>opinion</code>), or anything else.
+        </p>
         <ul>
           <li>
-            <strong>Public</strong> — anyone can see it. Shown in your index and
-            search.
+            <strong>Tag index:</strong>
+            <code>yourname.writekit.dev/tags</code> — every tag on your site
+            with a count.
+          </li>
+          <li>
+            <strong>Per-tag page:</strong>
+            <code>yourname.writekit.dev/tag/{slug}</code> — every page with
+            that tag.
+          </li>
+          <li>
+            <code>list_pages</code> takes a <code>tag</code> filter, so you
+            can ask things like <em>"show me every draft tagged
+            'cooking'."</em>
+          </li>
+        </ul>
+
+        <h3 id="visibility">Visibility</h3>
+        <p>Every page and every collection has a visibility setting:</p>
+        <ul>
+          <li>
+            <strong>Public</strong> — anyone can see it. Listed in your index,
+            sitemap, and search.
           </li>
           <li>
             <strong>Unlisted</strong> — only people with the link. Hidden from
-            the index and search.
+            the index, sitemap, and search.
           </li>
           <li>
             <strong>Private</strong> — only signed-in team members. Everyone
@@ -763,8 +859,13 @@
           </li>
         </ul>
         <p>
-          A draft isn't visible at all — visibility only kicks in once you
-          publish.
+          Visibility only applies to the <strong>live URL</strong> of a
+          published page or collection. Drafts never appear anywhere publicly
+          regardless of setting — they're reachable only through a preview
+          URL, which is token-based and ignores visibility (anyone with the
+          link gets in). If something is truly sensitive, don't share the
+          preview link; publish it with <code>private</code> visibility
+          instead, which requires team-member sign-in.
         </p>
 
         <h3 id="teams">Teams</h3>
@@ -777,42 +878,66 @@
         <ul>
           <li>
             <strong>Owner</strong> — full control: billing, settings, everyone,
-            everything. Owners invite new members and change existing roles.
+            everything. Owners invite new members, change roles, and rename the
+            subdomain.
           </li>
           <li>
-            <strong>Editor</strong> — can write, publish, and delete. Can see
-            private pages.
+            <strong>Editor</strong> — can write, publish, and delete pages and
+            collections. Can see private content.
           </li>
           <li>
-            <strong>Viewer</strong> — read-only. Can see private pages but can't
-            change them.
+            <strong>Viewer</strong> — read-only. Can see private content but
+            can't change it.
           </li>
         </ul>
 
         <h3 id="urls">URLs</h3>
+        <p>Every site URL pattern you'll hit:</p>
         <ul>
+          <li>Home / index: <code>yourname.writekit.dev/</code></li>
+          <li>
+            Index pagination: <code>yourname.writekit.dev/page/{num}</code>
+          </li>
           <li>Standalone page: <code>yourname.writekit.dev/{slug}</code></li>
           <li>Collection: <code>yourname.writekit.dev/{collection}</code></li>
           <li>
             Page in collection:
             <code>yourname.writekit.dev/{collection}/{slug}</code>
           </li>
-          <li>Raw Markdown: add <code>.md</code> to any page URL</li>
-          <li>Search: <code>yourname.writekit.dev/search?q={query}</code></li>
           <li>
-            Preview (for drafts):
-            <code>yourname.writekit.dev/preview/{token}</code>
+            Raw Markdown: add <code>.md</code> to any page URL —
+            <code>/{slug}.md</code> or <code>/{collection}/{slug}.md</code>.
+          </li>
+          <li>Tag index: <code>yourname.writekit.dev/tags</code></li>
+          <li>Per tag: <code>yourname.writekit.dev/tag/{slug}</code></li>
+          <li>
+            Preview (drafts and iterating):
+            <code>yourname.writekit.dev/preview/{token}</code>, optional
+            <code>?v=N</code>.
+          </li>
+          <li>
+            Search (JSON, for clients):
+            <code>yourname.writekit.dev/search.json?q={query}</code>. Day to
+            day, ask your AI to search — it calls <code>search_pages</code>.
+          </li>
+          <li>
+            OG images: <code>yourname.writekit.dev/og/{slug}.png</code> and
+            <code>/og/{collection}/{slug}.png</code> — auto-generated social
+            previews.
+          </li>
+          <li>
+            <code>/robots.txt</code> and <code>/sitemap.xml</code> — generated
+            from your public pages.
           </li>
         </ul>
 
-        <h2 id="mcp-tools">MCP tools</h2>
+        <h2 id="mcp-tools-pages">MCP tools — Pages</h2>
 
         <p>
-          Tools your AI can call once WriteKit is connected. You don't call
-          these directly — your AI does, when you ask for things.
+          Tools your AI calls once WriteKit is connected. You don't call these
+          directly — your AI does, when you ask for things.
         </p>
 
-        <h3>Pages</h3>
         <table>
           <tr>
             <th>Tool</th>
@@ -820,43 +945,49 @@
           </tr>
           <tr>
             <td><code>create_page</code></td>
-            <td>Make a new draft</td>
+            <td>Make a new draft. Returns a preview URL.</td>
           </tr>
           <tr>
             <td><code>update_page</code></td>
-            <td>Change anything on an existing page</td>
-          </tr>
-          <tr>
-            <td><code>delete_page</code></td>
-            <td>Delete for good</td>
-          </tr>
-          <tr>
-            <td><code>publish_page</code></td>
-            <td>Go live — returns the URL</td>
-          </tr>
-          <tr>
-            <td><code>unpublish_page</code></td>
-            <td>Move back to draft</td>
-          </tr>
-          <tr>
-            <td><code>list_pages</code></td>
-            <td>List pages, filter by status/tag/collection</td>
-          </tr>
-          <tr>
-            <td><code>get_page</code></td>
-            <td>Fetch a page's full content</td>
+            <td>
+              Change any field on an existing page (partial updates). Bumps the
+              version and returns the preview URL with <code>?v=N</code>.
+            </td>
           </tr>
           <tr>
             <td><code>append_to_page</code></td>
-            <td>Add to the end without resending everything</td>
+            <td>Add content to the end without resending everything.</td>
+          </tr>
+          <tr>
+            <td><code>delete_page</code></td>
+            <td>Delete for good.</td>
+          </tr>
+          <tr>
+            <td><code>publish_page</code></td>
+            <td>Go live — returns the public URL.</td>
+          </tr>
+          <tr>
+            <td><code>unpublish_page</code></td>
+            <td>Move back to draft.</td>
+          </tr>
+          <tr>
+            <td><code>list_pages</code></td>
+            <td>
+              List pages. Filter by status, visibility, tag, or collection.
+            </td>
+          </tr>
+          <tr>
+            <td><code>get_page</code></td>
+            <td>Fetch a page's full content and metadata.</td>
           </tr>
           <tr>
             <td><code>search_pages</code></td>
-            <td>Full-text search</td>
+            <td>Full-text search across your site.</td>
           </tr>
         </table>
 
-        <h3>Collections</h3>
+        <h2 id="mcp-tools-collections">MCP tools — Collections</h2>
+
         <table>
           <tr>
             <th>Tool</th>
@@ -864,31 +995,34 @@
           </tr>
           <tr>
             <td><code>create_collection</code></td>
-            <td>Make a new collection</td>
+            <td>
+              Make a new collection (title, slug, sort order, visibility).
+            </td>
           </tr>
           <tr>
             <td><code>update_collection</code></td>
-            <td>Rename, re-slug, change sort order</td>
+            <td>Rename, re-slug, change sort order, change visibility.</td>
           </tr>
           <tr>
             <td><code>delete_collection</code></td>
-            <td>Delete (pages inside become standalone)</td>
+            <td>Delete (pages inside become standalone).</td>
           </tr>
           <tr>
             <td><code>list_collections</code></td>
-            <td>List all with page counts</td>
+            <td>List all with page counts.</td>
           </tr>
           <tr>
             <td><code>get_collection</code></td>
-            <td>Details + pages inside</td>
+            <td>Details plus the pages inside.</td>
           </tr>
           <tr>
             <td><code>reorder_pages</code></td>
-            <td>Set manual page order</td>
+            <td>Set manual page order within a collection.</td>
           </tr>
         </table>
 
-        <h3>Settings &amp; teams</h3>
+        <h2 id="mcp-tools-settings">MCP tools — Settings</h2>
+
         <table>
           <tr>
             <th>Tool</th>
@@ -896,39 +1030,55 @@
           </tr>
           <tr>
             <td><code>get_settings</code></td>
-            <td>Current site settings</td>
+            <td>Current site settings (title, description).</td>
           </tr>
           <tr>
             <td><code>update_settings</code></td>
-            <td>Change title, description</td>
+            <td>Change site title or description.</td>
+          </tr>
+          <tr>
+            <td><code>rename_subdomain</code></td>
+            <td>
+              Rename your site (e.g. <code>foo</code> → <code>bar</code>). The
+              old URL redirects to the new one. Owners only.
+            </td>
+          </tr>
+        </table>
+
+        <h2 id="mcp-tools-teams">MCP tools — Team</h2>
+
+        <table>
+          <tr>
+            <th>Tool</th>
+            <th>What it does</th>
           </tr>
           <tr>
             <td><code>list_members</code></td>
-            <td>Show all team members</td>
+            <td>Show all team members with roles.</td>
           </tr>
           <tr>
             <td><code>invite_member</code></td>
-            <td>Invite someone by email — account or not (owner only)</td>
+            <td>Invite someone by email — account or not (owner only).</td>
           </tr>
           <tr>
             <td><code>list_invitations</code></td>
-            <td>Show pending invitations</td>
+            <td>Show pending invitations.</td>
           </tr>
           <tr>
             <td><code>resend_invitation</code></td>
-            <td>Send a fresh link and extend expiry (owner only)</td>
+            <td>Send a fresh link and extend expiry (owner only).</td>
           </tr>
           <tr>
             <td><code>revoke_invitation</code></td>
-            <td>Cancel a pending invitation (owner only)</td>
+            <td>Cancel a pending invitation (owner only).</td>
           </tr>
           <tr>
             <td><code>remove_member</code></td>
-            <td>Remove a member (owner only)</td>
+            <td>Remove a member (owner only).</td>
           </tr>
           <tr>
             <td><code>update_member_role</code></td>
-            <td>Change a member's role (owner only)</td>
+            <td>Change a member's role (owner only).</td>
           </tr>
         </table>
 
@@ -946,23 +1096,45 @@
           </tr>
           <tr>
             <td><code>writekit://site/stats</code></td>
-            <td>Page counts, collection counts</td>
+            <td>Published page count, draft count, collection count.</td>
           </tr>
           <tr>
             <td><code>writekit://site/settings</code></td>
-            <td>Current site settings</td>
+            <td>Current site settings.</td>
           </tr>
           <tr>
             <td><code>writekit://site/recent-pages</code></td>
-            <td>Last 10 published</td>
+            <td>Last 10 published pages.</td>
           </tr>
           <tr>
             <td><code>writekit://site/drafts</code></td>
-            <td>All drafts</td>
+            <td>All drafts.</td>
           </tr>
           <tr>
             <td><code>writekit://site/collections</code></td>
-            <td>All collections with page counts</td>
+            <td>All collections with page counts.</td>
+          </tr>
+        </table>
+
+        <h2 id="mcp-prompts">MCP prompts</h2>
+
+        <p>
+          Prompts are pre-baked templates your AI can invoke to kick off a task
+          with sensible structure.
+        </p>
+
+        <table>
+          <tr>
+            <th>Prompt</th>
+            <th>What it does</th>
+          </tr>
+          <tr>
+            <td><code>write_page</code></td>
+            <td>
+              Scaffold a new page from a <code>topic</code>, optional
+              <code>audience</code>, and optional <code>style</code> (tutorial,
+              opinion, guide…).
+            </td>
           </tr>
         </table>
 
@@ -973,30 +1145,73 @@
         <ul>
           <li>
             <strong>GitHub Flavored Markdown</strong> — tables, strikethrough,
-            auto-links, task lists
+            auto-links, task lists.
           </li>
           <li>
             <strong>Syntax highlighting</strong> — fenced code blocks with a
-            language tag (<code>```go</code>, <code>```python</code>, etc.)
+            language tag (<code>```go</code>, <code>```python</code>, etc.).
+            Every block gets a copy button.
           </li>
           <li>
             <strong>Callouts</strong> — <code>&gt; [!NOTE]</code>,
             <code>&gt; [!TIP]</code>, <code>&gt; [!WARNING]</code>,
-            <code>&gt; [!DANGER]</code>
+            <code>&gt; [!DANGER]</code>.
           </li>
           <li>
-            <strong>Embeds</strong> — <code>&lt;embed src="url" /&gt;</code> for
-            YouTube, Spotify, SoundCloud, Twitter/X, GitHub Gists
+            <strong>Embeds</strong> — <code>&lt;embed src="url" /&gt;</code>
+            for YouTube, Spotify, SoundCloud, Twitter/X, GitHub Gists.
           </li>
           <li>
             <strong>Diagrams</strong> — <code>```d2</code> blocks render as
-            architecture diagrams
+            architecture diagrams.
           </li>
           <li>
-            <strong>Footnotes</strong>, auto heading IDs, and raw HTML when you
-            need it
+            <strong>Images</strong> — <code>![alt](url)</code>, with a
+            lightbox on click.
+          </li>
+          <li>
+            <strong>Footnotes</strong>, auto heading IDs, and raw HTML when
+            you need it.
           </li>
         </ul>
+
+        <h2 id="custom-domain">Custom domain</h2>
+
+        <p>
+          Want pages to live at <code>yourname.com</code> instead of
+          <code>yourname.writekit.dev</code>? Add a domain in site settings,
+          then point a CNAME at <code>cname.writekit.dev</code>. A certificate
+          is issued automatically and your site becomes reachable at the custom
+          domain — the original subdomain keeps working too.
+        </p>
+
+        <p>
+          DNS takes a few minutes to propagate. Until it does, settings will
+          show a "not verified yet" status next to the domain.
+        </p>
+
+        <h2 id="self-hosting">Self-hosting &amp; desktop</h2>
+
+        <p>WriteKit ships as two things from one codebase:</p>
+        <ul>
+          <li>
+            <strong>Hosted</strong> — what you're reading about now. Postgres
+            for accounts and tenancy, per-site SQLite for content, OAuth for
+            MCP auth.
+          </li>
+          <li>
+            <strong>Desktop</strong> — a local-first Wails app. Single SQLite
+            file under your user data directory, no accounts, no subdomains.
+            The MCP endpoint runs on loopback so your local AI can connect
+            without OAuth.
+          </li>
+        </ul>
+        <p>
+          Both builds speak the same MCP protocol and share the same tools,
+          resources, and prompts — so every example above works the same in
+          desktop mode, just pointed at the loopback URL the desktop app
+          prints on launch.
+        </p>
       </article>
     </div>
 

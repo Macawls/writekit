@@ -8,14 +8,14 @@ type Client = typeof clients[number]
 
 const snippets: Record<Client, { note?: string; code: string }> = {
   'Claude Code': {
-    code: 'claude mcp add --transport http writekit https://writekit.dev/mcp',
+    code: 'claude mcp add --transport http writekit https://mcp.writekit.dev',
   },
   'Cursor': {
     note: 'Add to .cursor/mcp.json:',
     code: `{
   "mcpServers": {
     "writekit": {
-      "url": "https://writekit.dev/mcp"
+      "url": "https://mcp.writekit.dev"
     }
   }
 }`,
@@ -25,7 +25,7 @@ const snippets: Record<Client, { note?: string; code: string }> = {
     code: `{
   "mcpServers": {
     "writekit": {
-      "url": "https://writekit.dev/mcp"
+      "url": "https://mcp.writekit.dev"
     }
   }
 }`,
@@ -36,7 +36,7 @@ const snippets: Record<Client, { note?: string; code: string }> = {
   "servers": {
     "writekit": {
       "type": "http",
-      "url": "https://writekit.dev/mcp"
+      "url": "https://mcp.writekit.dev"
     }
   }
 }`,
@@ -47,14 +47,14 @@ const snippets: Record<Client, { note?: string; code: string }> = {
   "mcp": {
     "writekit": {
       "type": "remote",
-      "url": "https://writekit.dev/mcp"
+      "url": "https://mcp.writekit.dev"
     }
   }
 }`,
   },
   'Any Client': {
     note: 'Point any Streamable HTTP MCP client at:',
-    code: 'https://writekit.dev/mcp',
+    code: 'https://mcp.writekit.dev',
   },
 }
 

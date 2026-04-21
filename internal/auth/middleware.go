@@ -157,10 +157,10 @@ func NewTokenVerifier(db *platform.DB) mcpauth.TokenVerifier {
 
 // MCPBearerAuth returns middleware that protects the MCP endpoint using the SDK's
 // RequireBearerToken with proper WWW-Authenticate headers per RFC 9728.
-func MCPBearerAuth(db *platform.DB, baseURL string) func(http.Handler) http.Handler {
+func MCPBearerAuth(db *platform.DB, mcpBaseURL string) func(http.Handler) http.Handler {
 	verifier := NewTokenVerifier(db)
 	sdkMiddleware := mcpauth.RequireBearerToken(verifier, &mcpauth.RequireBearerTokenOptions{
-		ResourceMetadataURL: baseURL + "/.well-known/oauth-protected-resource",
+		ResourceMetadataURL: mcpBaseURL + "/.well-known/oauth-protected-resource",
 	})
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

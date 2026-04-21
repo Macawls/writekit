@@ -47,15 +47,24 @@ type clientRegistrationResponse struct {
 }
 
 type MCPAuth struct {
-	DB      *platform.DB
-	BaseURL string
+	DB         *platform.DB
+	BaseURL    string
+	MCPBaseURL string
 }
 
 // ProtectedResourceHandler returns an http.Handler that serves OAuth 2.0
 // protected resource metadata (RFC 9728) with CORS support via the SDK.
 func (m *MCPAuth) ProtectedResourceHandler() http.Handler {
+	resourceBase := m.MCPBaseURL
+	if resourceBase == "" {
+		resourceBase = m.BaseURL
+	}
+	resource := resourceBase + "/mcp"
+	if m.MCPBaseURL != "" {
+		resource = m.MCPBaseURL
+	}
 	return mcpauth.ProtectedResourceMetadataHandler(&oauthex.ProtectedResourceMetadata{
-		Resource:             m.BaseURL + "/mcp",
+		Resource:             resource,
 		AuthorizationServers: []string{m.BaseURL},
 		ResourceName:         "WriteKit MCP",
 	})
