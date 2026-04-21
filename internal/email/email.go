@@ -67,10 +67,21 @@ func (s *Sender) Send(ctx context.Context, to, subject, html string) error {
 }
 
 func (s *Sender) SendWelcome(ctx context.Context, to, name string) error {
-	return s.Send(ctx, to, "Welcome to WriteKit", welcomeHTML(name))
+	greeting := "Hi"
+	if name != "" {
+		greeting = "Hi " + name
+	}
+	html, err := render("welcome", map[string]any{"Greeting": greeting})
+	if err != nil {
+		return err
+	}
+	return s.Send(ctx, to, "Welcome to WriteKit", html)
 }
 
 func (s *Sender) SendMagicLink(ctx context.Context, to, link string) error {
-	return s.Send(ctx, to, "Sign in to WriteKit", magicLinkHTML(link))
+	html, err := render("magic_link", map[string]any{"Link": link})
+	if err != nil {
+		return err
+	}
+	return s.Send(ctx, to, "Sign in to WriteKit", html)
 }
-
