@@ -328,6 +328,14 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.isTeamMember(r, tenantID) && isCachable(page) {
+		if html, err := db.GetPageRender(r.Context(), page.ID); err == nil {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(html)
+			return
+		}
+	}
+
 	h.Engine.Render(w, "page.html", map[string]any{
 		"Page":            page,
 		"PageTitle":       page.Title,
@@ -379,6 +387,14 @@ func (h *Handler) CollectionPage(w http.ResponseWriter, r *http.Request) {
 	if !h.canView(r, tenantID, page.Visibility) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
+	}
+
+	if !h.isTeamMember(r, tenantID) && isCachable(page) {
+		if html, err := db.GetPageRender(r.Context(), page.ID); err == nil {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(html)
+			return
+		}
 	}
 
 	settings, err := db.GetSettings(r.Context())

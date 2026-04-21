@@ -87,6 +87,34 @@ func (db *DB) DeletePage(ctx context.Context, id string) error {
 	return nil
 }
 
+func (db *DB) GetPageRender(ctx context.Context, pageID string) ([]byte, error) {
+	var html []byte
+	err := db.DB.QueryRowContext(ctx, `SELECT html FROM page_renders WHERE page_id = ?`, pageID).Scan(&html)
+	if err != nil {
+		return nil, err
+	}
+	return html, nil
+}
+
+func (db *DB) SetPageRender(ctx context.Context, pageID string, html []byte) error {
+	_, err := db.DB.ExecContext(ctx, `
+		INSERT INTO page_renders (page_id, html) VALUES (?, ?)
+		ON CONFLICT(page_id) DO UPDATE SET html = excluded.html, updated_at = datetime('now')
+	`, pageID, html)
+	if err != nil {
+		return fmt.Errorf("set page render %s: %w", pageID, err)
+	}
+	return nil
+}
+
+func (db *DB) ClearPageRenders(ctx context.Context) error {
+	_, err := db.DB.ExecContext(ctx, `DELETE FROM page_renders`)
+	if err != nil {
+		return fmt.Errorf("clear page renders: %w", err)
+	}
+	return nil
+}
+
 func (db *DB) GetPage(ctx context.Context, id string) (*Page, error) {
 	return scanPage(db.DB.QueryRowContext(ctx,
 		pageSelect+" WHERE id = ?", id))

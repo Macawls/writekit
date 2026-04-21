@@ -45,6 +45,9 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 	mcpSrv := mcpserver.New(platformDB, pool, cfg, bus)
 	cache := site.NewCache(bus)
 
+	prerender := &site.PreRenderer{Pool: pool, Engine: siteEngine, Config: cfg, Bus: bus}
+	prerender.Start()
+
 	siteHandler := &site.Handler{
 		Pool:       pool,
 		Config:     cfg,
