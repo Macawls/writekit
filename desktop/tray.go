@@ -16,17 +16,17 @@ import (
 )
 
 type trayCallbacks struct {
-	OnShow     func()
-	OnCopyMCP  func()
-	OnReveal   func()
-	OnQuit     func()
-	MCPURL     string
+	OnShow    func()
+	OnCopyMCP func()
+	OnReveal  func()
+	OnQuit    func()
+	MCPURL    string
 }
 
 var (
-	trayOnce      sync.Once
-	trayReady     = make(chan struct{})
-	trayQuitFunc  func()
+	trayOnce     sync.Once
+	trayReady    = make(chan struct{})
+	trayQuitFunc func()
 )
 
 func startTray(cb trayCallbacks) {

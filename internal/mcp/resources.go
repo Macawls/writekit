@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"writekit/internal/auth"
 	"writekit/internal/tenant"
-	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func (s *Server) registerResources(mcpServer *mcpsdk.Server) {
@@ -171,4 +171,3 @@ func (s *Server) collectionsResource(ctx context.Context, req *mcpsdk.ReadResour
 		},
 	}, nil
 }
-

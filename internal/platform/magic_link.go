@@ -19,7 +19,6 @@ type MagicLink struct {
 	CreatedAt time.Time
 }
 
-
 func (db *DB) CreateMagicLink(ctx context.Context, email string) (*MagicLink, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -56,7 +55,6 @@ func (db *DB) ConsumeMagicLink(ctx context.Context, token string) (*MagicLink, e
 	}
 	return &ml, nil
 }
-
 
 func (db *DB) CleanExpiredMagicLinks(ctx context.Context) error {
 	if _, err := db.Pool.Exec(ctx, `DELETE FROM magic_links WHERE expires_at < NOW()`); err != nil {

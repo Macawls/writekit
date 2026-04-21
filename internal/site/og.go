@@ -161,4 +161,3 @@ func (h *Handler) OGImageURL(tenantID string, collectionSlug, pageSlug string) s
 	}
 	return "https://" + tenantID + "." + h.Config.Host + path
 }
-

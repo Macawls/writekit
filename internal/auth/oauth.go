@@ -213,12 +213,12 @@ func getDiscordUserInfo(client *http.Client) (*OAuthUserInfo, error) {
 		return nil, fmt.Errorf("discord user read: %w", err)
 	}
 	var data struct {
-		ID            string `json:"id"`
-		Username      string `json:"username"`
-		GlobalName    string `json:"global_name"`
-		Email         string `json:"email"`
-		Verified      bool   `json:"verified"`
-		Avatar        string `json:"avatar"`
+		ID         string `json:"id"`
+		Username   string `json:"username"`
+		GlobalName string `json:"global_name"`
+		Email      string `json:"email"`
+		Verified   bool   `json:"verified"`
+		Avatar     string `json:"avatar"`
 	}
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, fmt.Errorf("discord user decode: %w", err)

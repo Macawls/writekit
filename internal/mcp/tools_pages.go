@@ -10,12 +10,12 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/oklog/ulid/v2"
 	"writekit/internal/auth"
 	"writekit/internal/events"
 	"writekit/internal/markdown"
 	"writekit/internal/tenant"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/oklog/ulid/v2"
 )
 
 func (s *Server) registerPageTools(mcpServer *mcp.Server) {

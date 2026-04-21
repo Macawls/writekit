@@ -18,10 +18,10 @@ type Config struct {
 	DatabaseURL string
 	DataDir     string
 
-	GoogleClientID     string
-	GoogleClientSecret string
-	GithubClientID     string
-	GithubClientSecret string
+	GoogleClientID      string
+	GoogleClientSecret  string
+	GithubClientID      string
+	GithubClientSecret  string
 	DiscordClientID     string
 	DiscordClientSecret string
 
@@ -77,10 +77,10 @@ func Load() (*Config, error) {
 		DatabaseURL: getenv("DATABASE_URL", ""),
 		DataDir:     getenv("DATA_DIR", dataDirDefault),
 
-		GoogleClientID:     getenv("GOOGLE_CLIENT_ID", ""),
-		GoogleClientSecret: getenv("GOOGLE_CLIENT_SECRET", ""),
-		GithubClientID:     getenv("GITHUB_CLIENT_ID", ""),
-		GithubClientSecret: getenv("GITHUB_CLIENT_SECRET", ""),
+		GoogleClientID:      getenv("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret:  getenv("GOOGLE_CLIENT_SECRET", ""),
+		GithubClientID:      getenv("GITHUB_CLIENT_ID", ""),
+		GithubClientSecret:  getenv("GITHUB_CLIENT_SECRET", ""),
 		DiscordClientID:     getenv("DISCORD_CLIENT_ID", ""),
 		DiscordClientSecret: getenv("DISCORD_CLIENT_SECRET", ""),
 

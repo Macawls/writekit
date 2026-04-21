@@ -8,8 +8,8 @@ import (
 
 type claudeDesktop struct{}
 
-func (claudeDesktop) ID() string        { return "claude-desktop" }
-func (claudeDesktop) Name() string      { return "Claude Desktop" }
+func (claudeDesktop) ID() string         { return "claude-desktop" }
+func (claudeDesktop) Name() string       { return "Claude Desktop" }
 func (claudeDesktop) SupportsHTTP() bool { return false }
 func (claudeDesktop) RequiresNPX() bool  { return true }
 

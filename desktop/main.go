@@ -29,8 +29,8 @@ import (
 )
 
 var (
-	wailsCtx       context.Context
-	settingsStore  *desksettings.Store
+	wailsCtx        context.Context
+	settingsStore   *desksettings.Store
 	resolvedDataDir string
 	resolvedMCPURL  string
 )

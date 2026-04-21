@@ -33,13 +33,13 @@ type dbTableInfo struct {
 }
 
 type dbRowsResponse struct {
-	Columns []string          `json:"columns"`
-	Types   []string          `json:"types"`
-	Rows    [][]any           `json:"rows"`
-	Total   int64             `json:"total"`
-	Limit   int               `json:"limit"`
-	Offset  int               `json:"offset"`
-	Schema  []dbColumnInfo    `json:"schema,omitempty"`
+	Columns []string       `json:"columns"`
+	Types   []string       `json:"types"`
+	Rows    [][]any        `json:"rows"`
+	Total   int64          `json:"total"`
+	Limit   int            `json:"limit"`
+	Offset  int            `json:"offset"`
+	Schema  []dbColumnInfo `json:"schema,omitempty"`
 }
 
 type dbColumnInfo struct {
@@ -50,9 +50,9 @@ type dbColumnInfo struct {
 }
 
 type dbQueryResponse struct {
-	Columns  []string `json:"columns"`
-	Rows     [][]any  `json:"rows"`
-	Truncated bool    `json:"truncated"`
+	Columns   []string `json:"columns"`
+	Rows      [][]any  `json:"rows"`
+	Truncated bool     `json:"truncated"`
 }
 
 func (h *Handler) resolveViewerTenantID(r *http.Request) (string, bool) {
@@ -250,13 +250,13 @@ func (h *Handler) DBQuery(w http.ResponseWriter, r *http.Request) {
 }
 
 type dbSchemaResponse struct {
-	Name        string          `json:"name"`
-	Type        string          `json:"type"`
-	CreateSQL   string          `json:"create_sql"`
-	Columns     []dbColumnInfo  `json:"columns"`
-	Indexes     []dbIndexInfo   `json:"indexes"`
-	ForeignKeys []dbFKInfo      `json:"foreign_keys"`
-	RowCount    int64           `json:"row_count"`
+	Name        string         `json:"name"`
+	Type        string         `json:"type"`
+	CreateSQL   string         `json:"create_sql"`
+	Columns     []dbColumnInfo `json:"columns"`
+	Indexes     []dbIndexInfo  `json:"indexes"`
+	ForeignKeys []dbFKInfo     `json:"foreign_keys"`
+	RowCount    int64          `json:"row_count"`
 }
 
 type dbIndexInfo struct {
@@ -522,4 +522,3 @@ func isReadOnlyQuery(q string) bool {
 	}
 	return false
 }
-

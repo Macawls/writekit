@@ -5,10 +5,10 @@ import (
 	"io"
 	"net/http"
 
-	"writekit/internal/httplog"
-	"writekit/internal/platform"
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/webhook"
+	"writekit/internal/httplog"
+	"writekit/internal/platform"
 )
 
 func (h *Handler) StripeWebhook(w http.ResponseWriter, r *http.Request) {

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/oklog/ulid/v2"
 	"writekit/internal/auth"
 	"writekit/internal/events"
 	"writekit/internal/tenant"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/oklog/ulid/v2"
 )
 
 func (s *Server) registerCollectionTools(mcpServer *mcp.Server) {

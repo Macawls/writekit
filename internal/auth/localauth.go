@@ -30,8 +30,8 @@ var (
 	}}
 )
 
-func LocalUser() *platform.User          { return localUser }
-func LocalTenants() []platform.Tenant    { return localTenants }
+func LocalUser() *platform.User       { return localUser }
+func LocalTenants() []platform.Tenant { return localTenants }
 
 func LocalAuth() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

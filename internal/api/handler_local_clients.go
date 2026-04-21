@@ -47,7 +47,7 @@ func (h *Handler) LocalClientConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Info("client connected", "client", id)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":    "connected",
+		"status":        "connected",
 		"needs_restart": true,
 	})
 }

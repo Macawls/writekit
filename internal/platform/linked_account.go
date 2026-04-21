@@ -16,7 +16,6 @@ type LinkedAccount struct {
 	CreatedAt     time.Time
 }
 
-
 func (db *DB) FindUserByProvider(ctx context.Context, provider, providerID string) (*User, error) {
 	row := db.Pool.QueryRow(ctx, `
 		SELECT u.id, u.email, u.name, u.avatar_url, u.created_at, u.updated_at
@@ -32,7 +31,6 @@ func (db *DB) FindUserByProvider(ctx context.Context, provider, providerID strin
 	}
 	return &u, nil
 }
-
 
 func (db *DB) FindUserByVerifiedEmail(ctx context.Context, email string) (*User, error) {
 	row := db.Pool.QueryRow(ctx, `
@@ -51,7 +49,6 @@ func (db *DB) FindUserByVerifiedEmail(ctx context.Context, email string) (*User,
 	return &u, nil
 }
 
-
 func (db *DB) CreateUser(ctx context.Context, email, name, avatarURL string) (*User, error) {
 	row := db.Pool.QueryRow(ctx, `
 		INSERT INTO users (email, name, avatar_url)
@@ -67,7 +64,6 @@ func (db *DB) CreateUser(ctx context.Context, email, name, avatarURL string) (*U
 	return &u, nil
 }
 
-
 func (db *DB) LinkAccount(ctx context.Context, userID, provider, providerID, email string, emailVerified bool) (*LinkedAccount, error) {
 	row := db.Pool.QueryRow(ctx, `
 		INSERT INTO linked_accounts (user_id, provider, provider_id, email, email_verified)
@@ -82,7 +78,6 @@ func (db *DB) LinkAccount(ctx context.Context, userID, provider, providerID, ema
 	}
 	return &la, nil
 }
-
 
 func (db *DB) ListLinkedAccounts(ctx context.Context, userID string) ([]LinkedAccount, error) {
 	rows, err := db.Pool.Query(ctx, `
@@ -105,7 +100,6 @@ func (db *DB) ListLinkedAccounts(ctx context.Context, userID string) ([]LinkedAc
 	}
 	return accounts, nil
 }
-
 
 func (db *DB) UnlinkAccount(ctx context.Context, userID, accountID string) error {
 	tx, err := db.Pool.Begin(ctx)
@@ -133,7 +127,6 @@ func (db *DB) UnlinkAccount(ctx context.Context, userID, accountID string) error
 
 	return tx.Commit(ctx)
 }
-
 
 func (db *DB) HasLinkedProvider(ctx context.Context, userID, provider string) (bool, error) {
 	var exists bool
