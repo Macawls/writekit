@@ -23,7 +23,7 @@ func (h *Handler) isTeamMember(r *http.Request, tenantID string) bool {
 		return false
 	}
 	if h.Config.Local {
-		return user.ID == auth.LocalUserID && tenantID == auth.LocalTenantID
+		return user.ID == auth.LocalUserID && tenantID == auth.ActiveTenantID()
 	}
 	member, err := h.PlatformDB.GetTeamMember(r.Context(), tenantID, user.ID)
 	if err != nil {
@@ -118,11 +118,12 @@ func (h *Handler) TenantSitemap(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) getTenantDB(r *http.Request) (*tenant.DB, string, error) {
 	if h.Config.Local {
-		db, err := h.Pool.Get(auth.LocalTenantID)
+		active := auth.ActiveTenantID()
+		db, err := h.Pool.Get(active)
 		if err != nil {
 			return nil, "", fmt.Errorf("open local tenant db: %w", err)
 		}
-		return db, auth.LocalTenantID, nil
+		return db, active, nil
 	}
 
 	host := r.Host

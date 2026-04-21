@@ -75,6 +75,8 @@ func (h *Handler) LocalPutSettings(w http.ResponseWriter, r *http.Request) {
 		StartMinimized:     body.StartMinimized,
 		DataDir:            newDataDir,
 		OnboardingComplete: current.OnboardingComplete || body.OnboardingComplete,
+		Workspaces:         current.Workspaces,
+		ActiveWorkspaceID:  current.ActiveWorkspaceID,
 	}
 
 	if next.Autostart != current.Autostart || next.Autostart != autostart.IsEnabled() {

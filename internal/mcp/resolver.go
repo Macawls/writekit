@@ -67,14 +67,15 @@ type LocalResolver struct {
 }
 
 func (r *LocalResolver) Resolve(ctx context.Context, userID, tenantID string) (*tenant.DB, string, error) {
-	if tenantID != "" && tenantID != auth.LocalTenantID {
+	active := auth.ActiveTenantID()
+	if tenantID != "" && tenantID != active {
 		return nil, "", errTenantNotFound
 	}
-	db, err := r.Pool.Get(auth.LocalTenantID)
+	db, err := r.Pool.Get(active)
 	if err != nil {
 		return nil, "", err
 	}
-	return db, auth.LocalTenantID, nil
+	return db, active, nil
 }
 
 func (r *LocalResolver) Role(ctx context.Context, userID, tenantID string) (string, error) {

@@ -20,8 +20,10 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/oklog/ulid/v2"
 	writekit "writekit"
 	"writekit/internal/app"
+	"writekit/internal/auth"
 	"writekit/internal/config"
 	"writekit/internal/desksettings"
 	"writekit/internal/platform"
@@ -82,6 +84,11 @@ func main() {
 
 	resolvedDataDir = cfg.DataDir
 	resolvedMCPURL = fmt.Sprintf("http://127.0.0.1:%d/mcp", port)
+
+	if err := initWorkspaces(cfg.DataDir, settingsStore); err != nil {
+		slog.Error("init workspaces", "err", err)
+		os.Exit(1)
+	}
 
 	if err := writePortFile(port); err != nil {
 		slog.Warn("write port file", "err", err)
@@ -263,6 +270,59 @@ func readPortFile() (int, error) {
 		return 0, err
 	}
 	return p, nil
+}
+
+func initWorkspaces(dataDir string, store *desksettings.Store) error {
+	var loaded desksettings.Settings
+	if store != nil {
+		if s, err := store.Load(); err == nil {
+			loaded = s
+		}
+	}
+
+	workspaces := loaded.Workspaces
+	active := loaded.ActiveWorkspaceID
+
+	if len(workspaces) == 0 {
+		if _, err := os.Stat(filepath.Join(dataDir, "local.db")); err == nil {
+			workspaces = []desksettings.Workspace{{ID: "local", Name: "My Site"}}
+			active = "local"
+		} else {
+			id := ulid.Make().String()
+			workspaces = []desksettings.Workspace{{ID: id, Name: "My Site"}}
+			active = id
+		}
+	}
+
+	if active == "" {
+		active = workspaces[0].ID
+	} else {
+		found := false
+		for _, w := range workspaces {
+			if w.ID == active {
+				found = true
+				break
+			}
+		}
+		if !found {
+			active = workspaces[0].ID
+		}
+	}
+
+	if store != nil && (loaded.ActiveWorkspaceID != active || len(loaded.Workspaces) != len(workspaces)) {
+		loaded.Workspaces = workspaces
+		loaded.ActiveWorkspaceID = active
+		if err := store.Save(loaded); err != nil {
+			return fmt.Errorf("save workspaces: %w", err)
+		}
+	}
+
+	all := make([]auth.LocalWorkspace, len(workspaces))
+	for i, w := range workspaces {
+		all[i] = auth.LocalWorkspace{ID: w.ID, Name: w.Name}
+	}
+	auth.SetLocalWorkspaces(active, all)
+	return nil
 }
 
 func dataDirLooksUsed(dir string) bool {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useStore } from '@nanostores/react'
 import type { GraphNode, Visibility } from '../graph/types'
 import { GraphRenderer } from '../graph/renderer'
@@ -13,8 +13,11 @@ import {
   type RelatedEntry,
 } from '../stores/graph'
 import { $site } from '../stores/auth'
-import { $embeddingPrefs } from '../embedding/settings'
-import { $embeddingStatus } from '../embedding/controller'
+import { $embeddingPrefs, setEmbeddingPrefs } from '../embedding/settings'
+import { $embeddingStatus, embeddingController } from '../embedding/controller'
+import { MODELS, findModel } from '../embedding/models'
+import { fetchEmbeddingSource } from '../api/graph'
+import { Select } from '../components/Select'
 
 const ALL_VISIBILITIES: Visibility[] = ['public', 'unlisted', 'private']
 const ZOOM_IN = 1.3
@@ -168,12 +171,9 @@ export default function Graph() {
             Embedding error: {embedStatus.message || 'see console for details'}
           </div>
         )}
-        {!prefs.enabled && (
-          <div className="graph-notice">
-            Enable semantic graph in Settings to see connections.
-          </div>
-        )}
       </div>
+
+      <SemanticGraphControls />
 
       <div className="graph-toolbar">
         <button
@@ -445,5 +445,108 @@ function VisibilityDot({ node }: { node: GraphNode }) {
       title={label}
       aria-label={label}
     />
+  )
+}
+
+function SemanticGraphControls() {
+  const prefs = useStore($embeddingPrefs)
+  const status = useStore($embeddingStatus)
+  const site = useStore($site)
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const current = findModel(prefs.modelId)
+
+  const toggleEnabled = async () => {
+    setError(null)
+    if (prefs.enabled) {
+      setEmbeddingPrefs({ ...prefs, enabled: false })
+      await embeddingController.stop()
+      return
+    }
+    if (!site?.ID) return
+    setEmbeddingPrefs({ ...prefs, enabled: true })
+    try {
+      await embeddingController.start(site.ID, prefs.modelId)
+      const sources = await fetchEmbeddingSource()
+      embeddingController.syncPages(sources)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'failed to enable')
+    }
+  }
+
+  const switchModel = async (modelId: string) => {
+    if (!site?.ID) return
+    setError(null)
+    setEmbeddingPrefs({ ...prefs, modelId })
+    if (!prefs.enabled) return
+    try {
+      await embeddingController.start(site.ID, modelId)
+      const sources = await fetchEmbeddingSource()
+      embeddingController.syncPages(sources)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'failed to switch model')
+    }
+  }
+
+  const clearCache = async () => {
+    await embeddingController.clear()
+  }
+
+  return (
+    <div className="graph-settings">
+      <button
+        className={`graph-settings-trigger${open ? ' is-open' : ''}`}
+        onClick={() => setOpen(v => !v)}
+        aria-label="Semantic graph settings"
+        aria-expanded={open}
+        title="Semantic graph settings"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+        </svg>
+      </button>
+      {open && (
+        <div className="graph-settings-popover" role="dialog" aria-label="Semantic graph settings">
+          <div className="graph-settings-header">
+            <div className="graph-settings-title">Semantic graph</div>
+            <button className="graph-settings-close" onClick={() => setOpen(false)} aria-label="Close">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
+          <p className="graph-settings-desc">
+            Embeddings are generated locally in your browser to power semantic connections. Content never leaves your machine.
+          </p>
+          <label className="graph-settings-label">Model</label>
+          <Select
+            value={prefs.modelId}
+            onChange={switchModel}
+            ariaLabel="Embedding model"
+            options={MODELS.map(m => ({
+              value: m.id,
+              label: m.label,
+              hint: `${m.dims}d · ~${m.approxSizeMB}MB`,
+            }))}
+            className="graph-settings-select"
+          />
+          {current && <div className="graph-settings-hint">{current.description}</div>}
+          {error && <div className="graph-settings-error">{error}</div>}
+          <div className="graph-settings-actions">
+            <button type="button" onClick={toggleEnabled}>
+              {prefs.enabled ? 'Disable' : 'Enable'}
+            </button>
+            <button type="button" onClick={clearCache} disabled={!prefs.enabled}>
+              Clear cache
+            </button>
+          </div>
+          {prefs.enabled && status.state === 'ready' && (
+            <div className="graph-settings-status">
+              {status.embedded} of {status.total_pages} pages embedded
+              {status.pending > 0 && ` · ${status.pending} in queue`}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

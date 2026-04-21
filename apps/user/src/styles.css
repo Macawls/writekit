@@ -392,6 +392,72 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
   color: #7f1d1d; background: #fee2e2; border-color: #fca5a5;
 }
 
+.graph-settings {
+  position: absolute; top: 1rem; right: 1rem; z-index: 15;
+  display: flex; justify-content: flex-end;
+  /* stats pill lives in .graph-stats at top: 1rem right: 1rem — offset below it */
+  transform: translateY(calc(1.7rem + .4rem));
+}
+.graph-settings-trigger {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.92); backdrop-filter: blur(6px);
+  border: 1px solid var(--border); border-radius: 8px;
+  cursor: pointer; color: var(--muted);
+  box-shadow: 0 4px 12px rgba(0,0,0,.06);
+  transition: color 120ms ease, background 120ms ease;
+}
+.graph-settings-trigger:hover,
+.graph-settings-trigger.is-open { color: var(--fg); background: var(--white); }
+.graph-settings-popover {
+  position: absolute; top: calc(28px + .4rem); right: 0;
+  width: 280px; max-width: calc(100vw - 2rem);
+  background: rgba(255,255,255,.96); backdrop-filter: blur(10px);
+  border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(0,0,0,.1);
+  padding: .85rem;
+  animation: graph-settings-in 180ms cubic-bezier(.2,.9,.3,1);
+}
+@keyframes graph-settings-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.graph-settings-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: .35rem;
+}
+.graph-settings-title { font-size: .85rem; font-weight: 600; }
+.graph-settings-close {
+  background: none; border: none; cursor: pointer; color: var(--muted);
+  width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+}
+.graph-settings-close:hover { color: var(--fg); background: var(--bg); }
+.graph-settings-desc {
+  font-size: .72rem; color: var(--muted); line-height: 1.45; margin: 0 0 .65rem 0;
+}
+.graph-settings-label {
+  display: block; font-size: .72rem; font-weight: 500; margin-bottom: .3rem; color: var(--muted);
+}
+.graph-settings-select { width: 100%; }
+.graph-settings-hint {
+  font-size: .7rem; color: var(--muted); margin-top: .35rem; line-height: 1.4;
+}
+.graph-settings-error {
+  font-size: .72rem; color: #b91c1c; margin-top: .4rem;
+}
+.graph-settings-actions {
+  display: flex; gap: .4rem; margin-top: .7rem;
+}
+.graph-settings-actions button {
+  flex: 1; font-size: .75rem; padding: .35rem .5rem;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--white);
+  cursor: pointer; color: var(--fg);
+}
+.graph-settings-actions button:hover:not(:disabled) { background: var(--bg); }
+.graph-settings-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.graph-settings-status {
+  margin-top: .55rem; font-size: .7rem; color: var(--muted);
+}
+
 .graph-toolbar {
   position: absolute; bottom: 1rem; right: 1rem; z-index: 10;
   display: flex; flex-direction: column; gap: .25rem;

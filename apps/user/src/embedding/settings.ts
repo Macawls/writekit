@@ -11,14 +11,14 @@ const KEY = 'writekit:embedding:prefs'
 function load(): EmbeddingPrefs {
   try {
     const raw = localStorage.getItem(KEY)
-    if (!raw) return { enabled: false, modelId: DEFAULT_MODEL_ID }
+    if (!raw) return { enabled: true, modelId: DEFAULT_MODEL_ID }
     const parsed = JSON.parse(raw)
     return {
-      enabled: !!parsed.enabled,
+      enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : true,
       modelId: typeof parsed.modelId === 'string' ? parsed.modelId : DEFAULT_MODEL_ID,
     }
   } catch {
-    return { enabled: false, modelId: DEFAULT_MODEL_ID }
+    return { enabled: true, modelId: DEFAULT_MODEL_ID }
   }
 }
 

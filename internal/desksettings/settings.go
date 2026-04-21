@@ -9,11 +9,18 @@ import (
 )
 
 type Settings struct {
-	Autostart          bool   `json:"autostart"`
-	CloseToTray        bool   `json:"close_to_tray"`
-	StartMinimized     bool   `json:"start_minimized"`
-	DataDir            string `json:"data_dir"`
-	OnboardingComplete bool   `json:"onboarding_complete"`
+	Autostart          bool        `json:"autostart"`
+	CloseToTray        bool        `json:"close_to_tray"`
+	StartMinimized     bool        `json:"start_minimized"`
+	DataDir            string      `json:"data_dir"`
+	OnboardingComplete bool        `json:"onboarding_complete"`
+	Workspaces         []Workspace `json:"workspaces,omitempty"`
+	ActiveWorkspaceID  string      `json:"active_workspace_id,omitempty"`
+}
+
+type Workspace struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 func Default() Settings {
