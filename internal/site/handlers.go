@@ -15,7 +15,7 @@ import (
 	"writekit/internal/tenant"
 )
 
-const indexPageSize = 20
+const indexPageSize = 8
 
 func (h *Handler) isTeamMember(r *http.Request, tenantID string) bool {
 	user := auth.UserFromContext(r.Context())
@@ -33,7 +33,27 @@ func (h *Handler) isTeamMember(r *http.Request, tenantID string) bool {
 	return member != nil
 }
 
-// canView checks if the current request can view content with the given visibility.
+func visibilityRank(v string) int {
+	switch v {
+	case "private":
+		return 2
+	case "unlisted":
+		return 1
+	default:
+		return 0
+	}
+}
+
+func effectiveVisibility(collection, page string) string {
+	if visibilityRank(collection) >= visibilityRank(page) {
+		if collection == "" {
+			return "public"
+		}
+		return collection
+	}
+	return page
+}
+
 func (h *Handler) canView(r *http.Request, tenantID, visibility string) bool {
 	switch visibility {
 	case "public", "unlisted":
@@ -184,7 +204,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 			if isMember {
 				visibleCollections = append(visibleCollections, c)
 			}
-		// unlisted: hidden from index
+			// unlisted: hidden from index
 		}
 	}
 
@@ -198,7 +218,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 			if isMember {
 				visiblePages = append(visiblePages, p)
 			}
-		// unlisted: hidden from index
+			// unlisted: hidden from index
 		}
 	}
 
@@ -266,11 +286,11 @@ func (h *Handler) PageOrCollection(w http.ResponseWriter, r *http.Request) {
 			httplog.FromContext(r.Context()).Error("list collection pages", "tenant", tenantID, "collection", collection.ID, "err", err)
 		}
 
-		// Filter pages by visibility within the collection
 		var visiblePages []tenant.Page
 		for _, p := range pages {
 			switch p.Visibility {
 			case "public", "unlisted":
+				p.Visibility = effectiveVisibility(collection.Visibility, p.Visibility)
 				visiblePages = append(visiblePages, p)
 			case "private":
 				if isMember {
