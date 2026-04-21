@@ -10,10 +10,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/stripe/stripe-go/v82"
 	"writekit/internal/admin"
 	"writekit/internal/api"
 	"writekit/internal/auth"
-	"writekit/internal/site"
 	"writekit/internal/config"
 	"writekit/internal/email"
 	"writekit/internal/events"
@@ -22,17 +22,18 @@ import (
 	"writekit/internal/og"
 	"writekit/internal/platform"
 	"writekit/internal/render"
+	"writekit/internal/site"
 	"writekit/internal/tenant"
 	"writekit/internal/web"
-	"github.com/stripe/stripe-go/v82"
 )
 
 type App struct {
-	Config     *config.Config
-	PlatformDB *platform.DB
-	Pool       *tenant.Pool
-	Bus        *events.Bus
-	Router     http.Handler
+	Config        *config.Config
+	PlatformDB    *platform.DB
+	Pool          *tenant.Pool
+	Bus           *events.Bus
+	Router        http.Handler
+	PreviewRouter http.Handler
 }
 
 func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templatesFS, staticFS, appFS, adminFS fs.FS) *App {
@@ -60,9 +61,12 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Bus:    bus,
 	}
 
-	var router http.Handler
+	var router, previewRouter http.Handler
 	if cfg.Local {
 		router = buildLocalRouter(cfg, siteHandler, apiHandler, mcpSrv, staticFS, appFS)
+		if cfg.Dev {
+			previewRouter = buildPreviewRouter(cfg, siteHandler, staticFS)
+		}
 	} else {
 		if cfg.StripeSecretKey != "" {
 			stripe.Key = cfg.StripeSecretKey
@@ -118,23 +122,36 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 	}
 
 	return &App{
-		Config:     cfg,
-		PlatformDB: platformDB,
-		Pool:       pool,
-		Bus:        bus,
-		Router:     router,
+		Config:        cfg,
+		PlatformDB:    platformDB,
+		Pool:          pool,
+		Bus:           bus,
+		Router:        router,
+		PreviewRouter: previewRouter,
 	}
 }
 
-func buildLocalRouter(_ *config.Config, siteHandler *site.Handler, apiHandler *api.Handler, mcpSrv *mcpserver.Server, staticFS, appFS fs.FS) http.Handler {
+func buildPreviewRouter(cfg *config.Config, siteHandler *site.Handler, staticFS fs.FS) http.Handler {
+	root := chi.NewRouter()
+	root.Use(chimw.RealIP)
+	root.Use(httplog.RequestIDMiddleware)
+	root.Use(httplog.Recoverer)
+	root.Use(httplog.Access)
+	root.Handle("/static/*", http.StripPrefix("/static/", staticFileServer(cfg, staticFS)))
+	root.Group(func(r chi.Router) {
+		siteHandler.Routes(r)
+	})
+	return root
+}
+
+func buildLocalRouter(cfg *config.Config, siteHandler *site.Handler, apiHandler *api.Handler, mcpSrv *mcpserver.Server, staticFS, appFS fs.FS) http.Handler {
 	root := chi.NewRouter()
 	root.Use(chimw.RealIP)
 	root.Use(httplog.RequestIDMiddleware)
 	root.Use(httplog.Recoverer)
 	root.Use(httplog.Access)
 
-	fileServer := http.FileServer(http.FS(staticFS))
-	root.Handle("/static/*", http.StripPrefix("/static/", fileServer))
+	root.Handle("/static/*", http.StripPrefix("/static/", staticFileServer(cfg, staticFS)))
 
 	root.Group(func(r chi.Router) {
 		apiHandler.LocalRoutes(r)
@@ -173,8 +190,7 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.
 	root.Use(httplog.Recoverer)
 	root.Use(httplog.Access)
 
-	fileServer := http.FileServer(http.FS(staticFS))
-	root.Handle("/static/*", http.StripPrefix("/static/", fileServer))
+	root.Handle("/static/*", http.StripPrefix("/static/", staticFileServer(cfg, staticFS)))
 
 	webR := webRouter(cfg, webHandler, mcpSrv, platformDB)
 	siteR := siteRouter(siteHandler)
@@ -278,6 +294,13 @@ func adminSpaRouter(adminHandler *admin.Handler, adminFS fs.FS) http.Handler {
 	return r
 }
 
+func staticFileServer(cfg *config.Config, staticFS fs.FS) http.Handler {
+	if cfg.Dev {
+		return http.FileServer(http.Dir("static"))
+	}
+	return http.FileServer(http.FS(staticFS))
+}
+
 func siteRouter(siteHandler *site.Handler) http.Handler {
 	r := chi.NewRouter()
 	siteHandler.Routes(r)
@@ -301,6 +324,15 @@ func (a *App) Run() error {
 		"stripe_configured", a.Config.StripeSecretKey != "",
 		"email_configured", a.Config.SESFrom != "",
 	)
+	if a.PreviewRouter != nil {
+		previewAddr := fmt.Sprintf("127.0.0.1:%d", a.Config.Port+1)
+		go func() {
+			slog.Info("preview site listener starting", "addr", previewAddr)
+			if err := http.ListenAndServe(previewAddr, a.PreviewRouter); err != nil {
+				slog.Error("preview http listen", "addr", previewAddr, "err", err)
+			}
+		}()
+	}
 	if err := http.ListenAndServe(addr, a.Router); err != nil {
 		slog.Error("http listen", "addr", addr, "err", err)
 		return err
