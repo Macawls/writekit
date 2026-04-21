@@ -243,11 +243,24 @@ func (h *Handler) handleOAuthLink(w http.ResponseWriter, r *http.Request, provid
 }
 
 func (h *Handler) createSessionAndRedirect(w http.ResponseWriter, r *http.Request, userID, state string) {
+	if !h.setSessionCookies(w, r, userID) {
+		return
+	}
+
+	if parts := strings.SplitN(state, "|", 2); len(parts) == 2 {
+		http.Redirect(w, r, "/oauth/authorize?"+parts[1], http.StatusSeeOther)
+		return
+	}
+
+	http.Redirect(w, r, h.appURL(), http.StatusSeeOther)
+}
+
+func (h *Handler) setSessionCookies(w http.ResponseWriter, r *http.Request, userID string) bool {
 	sess, err := h.DB.CreateSession(r.Context(), userID)
 	if err != nil {
 		httplog.FromContext(r.Context()).Error("create session failed", "user_id", userID, "err", err)
 		http.Error(w, "failed to create session", http.StatusInternalServerError)
-		return
+		return false
 	}
 
 	cookie := &http.Cookie{
@@ -276,13 +289,7 @@ func (h *Handler) createSessionAndRedirect(w http.ResponseWriter, r *http.Reques
 		loggedIn.Domain = "." + h.Config.Host
 	}
 	http.SetCookie(w, loggedIn)
-
-	if parts := strings.SplitN(state, "|", 2); len(parts) == 2 {
-		http.Redirect(w, r, "/oauth/authorize?"+parts[1], http.StatusSeeOther)
-		return
-	}
-
-	http.Redirect(w, r, h.appURL(), http.StatusSeeOther)
+	return true
 }
 
 func (h *Handler) MagicLinkRequest(w http.ResponseWriter, r *http.Request) {

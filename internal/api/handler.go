@@ -606,6 +606,13 @@ func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := chi.URLParam(r, "userId")
+	target, terr := h.DB.GetUser(r.Context(), userID)
+	if terr != nil {
+		log.Warn("remove team member: target user lookup", "tenant", site.ID, "target", userID, "err", terr)
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
+		return
+	}
+
 	if err := h.DB.RemoveTeamMember(r.Context(), site.ID, userID); err != nil {
 		log.Warn("remove team member", "tenant", site.ID, "target", userID, "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -613,6 +620,23 @@ func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info("team member removed", "tenant", site.ID, "target", userID)
+	remover := userFromContext(r.Context())
+	removerName := ""
+	if remover != nil {
+		removerName = remover.Name
+		if removerName == "" {
+			removerName = remover.Email
+		}
+	}
+	h.Bus.Emit(events.Event{
+		Type:     events.TeamMemberRemoved,
+		TenantID: site.ID,
+		Payload: events.TeamMemberRemovedPayload{
+			Email:       target.Email,
+			TenantName:  site.Name,
+			RemoverName: removerName,
+		},
+	})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

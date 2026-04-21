@@ -1,0 +1,13 @@
+{{ define "content" }}
+<p style="margin:0 0 16px;font-size:15px;color:#0f0f0f;line-height:1.5;">
+You&rsquo;ve been removed from <strong>{{ .TenantName }}</strong> on WriteKit.
+</p>
+
+<p style="margin:0 0 20px;font-size:14px;color:#71717a;line-height:1.6;">
+You no longer have access to this site&rsquo;s pages, collections, or settings. Any sites you own and other teams you&rsquo;re part of are unaffected.
+</p>
+
+<p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.5;">
+If you think this was a mistake, reach out to {{ if .RemoverName }}<strong>{{ .RemoverName }}</strong>{{ else }}an owner of the site{{ end }}.
+</p>
+{{ end }}

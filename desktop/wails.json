@@ -11,7 +11,7 @@
   "info": {
     "companyName": "WriteKit",
     "productName": "WriteKit",
-    "productVersion": "0.1.0",
+    "productVersion": "0.2.0",
     "copyright": "Copyright (C) 2026 Josh Macawls",
     "comments": "Local-first MCP-native publishing. AGPL-3.0-or-later."
   },

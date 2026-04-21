@@ -357,6 +357,24 @@ func (s *Server) removeMember(ctx context.Context, req *mcpsdk.CallToolRequest) 
 		return toolError(err.Error()), nil
 	}
 
+	tenantName := tenantID
+	if t, terr := s.PlatformDB.GetTenant(ctx, tenantID); terr == nil {
+		tenantName = t.Name
+	}
+	removerName := user.Name
+	if removerName == "" {
+		removerName = user.Email
+	}
+	s.Bus.Emit(events.Event{
+		Type:     events.TeamMemberRemoved,
+		TenantID: tenantID,
+		Payload: events.TeamMemberRemovedPayload{
+			Email:       target.Email,
+			TenantName:  tenantName,
+			RemoverName: removerName,
+		},
+	})
+
 	return toolResult(fmt.Sprintf("**%s** removed from team.", args.Email)), nil
 }
 

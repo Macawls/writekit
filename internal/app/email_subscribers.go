@@ -43,4 +43,14 @@ func subscribeEmailHandlers(bus *events.Bus, sender *email.Sender, cfg *config.C
 			slog.Error("send invite accepted email", "err", err, "email", p.InviterEmail)
 		}
 	})
+
+	bus.On(events.TeamMemberRemoved, func(e events.Event) {
+		p, ok := e.Payload.(events.TeamMemberRemovedPayload)
+		if !ok {
+			return
+		}
+		if err := sender.SendTeamMemberRemoved(context.Background(), p.Email, p.TenantName, p.RemoverName); err != nil {
+			slog.Error("send team member removed email", "err", err, "email", p.Email)
+		}
+	})
 }

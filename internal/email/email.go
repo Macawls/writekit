@@ -111,6 +111,17 @@ func (s *Sender) SendTeamMemberAdded(ctx context.Context, to, tenantName, tenant
 	return s.Send(ctx, to, fmt.Sprintf("You joined %s on WriteKit", tenantName), html)
 }
 
+func (s *Sender) SendTeamMemberRemoved(ctx context.Context, to, tenantName, removerName string) error {
+	html, err := render("team_member_removed", map[string]any{
+		"TenantName":  tenantName,
+		"RemoverName": removerName,
+	})
+	if err != nil {
+		return err
+	}
+	return s.Send(ctx, to, fmt.Sprintf("You were removed from %s on WriteKit", tenantName), html)
+}
+
 func (s *Sender) SendTeamInviteAccepted(ctx context.Context, to, inviteeDisplay, tenantName, teamURL string) error {
 	html, err := render("team_invite_accepted", map[string]any{
 		"InviteeDisplay": inviteeDisplay,

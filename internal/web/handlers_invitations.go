@@ -101,8 +101,9 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	log.Info("invitation accepted", "user_id", user.ID, "tenant", accepted.TenantID, "role", accepted.Role)
 
 	if sessionUser == nil {
-		h.createSessionAndRedirect(w, r, user.ID, "")
-		return
+		if !h.setSessionCookies(w, r, user.ID) {
+			return
+		}
 	}
 
 	scheme := "https"

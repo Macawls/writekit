@@ -78,6 +78,7 @@ const (
 
 	TeamInvitationCreated  = "team.invitation_created"
 	TeamInvitationAccepted = "team.invitation_accepted"
+	TeamMemberRemoved      = "team.member_removed"
 )
 
 type TenantRenamePayload struct {
@@ -101,4 +102,10 @@ type TeamInvitationAcceptedPayload struct {
 	TenantName     string
 	InviteeDisplay string
 	InviterEmail   string
+}
+
+type TeamMemberRemovedPayload struct {
+	Email       string
+	TenantName  string
+	RemoverName string
 }
