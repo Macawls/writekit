@@ -343,8 +343,8 @@
       <div class="hero-inner">
         <h1>How it works</h1>
         <p class="lede">
-          A short tour of the stack, the data model, and how the hosted and
-          desktop builds relate to each other.
+          The category WriteKit sits in, why it's MCP-first, and a tour of the
+          stack that makes it work.
         </p>
       </div>
     </div>
@@ -352,9 +352,15 @@
     <div class="layout">
       <aside class="sidebar">
         <div class="sb-group">
+          <div class="sb-title">Overview</div>
+          <a href="#niche">Where it fits</a>
+          <a href="#mcp-first">Why MCP-first</a>
+          <a href="#use-cases">Typical use cases</a>
+        </div>
+        <div class="sb-group">
           <div class="sb-title">Stack</div>
           <a href="#go">Go backend</a>
-          <a href="#sqlite">SQLite per site</a>
+          <a href="#sqlite">SQLite per subdomain</a>
         </div>
         <div class="sb-group">
           <div class="sb-title">Runtime</div>
@@ -369,13 +375,103 @@
 
       <article class="doc">
 
+        <h2 id="niche">Where WriteKit fits</h2>
+
+        <p>
+          Publishing tools split into two camps: hosted editors like Notion
+          or Substack, and static-site generators like Hugo or Astro. Both
+          assume a human clicking through a dashboard or typing in a repo.
+          WriteKit is for the third case — <strong>you already spend half
+          your day in an AI chat</strong> — and makes your site an operable
+          object from inside that conversation. Pages, collections,
+          publishing: all structured tool calls, no browser-driving.
+        </p>
+
+        <div class="callout">
+          <strong>Not a new CMS.</strong> Plain Markdown, standard SQLite,
+          ordinary URLs. The unusual part is the <em>interface</em> — a
+          protocol your AI already speaks.
+        </div>
+
+        <h2 id="mcp-first">Why MCP-first</h2>
+
+        <p>
+          <a href="https://modelcontextprotocol.io" rel="noopener">MCP</a>
+          is the open protocol every major AI client already speaks — Claude
+          Code, Cursor, Windsurf, VS Code, OpenCode, Zed. Implement the
+          server once, every client works. Building around it from day one
+          (instead of bolting on an API) gives:
+        </p>
+        <ul>
+          <li>
+            <strong>OAuth 2.0 + PKCE auth.</strong> No API keys; scoped
+            tokens, revocable from settings.
+          </li>
+          <li>
+            <strong>Typed tools.</strong> <code>create_page</code>,
+            <code>publish_page</code>, <code>reorder_pages</code> — JSON-
+            schema'd function calls, no screen-scraping.
+          </li>
+          <li>
+            <strong>Structured context.</strong> Read-only resources like
+            <code>writekit://site/drafts</code> let the AI orient itself
+            with no paste-in.
+          </li>
+          <li>
+            <strong>Live SSE preview.</strong> Side-panel the preview tab;
+            it reloads itself on every edit.
+          </li>
+          <li>
+            <strong>Client portability.</strong> Swap Claude Code for Cursor
+            next week — same server.
+          </li>
+        </ul>
+
+        <h2 id="use-cases">Typical use cases</h2>
+
+        <p>One command to install, a browser sign-in, a subdomain. Then:</p>
+
+        <ul>
+          <li>
+            <strong>Personal blog / essays.</strong> Iterate in chat, watch
+            the live preview, publish when it reads right.
+          </li>
+          <li>
+            <strong>Docs + changelog.</strong> One collection manual-ordered
+            for the docs, one date-ordered for releases.
+          </li>
+          <li>
+            <strong>Tutorial series.</strong> A collection in learning
+            order; the AI keeps cross-links consistent.
+          </li>
+          <li>
+            <strong>Team wiki.</strong> Invite editors by email, keep
+            sensitive pages <code>private</code>, share unlisted links for
+            WIP.
+          </li>
+          <li>
+            <strong>Research notes.</strong> Tag aggressively, let the AI
+            surface related entries when you're writing.
+          </li>
+          <li>
+            <strong>Local-first.</strong> Desktop build — same tools, same
+            protocol, no account.
+          </li>
+        </ul>
+
+        <div class="callout">
+          <strong>Who it's for:</strong> people who already write with an
+          AI assistant and want the publishing step to happen in the same
+          conversation — instead of swivelling to a dashboard, pasting
+          Markdown, clicking "publish."
+        </div>
+
         <h2 id="go">Go backend</h2>
 
         <p>
-          WriteKit is a single executable. The HTTP server, rendering engine,
-          MCP endpoint, dashboards, database migrations, and static assets
-          are all compiled into one file via <code>//go:embed</code>. To run
-          it, you need the executable and a config.
+          WriteKit is a single executable — HTTP server, rendering engine,
+          MCP endpoint, dashboards, migrations, static assets all compiled
+          in via <code>//go:embed</code>. Run it with a config; that's it.
         </p>
 
         <figure class="diagram">
@@ -432,7 +528,7 @@
 
             <rect x="440" y="175" width="220" height="44" rx="8" class="d-box"/>
             <text x="550" y="195" text-anchor="middle" class="d-label">tenant pool (SQLite WAL)</text>
-            <text x="550" y="210" text-anchor="middle" class="d-sub">one DB per site</text>
+            <text x="550" y="210" text-anchor="middle" class="d-sub">one DB per subdomain</text>
 
             <!-- arrows -->
             <path d="M140,65 L210,75" class="d-arrow" marker-end="url(#hw-arr)"/>
@@ -449,29 +545,19 @@
         <h3>Why Go</h3>
 
         <p>
-          Go produces statically-linked executables and has an HTTP server in
-          its standard library. That keeps the runtime dependency surface
-          small — there's no separate language runtime to install alongside
-          the server. Concurrency is handled with goroutines, so each
-          request, background worker, and event subscriber runs independently
-          without a thread pool to tune. The same source cross-compiles for
-          Linux, macOS, and Windows, which is what makes the desktop build
-          (below) feasible.
+          Static binaries, stdlib HTTP, goroutines, and cross-compilation to
+          Linux/macOS/Windows — which is what makes the desktop build
+          below feasible. The dashboards are React SPAs built ahead of time
+          and served as embedded static files.
         </p>
 
-        <p>
-          The dashboards are client-side JavaScript applications. They're
-          built ahead of time into static bundles and embedded in the
-          executable, so at runtime the server hands out static files.
-        </p>
-
-        <h2 id="sqlite">SQLite per site</h2>
+        <h2 id="sqlite">SQLite per subdomain</h2>
 
         <p>
-          Each site gets its own SQLite file on disk. Pages, collections,
-          versions, and settings all live together in that one
-          file. There's no shared content database and no row-level tenant
-          column — tenancy is enforced by which file you open.
+          Each subdomain gets its own SQLite file on disk — pages,
+          collections, versions, settings, all in one file. No shared
+          content database, no row-level tenant column: tenancy is enforced
+          by which file you open.
         </p>
 
         <figure class="diagram">
@@ -523,55 +609,49 @@
             <path d="M480,120 L520,120" class="d-arrow-dim"/>
             <path d="M480,184 L520,160" class="d-arrow-dim"/>
           </svg>
-          <figcaption>One file per site · strong isolation · trivial backup</figcaption>
+          <figcaption>One file per subdomain · strong isolation · trivial backup</figcaption>
         </figure>
-
-        <h3>Why one file per site</h3>
 
         <ul>
           <li>
-            <strong>Isolation.</strong> A query in one site's file cannot
-            reach another site's data, because the other data is literally a
-            different file with a different handle.
+            <strong>Isolation.</strong> Different subdomain = different file
+            with a different handle. One can't read another.
           </li>
           <li>
-            <strong>Portability.</strong> Backup and migration are file
-            copies. <code>cp alice.db</code> moves the whole site.
+            <strong>Portability.</strong> Backup is <code>cp alice.db</code>.
           </li>
           <li>
-            <strong>Transparency.</strong> The file is a standard SQLite
-            database. You can open it in any SQLite browser to see what's
-            stored, or copy it out to keep a local backup.
+            <strong>Transparency.</strong> Standard SQLite — open in any
+            browser to inspect or export.
           </li>
           <li>
-            <strong>Migrations.</strong> Schema changes run at startup from
-            embedded SQL files, per-tenant. There are no shared content
-            tables that need coordinated changes.
+            <strong>Per-subdomain migrations.</strong> No coordinated changes
+            to shared content tables.
           </li>
           <li>
-            <strong>Hosted data model.</strong> The hosted build also uses
-            Postgres, but only for platform concerns — users, tenants,
-            sessions, and Stripe records. Page content stays in the
-            per-site SQLite file.
+            <strong>Content isn't pooled.</strong> Postgres only holds
+            platform records — users, tenants, sessions, Stripe IDs. Your
+            pages never sit in a shared table next to anyone else's, which
+            is the whole point: no cross-tenant query can exist, and nothing
+            we run across "all content" is possible by construction. See
+            <a href="/privacy">privacy</a>.
           </li>
         </ul>
 
         <div class="callout">
-          <strong>Tradeoff:</strong> SQLite allows one writer at a time per
-          file. We use WAL mode so readers don't block each other, and a
-          connection pool so writes are serialized per site. For a publishing
-          workflow this matches how the system is used — most writes come
-          from one person or one AI session at a time.
+          <strong>Tradeoff:</strong> SQLite is one writer per file. WAL +
+          a connection pool keep readers non-blocking and writes serialised
+          per subdomain — which matches publishing (one person or one AI
+          session writing at a time).
         </div>
 
         <h2 id="desktop">Desktop app</h2>
 
         <p>
-          The desktop app uses the same codebase as the hosted server,
-          wrapped with <a href="https://wails.io" rel="noopener">Wails</a>.
-          It imports the same <code>internal/app</code> package with
-          <code>LOCAL=true</code> and serves the user SPA over loopback
-          inside a native window.
+          Same codebase, wrapped with
+          <a href="https://wails.io" rel="noopener">Wails</a>.
+          <code>internal/app</code> runs with <code>LOCAL=true</code>,
+          serving the user SPA over loopback in a native window.
         </p>
 
         <figure class="diagram">
@@ -622,48 +702,34 @@
         <h3>What's different in local mode</h3>
 
         <ul>
-          <li>No Postgres — there is no platform database at all.</li>
-          <li>No OAuth, Stripe, subdomains, or DNS.</li>
+          <li>No Postgres, OAuth, Stripe, subdomains, or DNS.</li>
           <li>
-            Identity is injected via request context from the loopback
-            listener. The server treats requests as coming from the logged-in
-            OS user rather than going through a sign-in flow.
+            Identity is loopback-trust: the server treats the OS user as
+            signed in.
           </li>
-          <li>
-            Content lives in a single SQLite file in the OS user data
-            directory.
-          </li>
+          <li>Content lives in a single SQLite file in the OS data dir.</li>
         </ul>
 
         <div class="callout">
-          The desktop build doesn't require internet access to run. The
-          semantic graph uses
+          Runs offline. The semantic graph uses
           <a href="https://huggingface.co/docs/transformers.js" rel="noopener">transformers.js</a>
-          to compute embeddings entirely in the browser — models download
-          once and cache locally, so your content never leaves the machine.
+          to compute embeddings in-browser — one model download, then your
+          content never leaves the machine.
         </div>
 
         <h2 id="open-source">Open source</h2>
 
         <p>
-          The codebase is at
-          <a href="https://github.com/Macawls/writekit" rel="noopener">github.com/Macawls/writekit</a>.
-          That includes the server, desktop app, frontends, migrations, and
-          the MCP tool definitions.
-        </p>
-
-        <p>
-          The repo is self-hostable. The <code>docker compose</code> file used
-          for local development (Postgres) is the same one that can run a
-          self-hosted instance. No embedding service is required — embeddings
-          run client-side in the user's browser.
+          <a href="https://github.com/Macawls/writekit" rel="noopener">github.com/Macawls/writekit</a>
+          — server, desktop, frontends, migrations, MCP tools. Self-hostable
+          via the same <code>docker compose</code> used for dev. No
+          embedding service required; embeddings run client-side.
         </p>
 
         <h2 id="privacy">Data &amp; privacy</h2>
 
         <p>
-          This section describes what data WriteKit stores, where it stores
-          it, and which data paths exist between your device and our servers.
+          What we store, where, and what we don't.
         </p>
 
         <figure class="diagram">
@@ -720,43 +786,41 @@
           <figcaption>What's stored where · and what isn't</figcaption>
         </figure>
 
-        <h3>Hosted mode — what's stored on our servers</h3>
+        <h3>Hosted — on our servers</h3>
 
         <ul>
           <li><strong>Account:</strong> email, OAuth provider, user ID.</li>
-          <li><strong>Tenant:</strong> the subdomain you chose and any custom domain you configured.</li>
-          <li><strong>Page content:</strong> in your per-tenant SQLite file, on disk in our hosting environment.</li>
-          <li><strong>Billing:</strong> a Stripe customer ID. Card details are held by Stripe, not by us.</li>
+          <li><strong>Subdomain</strong> and any custom domain you configured.</li>
+          <li><strong>Pages:</strong> in your SQLite file on our hosts.</li>
+          <li><strong>Billing:</strong> Stripe customer ID. Card details stay with Stripe.</li>
         </ul>
 
         <h3>What we don't collect</h3>
 
         <ul>
-          <li>No third-party analytics, pixels, or session-replay scripts are loaded anywhere on the site.</li>
-          <li>Drafts are not used to train models.</li>
+          <li>No analytics, pixels, or session-replay.</li>
+          <li>No training on your drafts.</li>
           <li>No advertising or data-broker integrations.</li>
         </ul>
 
-        <h3>Desktop mode</h3>
+        <h3>Desktop</h3>
 
         <p>
-          The desktop app doesn't send data to writekit.dev. It writes a
-          SQLite file to your user data directory. The only outbound traffic
-          is a one-time download of the embedding model from Hugging Face
-          when you opt into the semantic graph — after that it runs offline.
+          No data sent to writekit.dev. SQLite in your user data dir. Only
+          outbound traffic is the one-time embedding-model download from
+          Hugging Face if you enable the semantic graph.
         </p>
 
         <div class="callout">
-          Content is stored as Markdown inside a standard SQLite schema, so
-          exporting is a matter of reading rows from the file — there's no
-          separate export pipeline or proprietary format.
+          Markdown + standard SQLite — export is reading rows from the file.
+          No proprietary format.
         </div>
       </article>
     </div>
 
     <footer>
       <span>&copy; 2026 WriteKit</span>
-      <a href="/">Home</a>
+      <span><a href="/">Home</a> · <a href="/privacy">Privacy</a></span>
     </footer>
 
     <script>

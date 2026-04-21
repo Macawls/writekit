@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy — WriteKit</title>
+    <meta name="description" content="What WriteKit collects, what it doesn't, and why." />
+    <link rel="canonical" href="https://writekit.dev/privacy" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Privacy — WriteKit" />
+    <meta property="og:description" content="What WriteKit collects, what it doesn't, and why." />
+    <meta property="og:url" content="https://writekit.dev/privacy" />
+    <meta property="og:site_name" content="WriteKit" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      :root {
+        --bg: #fafafa;
+        --fg: #0a0a0a;
+        --fg2: #3f3f46;
+        --muted: #71717a;
+        --faint: #a1a1aa;
+        --border: #e4e4e7;
+        --border2: #d4d4d8;
+        --sans: "Plus Jakarta Sans", system-ui, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+      html, body { scrollbar-width: none; }
+      html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
+      body { font-family: var(--sans); background: var(--bg); color: var(--fg); -webkit-font-smoothing: antialiased; line-height: 1.7; }
+      a { color: var(--fg); text-decoration: underline; text-decoration-color: var(--border2); text-underline-offset: 3px; }
+      a:hover { text-decoration-color: var(--fg); }
+
+      .hero-band {
+        position: relative;
+        isolation: isolate;
+        background: radial-gradient(70% 80% at 50% 0%, rgba(0,0,0,.05) 0%, rgba(0,0,0,.02) 35%, rgba(0,0,0,0) 70%), #fafafa;
+        border-bottom: 1px solid var(--border);
+        overflow: hidden;
+        min-height: 280px;
+      }
+      .hero-band::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: url("/static/grain.svg");
+        background-size: 400px 400px;
+        opacity: 0.08;
+        mix-blend-mode: multiply;
+        pointer-events: none;
+      }
+      .hero-band > * { position: relative; z-index: 1; }
+      .hero-inner { max-width: 760px; margin: 0 auto; padding: 3rem 2rem 3.5rem; }
+      .hero-inner h1 { font-size: clamp(2rem, 4vw, 2.6rem); font-weight: 700; letter-spacing: -.035em; line-height: 1.05; margin-bottom: .8rem; }
+      .hero-inner .lede { font-size: 1rem; color: #52525b; max-width: 620px; line-height: 1.55; }
+      .hero-inner .updated { font-family: var(--mono); font-size: .7rem; color: var(--muted); margin-top: 1rem; letter-spacing: .06em; text-transform: uppercase; }
+
+      article.doc { max-width: 760px; margin: 0 auto; padding: 3rem 2rem 5rem; }
+      article.doc > *:first-child { margin-top: 0; }
+
+      h2 { font-size: 1.35rem; font-weight: 700; letter-spacing: -.02em; margin-top: 2.5rem; margin-bottom: .8rem; padding-top: 2rem; border-top: 1px solid var(--border); }
+      h2:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+      p { margin-bottom: 1rem; color: var(--fg2); font-size: .95rem; }
+      ul { margin-bottom: 1rem; padding-left: 1.25rem; color: var(--fg2); font-size: .95rem; }
+      li { margin-bottom: .35rem; }
+      strong { color: var(--fg); font-weight: 600; }
+      code { font-family: var(--mono); font-size: .82rem; background: #f4f4f5; border: 1px solid var(--border); padding: .1rem .38rem; border-radius: 5px; }
+
+      .callout {
+        margin: 1.25rem 0 2rem;
+        padding: 1rem 1.15rem;
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--fg);
+        border-radius: 8px;
+        background: rgba(0,0,0,.015);
+        font-size: .92rem;
+        color: var(--fg2);
+      }
+      .callout strong { color: var(--fg); }
+
+      footer {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 2rem;
+        border-top: 1px solid var(--border);
+        font-size: .76rem;
+        color: var(--faint);
+        display: flex;
+        justify-content: space-between;
+      }
+      footer a { color: var(--muted); text-decoration: none; }
+      footer a:hover { color: var(--fg); }
+
+      @media (max-width: 720px) {
+        .hero-inner { padding: 2.25rem 1.5rem 2.5rem; }
+        article.doc { padding: 2rem 1.5rem 3.5rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hero-band">
+      {{template "partials/nav.html" .}}
+      <div class="hero-inner">
+        <h1>Privacy</h1>
+        <p class="lede">
+          What WriteKit collects, what it doesn't, and why.
+        </p>
+        <p class="updated">Last updated · 21 April 2026</p>
+      </div>
+    </div>
+
+    <article class="doc">
+      <div class="callout">
+        <strong>TL;DR.</strong> We store your account, your subdomain, and
+        your pages. Nothing else. No analytics, no pixels, no ad networks,
+        no training on your drafts. Export or delete at any time.
+      </div>
+
+      <h2>Who we are</h2>
+      <p>
+        WriteKit is operated by the project owner listed on
+        <a href="https://github.com/Macawls/writekit" rel="noopener">GitHub</a>.
+        For privacy questions, email
+        <a href="mailto:hello@macawls.dev">hello@macawls.dev</a>.
+      </p>
+
+      <h2>What we store (hosted)</h2>
+      <ul>
+        <li><strong>Account:</strong> email address, OAuth provider identity, user ID.</li>
+        <li><strong>Subdomain</strong> and any custom domain you configure.</li>
+        <li><strong>Pages and collections:</strong> your content, in a SQLite file we hold for you.</li>
+        <li><strong>Team members:</strong> emails and roles of people you invite.</li>
+        <li><strong>Billing:</strong> a Stripe customer ID. Card details live with Stripe, never with us.</li>
+        <li><strong>Server logs:</strong> request metadata (IP, path, status, timestamp) kept briefly for abuse and debugging.</li>
+      </ul>
+
+      <h2>What we don't collect</h2>
+      <ul>
+        <li>No third-party analytics, pixels, or session-replay scripts.</li>
+        <li>No advertising networks or data brokers.</li>
+        <li>We don't train AI models on your drafts or published pages.</li>
+        <li>We don't sell or share your content with anyone.</li>
+      </ul>
+
+      <h2>Subprocessors</h2>
+      <p>Services we use to operate the hosted product:</p>
+      <ul>
+        <li><strong>Hosting / storage</strong> — our infrastructure provider runs the server and stores the SQLite files.</li>
+        <li><strong>Stripe</strong> — subscription billing and card processing.</li>
+        <li><strong>Amazon SES</strong> — transactional email (magic links, invitations).</li>
+        <li><strong>GitHub, Google, Discord</strong> — OAuth sign-in, only when you choose that provider.</li>
+      </ul>
+
+      <h2>Cookies</h2>
+      <p>
+        We set a session cookie when you sign in and a CSRF cookie to protect
+        form posts. Both are strictly necessary for the site to work — no
+        tracking cookies.
+      </p>
+
+      <h2>Retention</h2>
+      <ul>
+        <li><strong>Content</strong> stays until you delete it or delete your account.</li>
+        <li><strong>Server logs</strong> are kept for a short window (days, not months).</li>
+        <li><strong>Billing records</strong> are retained as required for tax and accounting.</li>
+      </ul>
+
+      <h2>Your rights</h2>
+      <p>You can, at any time:</p>
+      <ul>
+        <li><strong>Access / export</strong> your content. Pages are Markdown; collections are standard rows. Contact us for a full dump if you can't self-serve.</li>
+        <li><strong>Correct</strong> anything via site settings or the MCP tools.</li>
+        <li><strong>Delete</strong> your account from settings — this removes your SQLite file and your account record.</li>
+        <li><strong>Revoke</strong> MCP access from settings; tokens can be pulled at any time.</li>
+      </ul>
+      <p>
+        Under GDPR / UK GDPR you also have the right to object to processing
+        and to lodge a complaint with your local data protection authority.
+      </p>
+
+      <h2>Desktop app</h2>
+      <p>
+        The desktop build doesn't send anything to writekit.dev. Content lives
+        in a SQLite file in your OS user data directory. The only outbound
+        traffic is a one-time embedding-model download from Hugging Face if
+        you enable the semantic graph.
+      </p>
+
+      <h2>Changes</h2>
+      <p>
+        If this policy changes materially we'll announce it on the site and
+        bump the "last updated" date above. Minor clarifications won't get a
+        notice, but the latest version is always at
+        <a href="/privacy">writekit.dev/privacy</a>.
+      </p>
+    </article>
+
+    <footer>
+      <span>&copy; 2026 WriteKit</span>
+      <span><a href="/">Home</a> · <a href="/docs">Docs</a> · <a href="/how-it-works">How it works</a></span>
+    </footer>
+    {{template "partials/lightbox.html" .}}
+  </body>
+</html>

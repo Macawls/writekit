@@ -53,6 +53,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/", h.Home)
 	r.Get("/docs", h.Docs)
 	r.Get("/how-it-works", h.HowItWorks)
+	r.Get("/privacy", h.Privacy)
 	r.Get("/download", h.Download)
 	r.Get("/og.png", h.LandingOG)
 	r.Get("/llms.txt", h.LLMsTxt)

@@ -17,6 +17,10 @@ func (h *Handler) HowItWorks(w http.ResponseWriter, r *http.Request) {
 	h.Engine.Render(w, "how-it-works.html", nil)
 }
 
+func (h *Handler) Privacy(w http.ResponseWriter, r *http.Request) {
+	h.Engine.Render(w, "privacy.html", nil)
+}
+
 func (h *Handler) LLMsTxt(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "static/llms.txt")
 }
@@ -37,6 +41,7 @@ func (h *Handler) Sitemap(w http.ResponseWriter, r *http.Request) {
   <url><loc>https://writekit.dev/download</loc><priority>0.9</priority></url>
   <url><loc>https://writekit.dev/docs</loc><priority>0.8</priority></url>
   <url><loc>https://writekit.dev/how-it-works</loc><priority>0.8</priority></url>
+  <url><loc>https://writekit.dev/privacy</loc><priority>0.5</priority></url>
   <url><loc>https://writekit.dev/llms.txt</loc><priority>0.5</priority></url>
   <url><loc>https://writekit.dev/llms-full.txt</loc><priority>0.5</priority></url>
 </urlset>`)
