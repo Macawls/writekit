@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"writekit/internal/auth"
 	"writekit/internal/events"
+	"writekit/internal/platform"
 )
 
 var subdomainRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$`)
@@ -122,8 +124,6 @@ func (s *Server) updateSettings(ctx context.Context, req *mcpsdk.CallToolRequest
 	return toolResult("Settings updated."), nil
 }
 
-var reservedSubdomains = map[string]bool{"app": true, "www": true, "api": true, "admin": true}
-
 func (s *Server) renameSubdomain(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
@@ -145,10 +145,6 @@ func (s *Server) renameSubdomain(ctx context.Context, req *mcpsdk.CallToolReques
 		return toolError("invalid subdomain: use only lowercase letters, numbers, and hyphens (3-64 chars)"), nil
 	}
 
-	if reservedSubdomains[args.NewSubdomain] {
-		return toolError("this subdomain is reserved"), nil
-	}
-
 	_, oldID, err := s.resolveTenantWithRole(ctx, user.ID, args.TenantID, "owner")
 	if err != nil {
 		return toolError(err.Error()), nil
@@ -158,17 +154,18 @@ func (s *Server) renameSubdomain(ctx context.Context, req *mcpsdk.CallToolReques
 		return toolResult(fmt.Sprintf("Subdomain is already **%s**.", oldID)), nil
 	}
 
-	if _, err := s.PlatformDB.GetTenant(ctx, args.NewSubdomain); err == nil {
+	if ok, err := s.PlatformDB.SlugAvailable(ctx, args.NewSubdomain, oldID); err != nil {
+		return toolError(fmt.Sprintf("failed to check availability: %v", err)), nil
+	} else if !ok {
 		return toolError("this subdomain is already taken"), nil
-	}
-
-	if alias, err := s.PlatformDB.GetTenantIDByAlias(ctx, args.NewSubdomain); err == nil && alias != oldID {
-		return toolError("this subdomain is reserved by another site"), nil
 	}
 
 	if err := s.Pool.Rename(oldID, args.NewSubdomain, func() error {
 		return s.PlatformDB.RenameTenant(ctx, oldID, args.NewSubdomain)
 	}); err != nil {
+		if errors.Is(err, platform.ErrSlugTaken) {
+			return toolError("this subdomain is already taken"), nil
+		}
 		return toolError(fmt.Sprintf("failed to rename: %v", err)), nil
 	}
 

@@ -158,11 +158,6 @@ func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if body.Slug == "app" || body.Slug == "www" || body.Slug == "api" || body.Slug == "admin" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "this subdomain is reserved"})
-		return
-	}
-
 	if body.Name == "" {
 		body.Name = body.Slug
 	}
@@ -173,19 +168,40 @@ func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if ok, err := h.DB.SlugAvailable(r.Context(), body.Slug, ""); err != nil {
+		log.Error("create site: slug availability check failed", "slug", body.Slug, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to check slug availability"})
+		return
+	} else if !ok {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this subdomain is already taken"})
+		return
+	}
+
 	err := h.DB.CreateTenant(r.Context(), &platform.Tenant{
 		ID:     body.Slug,
 		UserID: user.ID,
 		Name:   body.Name,
 	})
 	if err != nil {
+		if errors.Is(err, platform.ErrSlugTaken) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "this subdomain is already taken"})
+			return
+		}
 		log.Error("create tenant failed", "slug", body.Slug, "user_id", user.ID, "err", err)
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "slug is already taken"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create site"})
 		return
 	}
 
 	if _, err := h.Pool.Get(body.Slug); err != nil {
-		log.Error("init tenant db failed", "slug", body.Slug, "err", err)
+		log.Error("init tenant db failed, rolling back", "slug", body.Slug, "err", err)
+		if dErr := h.DB.DeleteTenant(r.Context(), body.Slug); dErr != nil {
+			log.Error("rollback tenant after init failure", "slug", body.Slug, "err", dErr)
+		}
+		if dErr := h.Pool.Delete(body.Slug); dErr != nil {
+			log.Warn("rollback tenant file after init failure", "slug", body.Slug, "err", dErr)
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to initialize site"})
+		return
 	}
 
 	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
@@ -216,11 +232,6 @@ func (h *Handler) UpdateSlug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if body.Slug == "app" || body.Slug == "www" || body.Slug == "api" || body.Slug == "admin" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "this subdomain is reserved"})
-		return
-	}
-
 	existing, err := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if err != nil {
 		log.Warn("update slug: no existing tenant", "user_id", user.ID, "err", err)
@@ -233,16 +244,24 @@ func (h *Handler) UpdateSlug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if alias, err := h.DB.GetTenantIDByAlias(r.Context(), body.Slug); err == nil && alias != existing.ID {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "this subdomain is reserved by another site"})
+	if ok, err := h.DB.SlugAvailable(r.Context(), body.Slug, existing.ID); err != nil {
+		log.Error("update slug: availability check failed", "slug", body.Slug, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to check slug availability"})
+		return
+	} else if !ok {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this subdomain is already taken"})
 		return
 	}
 
 	if err := h.Pool.Rename(existing.ID, body.Slug, func() error {
 		return h.DB.RenameTenant(r.Context(), existing.ID, body.Slug)
 	}); err != nil {
+		if errors.Is(err, platform.ErrSlugTaken) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "this subdomain is already taken"})
+			return
+		}
 		log.Error("rename tenant failed", "old", existing.ID, "new", body.Slug, "err", err)
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "failed to rename site"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to rename site"})
 		return
 	}
 

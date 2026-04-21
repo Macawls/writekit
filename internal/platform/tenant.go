@@ -2,15 +2,48 @@ package platform
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+var ErrSlugTaken = errors.New("slug already taken")
+
+const maxAliasesPerTenant = 10
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
 
 type Tenant struct {
 	ID        string
 	UserID    string
 	Name      string
 	CreatedAt time.Time
+}
+
+var ReservedSlugs = map[string]bool{
+	"app":   true,
+	"www":   true,
+	"api":   true,
+	"admin": true,
+}
+
+func (db *DB) SlugAvailable(ctx context.Context, slug, excludeTenantID string) (bool, error) {
+	if ReservedSlugs[slug] {
+		return false, nil
+	}
+	if _, err := db.GetTenant(ctx, slug); err == nil {
+		return false, nil
+	}
+	aliasTenant, err := db.GetTenantIDByAlias(ctx, slug)
+	if err != nil {
+		return true, nil
+	}
+	return aliasTenant == excludeTenantID, nil
 }
 
 func (db *DB) CreateTenant(ctx context.Context, t *Tenant) error {
@@ -24,6 +57,9 @@ func (db *DB) CreateTenant(ctx context.Context, t *Tenant) error {
 		INSERT INTO tenants (id, user_id, name) VALUES ($1, $2, $3)
 	`, t.ID, t.UserID, t.Name)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrSlugTaken
+		}
 		return fmt.Errorf("create tenant: %w", err)
 	}
 
@@ -95,6 +131,9 @@ func (db *DB) RenameTenant(ctx context.Context, oldID, newID string) error {
 	}
 
 	if _, err := tx.Exec(ctx, `UPDATE tenants SET id = $1 WHERE id = $2`, newID, oldID); err != nil {
+		if isUniqueViolation(err) {
+			return ErrSlugTaken
+		}
 		return fmt.Errorf("rename tenant: %w", err)
 	}
 
@@ -102,6 +141,19 @@ func (db *DB) RenameTenant(ctx context.Context, oldID, newID string) error {
 		INSERT INTO tenant_aliases (slug, tenant_id) VALUES ($1, $2)
 	`, oldID, newID); err != nil {
 		return fmt.Errorf("record alias %s -> %s: %w", oldID, newID, err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM tenant_aliases
+		WHERE tenant_id = $1
+		  AND slug NOT IN (
+		      SELECT slug FROM tenant_aliases
+		      WHERE tenant_id = $1
+		      ORDER BY created_at DESC
+		      LIMIT $2
+		  )
+	`, newID, maxAliasesPerTenant); err != nil {
+		return fmt.Errorf("prune old aliases for %s: %w", newID, err)
 	}
 
 	return tx.Commit(ctx)

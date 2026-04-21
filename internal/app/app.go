@@ -203,7 +203,7 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.
 	adminR := adminSpaRouter(adminHandler, adminFS)
 
 	root.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
-		host := r.Host
+		host := strings.ToLower(r.Host)
 		if i := strings.LastIndex(host, ":"); i > 0 {
 			host = host[:i]
 		}
@@ -220,7 +220,7 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.
 			if _, err := platformDB.GetTenant(r.Context(), slug); err != nil {
 				if newID, aliasErr := platformDB.GetTenantIDByAlias(r.Context(), slug); aliasErr == nil {
 					target := "https://" + newID + "." + cfg.Host + r.URL.RequestURI()
-					http.Redirect(w, r, target, http.StatusMovedPermanently)
+					http.Redirect(w, r, target, http.StatusFound)
 					return
 				}
 			}

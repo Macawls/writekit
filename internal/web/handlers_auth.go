@@ -539,8 +539,6 @@ func (h *Handler) AuthMe(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var reservedSlugs = map[string]bool{"app": true, "www": true, "api": true, "admin": true}
-
 func (h *Handler) autoCreateTenant(ctx context.Context, user *platform.User) {
 	log := httplog.FromContext(ctx)
 	existing, _ := h.DB.GetTenantByUser(ctx, user.ID)
@@ -557,15 +555,14 @@ func (h *Handler) autoCreateTenant(ctx context.Context, user *platform.User) {
 		slug = "site-" + slug
 	}
 
-	if reservedSlugs[slug] {
+	if platform.ReservedSlugs[slug] {
 		slug = slug + "-site"
 	}
 
-	// If slug is taken, append random suffix
 	base := slug
 	for i := 0; i < 5; i++ {
-		if _, err := h.DB.GetTenant(ctx, slug); err != nil {
-			break // not found, available
+		if ok, err := h.DB.SlugAvailable(ctx, slug, ""); err == nil && ok {
+			break
 		}
 		b := make([]byte, 3)
 		rand.Read(b)
