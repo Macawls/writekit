@@ -15,7 +15,7 @@ import (
 	"writekit/internal/tenant"
 )
 
-const indexPageSize = 8
+const indexPageSize = 5
 
 func (h *Handler) isTeamMember(r *http.Request, tenantID string) bool {
 	user := auth.UserFromContext(r.Context())
