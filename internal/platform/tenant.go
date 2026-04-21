@@ -84,13 +84,36 @@ func (db *DB) GetTenantByUser(ctx context.Context, userID string) (*Tenant, erro
 }
 
 func (db *DB) RenameTenant(ctx context.Context, oldID, newID string) error {
-	_, err := db.Pool.Exec(ctx, `
-		UPDATE tenants SET id = $1 WHERE id = $2
-	`, newID, oldID)
+	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
+		return fmt.Errorf("begin rename tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `DELETE FROM tenant_aliases WHERE slug = $1`, newID); err != nil {
+		return fmt.Errorf("clear alias %s: %w", newID, err)
+	}
+
+	if _, err := tx.Exec(ctx, `UPDATE tenants SET id = $1 WHERE id = $2`, newID, oldID); err != nil {
 		return fmt.Errorf("rename tenant: %w", err)
 	}
-	return nil
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO tenant_aliases (slug, tenant_id) VALUES ($1, $2)
+	`, oldID, newID); err != nil {
+		return fmt.Errorf("record alias %s -> %s: %w", oldID, newID, err)
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (db *DB) GetTenantIDByAlias(ctx context.Context, slug string) (string, error) {
+	row := db.Pool.QueryRow(ctx, `SELECT tenant_id FROM tenant_aliases WHERE slug = $1`, slug)
+	var id string
+	if err := row.Scan(&id); err != nil {
+		return "", fmt.Errorf("get tenant alias %s: %w", slug, err)
+	}
+	return id, nil
 }
 
 func (db *DB) DeleteTenant(ctx context.Context, id string) error {

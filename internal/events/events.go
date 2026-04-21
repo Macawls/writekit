@@ -71,7 +71,13 @@ const (
 	PageContentSaved  = "page.content_saved"
 	PageDeleted       = "page.deleted"
 	PagePublished     = "page.published"
-CollectionCreated = "collection.created"
+	CollectionCreated = "collection.created"
 	CollectionUpdated = "collection.updated"
 	CollectionDeleted = "collection.deleted"
+	TenantRenamed     = "tenant.renamed"
 )
+
+type TenantRenamePayload struct {
+	OldID string
+	NewID string
+}

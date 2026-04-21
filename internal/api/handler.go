@@ -229,20 +229,24 @@ func (h *Handler) UpdateSlug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.Pool.Rename(existing.ID, body.Slug); err != nil {
-		log.Error("rename tenant db failed", "old", existing.ID, "new", body.Slug, "err", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to rename site"})
+	if alias, err := h.DB.GetTenantIDByAlias(r.Context(), body.Slug); err == nil && alias != existing.ID {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this subdomain is reserved by another site"})
 		return
 	}
 
-	if err := h.DB.RenameTenant(r.Context(), existing.ID, body.Slug); err != nil {
-		log.Error("rename tenant row failed, rolling back file rename", "old", existing.ID, "new", body.Slug, "err", err)
-		if rbErr := h.Pool.Rename(body.Slug, existing.ID); rbErr != nil {
-			log.Error("rollback tenant rename failed", "new", body.Slug, "old", existing.ID, "err", rbErr)
-		}
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "slug is already taken"})
+	if err := h.Pool.Rename(existing.ID, body.Slug, func() error {
+		return h.DB.RenameTenant(r.Context(), existing.ID, body.Slug)
+	}); err != nil {
+		log.Error("rename tenant failed", "old", existing.ID, "new", body.Slug, "err", err)
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "failed to rename site"})
 		return
 	}
+
+	h.Bus.Emit(events.Event{
+		Type:     events.TenantRenamed,
+		TenantID: body.Slug,
+		Payload:  events.TenantRenamePayload{OldID: existing.ID, NewID: body.Slug},
+	})
 
 	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
 	if err != nil {

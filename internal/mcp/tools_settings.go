@@ -7,8 +7,9 @@ import (
 	"regexp"
 	"strings"
 
-	"writekit/internal/auth"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"writekit/internal/auth"
+	"writekit/internal/events"
 )
 
 var subdomainRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$`)
@@ -161,13 +162,21 @@ func (s *Server) renameSubdomain(ctx context.Context, req *mcpsdk.CallToolReques
 		return toolError("this subdomain is already taken"), nil
 	}
 
-	if err := s.PlatformDB.RenameTenant(ctx, oldID, args.NewSubdomain); err != nil {
+	if alias, err := s.PlatformDB.GetTenantIDByAlias(ctx, args.NewSubdomain); err == nil && alias != oldID {
+		return toolError("this subdomain is reserved by another site"), nil
+	}
+
+	if err := s.Pool.Rename(oldID, args.NewSubdomain, func() error {
+		return s.PlatformDB.RenameTenant(ctx, oldID, args.NewSubdomain)
+	}); err != nil {
 		return toolError(fmt.Sprintf("failed to rename: %v", err)), nil
 	}
 
-	if err := s.Pool.Rename(oldID, args.NewSubdomain); err != nil {
-		return toolError(fmt.Sprintf("failed to rename database files: %v", err)), nil
-	}
+	s.Bus.Emit(events.Event{
+		Type:     events.TenantRenamed,
+		TenantID: args.NewSubdomain,
+		Payload:  events.TenantRenamePayload{OldID: oldID, NewID: args.NewSubdomain},
+	})
 
-	return toolResult(fmt.Sprintf("Subdomain renamed from **%s** to **%s**. Your site is now at https://%s.%s", oldID, args.NewSubdomain, args.NewSubdomain, s.Config.Host)), nil
+	return toolResult(fmt.Sprintf("Subdomain renamed from **%s** to **%s**. The old URL will redirect to the new one. Your site is now at https://%s.%s", oldID, args.NewSubdomain, args.NewSubdomain, s.Config.Host)), nil
 }

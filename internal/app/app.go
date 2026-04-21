@@ -211,6 +211,14 @@ func buildRouter(cfg *config.Config, webHandler *web.Handler, siteHandler *site.
 		case host == cfg.Host || (cfg.Dev && (host == "localhost" || host == "127.0.0.1")):
 			webR.ServeHTTP(w, r)
 		case strings.HasSuffix(host, "."+cfg.Host):
+			slug := strings.TrimSuffix(host, "."+cfg.Host)
+			if _, err := platformDB.GetTenant(r.Context(), slug); err != nil {
+				if newID, aliasErr := platformDB.GetTenantIDByAlias(r.Context(), slug); aliasErr == nil {
+					target := "https://" + newID + "." + cfg.Host + r.URL.RequestURI()
+					http.Redirect(w, r, target, http.StatusMovedPermanently)
+					return
+				}
+			}
 			siteR.ServeHTTP(w, r)
 		default:
 			httplog.FromContext(r.Context()).Warn("unknown host, returning 404", "host", host)

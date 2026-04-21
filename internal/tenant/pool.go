@@ -164,10 +164,13 @@ func (p *Pool) evict(tenantID string) {
 	slog.Info("evicted tenant db", "tenant", tenantID)
 }
 
-func (p *Pool) Rename(oldID, newID string) error {
+func (p *Pool) Rename(oldID, newID string, commit func() error) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	if _, ok := p.dbs[newID]; ok {
+		p.evict(newID)
+	}
 	if entry, ok := p.dbs[oldID]; ok {
 		entry.db.Close()
 		p.lru.Remove(entry.element)
@@ -181,18 +184,24 @@ func (p *Pool) Rename(oldID, newID string) error {
 		slog.Error("rename tenant db file", "old", oldID, "new", newID, "err", err)
 		return fmt.Errorf("rename tenant db %s -> %s: %w", oldID, newID, err)
 	}
-
-	if err := os.Rename(oldPath+"-wal", newPath+"-wal"); err != nil && !os.IsNotExist(err) {
-		slog.Warn("rename wal file", "old", oldID, "err", err)
+	renameSidecar := func(from, to string) {
+		if err := os.Rename(from, to); err != nil && !os.IsNotExist(err) {
+			slog.Warn("rename sidecar file", "from", from, "to", to, "err", err)
+		}
 	}
-	if err := os.Rename(oldPath+"-shm", newPath+"-shm"); err != nil && !os.IsNotExist(err) {
-		slog.Warn("rename shm file", "old", oldID, "err", err)
-	}
+	renameSidecar(oldPath+"-wal", newPath+"-wal")
+	renameSidecar(oldPath+"-shm", newPath+"-shm")
 
-	// Clean up any leftover files at old path
-	os.Remove(oldPath)
-	os.Remove(oldPath + "-wal")
-	os.Remove(oldPath + "-shm")
+	if commit != nil {
+		if err := commit(); err != nil {
+			if rbErr := os.Rename(newPath, oldPath); rbErr != nil {
+				slog.Error("rollback file rename", "new", newID, "old", oldID, "err", rbErr)
+			}
+			renameSidecar(newPath+"-wal", oldPath+"-wal")
+			renameSidecar(newPath+"-shm", oldPath+"-shm")
+			return err
+		}
+	}
 
 	slog.Info("renamed tenant db", "old", oldID, "new", newID)
 	return nil

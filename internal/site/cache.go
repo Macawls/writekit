@@ -7,7 +7,7 @@ import (
 )
 
 type Cache struct {
-	mu         sync.RWMutex
+	mu          sync.RWMutex
 	invalidated map[string]bool
 }
 
@@ -23,6 +23,17 @@ func NewCache(bus *events.Bus) *Cache {
 			c.Invalidate(e.TenantID)
 		})
 	}
+
+	bus.On(events.TenantRenamed, func(e events.Event) {
+		p, ok := e.Payload.(events.TenantRenamePayload)
+		if !ok {
+			return
+		}
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		delete(c.invalidated, p.OldID)
+		c.invalidated[p.NewID] = true
+	})
 
 	return c
 }
