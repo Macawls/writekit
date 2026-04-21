@@ -91,7 +91,10 @@ Add to `.vscode/mcp.json`:
 | Tool | Description | Required params | Optional params |
 |------|-------------|-----------------|-----------------|
 | `list_members` | List all team members | — | tenant_id |
-| `invite_member` | Add user to team by email (owner only) | email, role (editor/viewer) | tenant_id |
+| `invite_member` | Invite someone by email (account or not, owner only) | email, role (editor/viewer) | tenant_id |
+| `list_invitations` | List pending invitations | — | tenant_id |
+| `resend_invitation` | Send a fresh link, extend expiry (owner only) | email | tenant_id |
+| `revoke_invitation` | Cancel a pending invitation (owner only) | email | tenant_id |
 | `remove_member` | Remove team member (owner only) | email | tenant_id |
 | `update_member_role` | Change member role (owner only) | email, role (owner/editor/viewer) | tenant_id |
 

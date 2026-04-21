@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '@nanostores/react'
-import { $members, $membersLoading, loadMembers, inviteMember, removeMember, updateRole } from '../stores/team'
+import { $members, $invitations, $membersLoading, loadMembers, inviteMember, removeMember, updateRole, revokeInvitation, resendInvitation } from '../stores/team'
 import { $user, $isOwner } from '../stores/auth'
 import { confirmDialog } from '../components/ConfirmDialog'
 import { Select } from '../components/Select'
 
 export default function Team() {
   const members = useStore($members)
+  const invitations = useStore($invitations)
   const loading = useStore($membersLoading)
   const user = useStore($user)
   const isOwner = useStore($isOwner)
@@ -26,12 +27,36 @@ export default function Team() {
     setInviting(true)
     try {
       await inviteMember(email, role)
-      setSuccess(`Invited ${email} as ${role}`)
+      setSuccess(`Invitation sent to ${email}`)
       setEmail('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to invite')
     } finally {
       setInviting(false)
+    }
+  }
+
+  const handleRevoke = async (id: string, inviteeEmail: string) => {
+    const ok = await confirmDialog({
+      title: 'Revoke invitation?',
+      body: <>Revoke the pending invitation for <strong>{inviteeEmail}</strong>?</>,
+      confirmLabel: 'Revoke',
+      destructive: true,
+    })
+    if (!ok) return
+    try {
+      await revokeInvitation(id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to revoke invitation')
+    }
+  }
+
+  const handleResend = async (id: string, inviteeEmail: string) => {
+    try {
+      await resendInvitation(id)
+      setSuccess(`New invitation link sent to ${inviteeEmail}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resend invitation')
     }
   }
 
@@ -91,6 +116,49 @@ export default function Team() {
             {error && <p className="error">{error}</p>}
             {success && <p className="success">{success}</p>}
           </form>
+        </div>
+      )}
+
+      {invitations.length > 0 && (
+        <div className="card" style={{ marginTop: '1rem' }}>
+          <h3>Pending invitations</h3>
+          <div className="member-list">
+            {invitations.map(inv => (
+              <div key={inv.id} className="member-row">
+                <div className="member-avatar">
+                  <span>{inv.email[0].toUpperCase()}</span>
+                </div>
+                <div className="member-info">
+                  <span className="member-name">{inv.email}</span>
+                  <span className="member-email">
+                    Invited as {inv.role} · expires {new Date(inv.expires_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="member-actions">
+                  {isOwner ? (
+                    <>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => handleResend(inv.id, inv.email)}
+                        title="Send a fresh link"
+                      >
+                        Resend
+                      </button>
+                      <button
+                        className="remove-btn"
+                        onClick={() => handleRevoke(inv.id, inv.email)}
+                        title="Revoke invitation"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                      </button>
+                    </>
+                  ) : (
+                    <span className="role-badge">pending</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

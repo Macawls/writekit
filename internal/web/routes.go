@@ -5,6 +5,7 @@ import (
 	"writekit/internal/auth"
 	"writekit/internal/config"
 	"writekit/internal/email"
+	"writekit/internal/events"
 	"writekit/internal/og"
 	"writekit/internal/platform"
 	"writekit/internal/render"
@@ -20,6 +21,7 @@ type Handler struct {
 	Discord *auth.OAuthProvider
 	MCPAuth *auth.MCPAuth
 	Email   *email.Sender
+	Bus     *events.Bus
 	Pool    *tenant.Pool
 	OG      *og.Renderer
 }
@@ -33,6 +35,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/auth/logout", h.Logout)
 	r.Post("/auth/magic-link", h.MagicLinkRequest)
 	r.Get("/auth/magic-link/verify", h.MagicLinkVerify)
+
+	r.Get("/invitations/accept", h.AcceptInvitation)
 
 	r.Get("/.well-known/oauth-authorization-server", h.MCPAuth.WellKnown)
 	r.Method("GET", "/.well-known/oauth-protected-resource", h.MCPAuth.ProtectedResourceHandler())

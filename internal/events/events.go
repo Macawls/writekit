@@ -75,9 +75,30 @@ const (
 	CollectionUpdated = "collection.updated"
 	CollectionDeleted = "collection.deleted"
 	TenantRenamed     = "tenant.renamed"
+
+	TeamInvitationCreated  = "team.invitation_created"
+	TeamInvitationAccepted = "team.invitation_accepted"
 )
 
 type TenantRenamePayload struct {
 	OldID string
 	NewID string
+}
+
+type TeamInvitationCreatedPayload struct {
+	InvitationID string
+	Email        string
+	Role         string
+	Token        string
+	TenantName   string
+	InviterName  string
+}
+
+type TeamInvitationAcceptedPayload struct {
+	InvitationID   string
+	Email          string
+	Role           string
+	TenantName     string
+	InviteeDisplay string
+	InviterEmail   string
 }

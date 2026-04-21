@@ -35,6 +35,15 @@ export interface TeamMember {
   created_at: string
 }
 
+export interface TeamInvitation {
+  id: string
+  email: string
+  role: string
+  inviter_name: string
+  expires_at: string
+  created_at: string
+}
+
 export interface LocalInfo {
   port: number
   data_dir: string
@@ -103,9 +112,12 @@ export const api = {
   billingCheckout: () => request<{ url: string }>('POST', '/api/billing/checkout'),
   billingPortal: () => request<{ url: string }>('POST', '/api/billing/portal'),
   listTeamMembers: () => request<TeamMember[]>('GET', '/api/team'),
-  inviteTeamMember: (email: string, role: string) => request<{ status: string }>('POST', '/api/team', { email, role }),
+  inviteTeamMember: (email: string, role: string) => request<TeamInvitation>('POST', '/api/team', { email, role }),
   updateTeamMemberRole: (userId: string, role: string) => request<{ status: string }>('PUT', `/api/team/${userId}`, { role }),
   removeTeamMember: (userId: string) => request<{ status: string }>('DELETE', `/api/team/${userId}`),
+  listInvitations: () => request<TeamInvitation[]>('GET', '/api/team/invitations'),
+  revokeInvitation: (id: string) => request<{ status: string }>('DELETE', `/api/team/invitations/${id}`),
+  resendInvitation: (id: string) => request<TeamInvitation>('POST', `/api/team/invitations/${id}/resend`),
   localInfo: () => request<LocalInfo>('GET', '/api/local/info'),
   listClients: () => request<ClientInfo[]>('GET', '/api/local/clients'),
   connectClient: (id: string) => request<{ status: string; needs_restart: boolean }>('POST', `/api/local/clients/${id}/connect`),

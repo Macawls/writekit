@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -48,6 +49,9 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/api/team", h.InviteTeamMember)
 	r.Put("/api/team/{userId}", h.UpdateTeamMemberRole)
 	r.Delete("/api/team/{userId}", h.RemoveTeamMember)
+	r.Get("/api/team/invitations", h.ListInvitations)
+	r.Delete("/api/team/invitations/{invitationId}", h.RevokeInvitation)
+	r.Post("/api/team/invitations/{invitationId}/resend", h.ResendInvitation)
 	r.Get("/api/graph", h.Graph)
 	r.Get("/api/embedding-source", h.EmbeddingSource)
 	r.Get("/api/pages", h.ListPagesAPI)
@@ -392,6 +396,7 @@ func (h *Handler) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) InviteTeamMember(w http.ResponseWriter, r *http.Request) {
 	log := httplog.FromContext(r.Context())
+	user := userFromContext(r.Context())
 	site, err := h.requireOwner(r)
 	if err != nil {
 		log.Warn("invite: owner check failed", "err", err)
@@ -413,21 +418,130 @@ func (h *Handler) InviteTeamMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invitee, err := h.DB.GetUserByEmail(r.Context(), body.Email)
+	inv, err := h.DB.CreateInvitation(r.Context(), site.ID, body.Email, body.Role, user.ID)
 	if err != nil {
-		log.Info("invite: invitee not found", "email", body.Email, "err", err)
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no WriteKit account found for this email"})
+		switch {
+		case errors.Is(err, platform.ErrAlreadyTeamMember):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "already a team member"})
+		case errors.Is(err, platform.ErrInvitationExists):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "invitation already pending"})
+		case errors.Is(err, platform.ErrInvitationRateLimited):
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": err.Error()})
+		default:
+			log.Error("invite: create invitation", "tenant", site.ID, "email", body.Email, "err", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create invitation"})
+		}
 		return
 	}
 
-	if err := h.DB.AddTeamMember(r.Context(), site.ID, invitee.ID, body.Role); err != nil {
-		log.Error("invite: add team member", "tenant", site.ID, "invitee", invitee.ID, "role", body.Role, "err", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to add member"})
+	h.emitInvitationCreated(r.Context(), site, user, inv)
+	log.Info("invitation created", "tenant", site.ID, "email", inv.Email, "role", inv.Role)
+	writeJSON(w, http.StatusCreated, invitationToResponse(inv))
+}
+
+func (h *Handler) ListInvitations(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
+	user := userFromContext(r.Context())
+	site, err := h.DB.GetTenantByUser(r.Context(), user.ID)
+	if err != nil {
+		log.Warn("list invitations: no tenant", "user_id", user.ID, "err", err)
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no site"})
 		return
 	}
 
-	log.Info("team member added", "tenant", site.ID, "user_id", invitee.ID, "role", body.Role)
-	writeJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
+	invs, err := h.DB.ListPendingInvitations(r.Context(), site.ID)
+	if err != nil {
+		log.Error("list pending invitations", "tenant", site.ID, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list invitations"})
+		return
+	}
+
+	out := make([]invitationResp, len(invs))
+	for i := range invs {
+		out[i] = invitationToResponse(&invs[i])
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handler) RevokeInvitation(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
+	site, err := h.requireOwner(r)
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return
+	}
+	invitationID := chi.URLParam(r, "invitationId")
+	if err := h.DB.RevokeInvitation(r.Context(), site.ID, invitationID); err != nil {
+		if errors.Is(err, platform.ErrInvitationNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "invitation not found"})
+			return
+		}
+		log.Error("revoke invitation", "tenant", site.ID, "id", invitationID, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to revoke"})
+		return
+	}
+	log.Info("invitation revoked", "tenant", site.ID, "id", invitationID)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) ResendInvitation(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
+	user := userFromContext(r.Context())
+	site, err := h.requireOwner(r)
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return
+	}
+	invitationID := chi.URLParam(r, "invitationId")
+	inv, err := h.DB.ResendInvitation(r.Context(), site.ID, invitationID)
+	if err != nil {
+		if errors.Is(err, platform.ErrInvitationNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "invitation not found"})
+			return
+		}
+		log.Error("resend invitation", "tenant", site.ID, "id", invitationID, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to resend"})
+		return
+	}
+
+	h.emitInvitationCreated(r.Context(), site, user, inv)
+	log.Info("invitation resent", "tenant", site.ID, "id", invitationID)
+	writeJSON(w, http.StatusOK, invitationToResponse(inv))
+}
+
+type invitationResp struct {
+	ID          string `json:"id"`
+	Email       string `json:"email"`
+	Role        string `json:"role"`
+	InviterName string `json:"inviter_name"`
+	ExpiresAt   string `json:"expires_at"`
+	CreatedAt   string `json:"created_at"`
+}
+
+func invitationToResponse(inv *platform.TeamInvitation) invitationResp {
+	return invitationResp{
+		ID:          inv.ID,
+		Email:       inv.Email,
+		Role:        inv.Role,
+		InviterName: inv.InviterName,
+		ExpiresAt:   inv.ExpiresAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:   inv.CreatedAt.Format("2006-01-02T15:04:05Z"),
+	}
+}
+
+func (h *Handler) emitInvitationCreated(ctx context.Context, site *platform.Tenant, user *platform.User, inv *platform.TeamInvitation) {
+	h.Bus.Emit(events.Event{
+		Type:     events.TeamInvitationCreated,
+		TenantID: site.ID,
+		Payload: events.TeamInvitationCreatedPayload{
+			InvitationID: inv.ID,
+			Email:        inv.Email,
+			Role:         inv.Role,
+			Token:        inv.Token,
+			TenantName:   site.Name,
+			InviterName:  user.Name,
+		},
+	})
 }
 
 func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {

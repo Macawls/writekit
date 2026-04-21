@@ -1,0 +1,26 @@
+{{ define "content" }}
+<p style="margin:0 0 16px;font-size:15px;color:#0f0f0f;line-height:1.5;">
+You&rsquo;ve joined <strong>{{ .TenantName }}</strong>.
+</p>
+
+<p style="margin:0 0 8px;font-size:14px;color:#71717a;line-height:1.6;">
+Your role is <strong>{{ .Role }}</strong>.
+</p>
+
+<p style="margin:0 0 20px;font-size:14px;color:#71717a;line-height:1.6;">
+{{ if eq .Role "owner" }}You have full control &mdash; content, team, settings, and billing.
+{{ else if eq .Role "editor" }}You can create, edit, publish, and delete pages and collections.
+{{ else }}You can read private pages and collections that aren&rsquo;t public.
+{{ end }}
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+<tr><td style="background-color:#18181b;border-radius:8px;">
+<a href="{{ .TenantURL }}" style="display:inline-block;padding:10px 20px;font-size:13px;font-weight:500;color:#ffffff;text-decoration:none;">Open site</a>
+</td></tr>
+</table>
+
+<p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.5;">
+Connect your AI assistant to WriteKit to start publishing &mdash; see the docs at <a href="https://writekit.dev/docs" style="color:#71717a;">writekit.dev/docs</a>.
+</p>
+{{ end }}

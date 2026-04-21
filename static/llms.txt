@@ -110,8 +110,22 @@ List all team members for a site.
 - Optional: tenant_id
 
 ### invite_member
-Add a user to the site team by email. They must have a WriteKit account. Requires owner role.
+Invite someone to the site team by email. Sends an email with an accept link. If the invitee has no WriteKit account, they create one when they accept. Invitations expire after 14 days. Requires owner role.
 - Required: email (string), role (editor|viewer)
+- Optional: tenant_id
+
+### list_invitations
+List pending invitations (not yet accepted or revoked).
+- Optional: tenant_id
+
+### resend_invitation
+Generate a new link for a pending invitation and extend expiry. Requires owner role.
+- Required: email (string)
+- Optional: tenant_id
+
+### revoke_invitation
+Cancel a pending invitation. The link stops working. Requires owner role.
+- Required: email (string)
 - Optional: tenant_id
 
 ### remove_member

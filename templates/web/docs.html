@@ -768,11 +768,16 @@
         </p>
 
         <h3 id="teams">Teams</h3>
-        <p>Every site has a team. Invite people by email. Three roles:</p>
+        <p>
+          Every site has a team. Invite anyone by email — they don't need a
+          WriteKit account yet. They'll get an email with a link, and create an
+          account on the spot when they accept. Invitations expire after 14
+          days. Three roles:
+        </p>
         <ul>
           <li>
             <strong>Owner</strong> — full control: billing, settings, everyone,
-            everything.
+            everything. Owners invite new members and change existing roles.
           </li>
           <li>
             <strong>Editor</strong> — can write, publish, and delete. Can see
@@ -903,7 +908,19 @@
           </tr>
           <tr>
             <td><code>invite_member</code></td>
-            <td>Invite someone by email (owner only)</td>
+            <td>Invite someone by email — account or not (owner only)</td>
+          </tr>
+          <tr>
+            <td><code>list_invitations</code></td>
+            <td>Show pending invitations</td>
+          </tr>
+          <tr>
+            <td><code>resend_invitation</code></td>
+            <td>Send a fresh link and extend expiry (owner only)</td>
+          </tr>
+          <tr>
+            <td><code>revoke_invitation</code></td>
+            <td>Cancel a pending invitation (owner only)</td>
           </tr>
           <tr>
             <td><code>remove_member</code></td>

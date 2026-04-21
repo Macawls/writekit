@@ -1,0 +1,26 @@
+{{ define "content" }}
+<p style="margin:0 0 16px;font-size:15px;color:#0f0f0f;line-height:1.5;">
+<strong>{{ .InviterName }}</strong> invited you to <strong>{{ .TenantName }}</strong>.
+</p>
+
+<p style="margin:0 0 8px;font-size:14px;color:#71717a;line-height:1.6;">
+You&rsquo;ll join as <strong>{{ .Role }}</strong>.
+</p>
+
+<p style="margin:0 0 20px;font-size:14px;color:#71717a;line-height:1.6;">
+{{ if eq .Role "owner" }}Owners have full control &mdash; content, team, settings, and billing.
+{{ else if eq .Role "editor" }}Editors can create, edit, publish, and delete pages and collections.
+{{ else }}Viewers can read private pages and collections that aren&rsquo;t public.
+{{ end }}
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+<tr><td style="background-color:#18181b;border-radius:8px;">
+<a href="{{ .AcceptLink }}" style="display:inline-block;padding:10px 20px;font-size:13px;font-weight:500;color:#ffffff;text-decoration:none;">Accept invitation</a>
+</td></tr>
+</table>
+
+<p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.5;">
+This invitation expires in 14 days. If you weren&rsquo;t expecting it, ignore this email.
+</p>
+{{ end }}

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accept invitation — WriteKit</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --bg:#fafafa;--white:#fff;--fg:#0f0f0f;--fg2:#3f3f46;
+            --muted:#71717a;--faint:#a1a1aa;--border:#e4e4e7;--border2:#d4d4d8;
+            --accent:#2563eb;--surface:#18181b;--danger:#dc2626;
+            --sans:'Instrument Sans',system-ui,sans-serif;
+            --mono:'JetBrains Mono',ui-monospace,monospace;
+        }
+        body{
+            font-family:var(--sans);background:var(--bg);color:var(--fg);
+            -webkit-font-smoothing:antialiased;line-height:1.6;
+            min-height:100vh;display:flex;flex-direction:column;
+            align-items:center;justify-content:center;padding:2rem;
+        }
+        body::before{
+            content:'';position:fixed;inset:0;z-index:0;
+            background-image:radial-gradient(circle,var(--border2) .5px,transparent .5px);
+            background-size:24px 24px;opacity:.5;
+        }
+        .container{position:relative;z-index:1;width:100%;max-width:380px}
+        .brand{text-align:center;margin-bottom:2.5rem;animation:fadeUp .5s cubic-bezier(.19,1,.22,1) both}
+        .brand-mark{font-family:var(--sans);font-weight:700;font-size:1.1rem;letter-spacing:-.03em;color:var(--fg)}
+        .brand-tagline{margin-top:.35rem;font-size:.8rem;color:var(--faint);letter-spacing:.01em}
+        .card{
+            background:var(--white);border:1px solid var(--border);border-radius:16px;
+            padding:2rem;text-align:center;
+            box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);
+            animation:fadeUp .5s cubic-bezier(.19,1,.22,1) .08s both;
+        }
+        .icon{margin-bottom:1rem;color:var(--muted)}
+        .card h2{font-size:1rem;font-weight:600;color:var(--fg);margin-bottom:.5rem}
+        .card p{font-size:.85rem;color:var(--muted);line-height:1.5}
+        .card p strong{color:var(--fg);font-weight:500}
+        .error-card{border-color:#fecaca}
+        .error-card h2{color:var(--danger)}
+        .actions{margin-top:1.25rem;display:flex;flex-direction:column;gap:.5rem}
+        .btn{
+            display:inline-block;font-family:var(--sans);font-size:.85rem;font-weight:500;
+            padding:.6rem 1rem;border-radius:8px;border:1px solid transparent;cursor:pointer;
+            text-decoration:none;transition:background .15s;
+        }
+        .btn-primary{background:var(--surface);color:var(--white)}
+        .btn-primary:hover{background:var(--fg2)}
+        .btn-secondary{background:transparent;border-color:var(--border);color:var(--fg)}
+        .btn-secondary:hover{background:var(--bg)}
+        .footer-text{
+            text-align:center;margin-top:1.75rem;font-size:.75rem;color:var(--faint);
+            animation:fadeUp .5s cubic-bezier(.19,1,.22,1) .16s both;
+        }
+        .footer-text a{color:var(--muted);text-decoration:none}
+        .footer-text a:hover{color:var(--fg)}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="brand">
+        <div class="brand-mark">writekit</div>
+        <div class="brand-tagline">Your site, managed by conversation.</div>
+    </div>
+
+    {{if .WrongAccount}}
+    <div class="card">
+        <div class="icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+        <h2>Wrong account</h2>
+        <p>This invitation to <strong>{{.TenantName}}</strong> is for <strong>{{.InvitationEmail}}</strong>. Sign out and try again to accept it.</p>
+        <div class="actions">
+            <form method="POST" action="/auth/logout">
+                <button type="submit" class="btn btn-primary" style="width:100%">Sign out &amp; continue</button>
+            </form>
+        </div>
+    </div>
+    {{else if .Error}}
+    <div class="card error-card">
+        <div class="icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+        <h2>Invitation unavailable</h2>
+        <p>{{.Error}}</p>
+    </div>
+    {{end}}
+
+    <div class="footer-text">
+        <a href="/">← Back to WriteKit</a>
+    </div>
+</div>
+
+</body>
+</html>

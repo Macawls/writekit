@@ -85,3 +85,40 @@ func (s *Sender) SendMagicLink(ctx context.Context, to, link string) error {
 	}
 	return s.Send(ctx, to, "Sign in to WriteKit", html)
 }
+
+func (s *Sender) SendTeamInvitation(ctx context.Context, to, inviterName, tenantName, role, acceptLink string) error {
+	html, err := render("team_invitation", map[string]any{
+		"InviterName": inviterName,
+		"TenantName":  tenantName,
+		"Role":        role,
+		"AcceptLink":  acceptLink,
+	})
+	if err != nil {
+		return err
+	}
+	return s.Send(ctx, to, fmt.Sprintf("%s invited you to %s on WriteKit", inviterName, tenantName), html)
+}
+
+func (s *Sender) SendTeamMemberAdded(ctx context.Context, to, tenantName, tenantURL, role string) error {
+	html, err := render("team_member_added", map[string]any{
+		"TenantName": tenantName,
+		"TenantURL":  tenantURL,
+		"Role":       role,
+	})
+	if err != nil {
+		return err
+	}
+	return s.Send(ctx, to, fmt.Sprintf("You joined %s on WriteKit", tenantName), html)
+}
+
+func (s *Sender) SendTeamInviteAccepted(ctx context.Context, to, inviteeDisplay, tenantName, teamURL string) error {
+	html, err := render("team_invite_accepted", map[string]any{
+		"InviteeDisplay": inviteeDisplay,
+		"TenantName":     tenantName,
+		"TeamURL":        teamURL,
+	})
+	if err != nil {
+		return err
+	}
+	return s.Send(ctx, to, fmt.Sprintf("%s joined %s", inviteeDisplay, tenantName), html)
+}

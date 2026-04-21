@@ -94,6 +94,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 
 		mcpAuth := &auth.MCPAuth{DB: platformDB, BaseURL: cfg.BaseURL}
 		emailSender := email.NewSender(cfg.SESFrom, cfg.SESRegion)
+		subscribeEmailHandlers(bus, emailSender, cfg)
 
 		ogRenderer, err := og.New()
 		if err != nil {
@@ -110,6 +111,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 			Discord: discord,
 			MCPAuth: mcpAuth,
 			Email:   emailSender,
+			Bus:     bus,
 			Pool:    pool,
 			OG:      ogRenderer,
 		}

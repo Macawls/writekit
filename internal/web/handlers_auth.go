@@ -132,12 +132,12 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-if isLinkAction {
+	if isLinkAction {
 		h.handleOAuthLink(w, r, providerName, info)
 		return
 	}
 
-user, isNew, err := h.findOrCreateUser(r, providerName, info)
+	user, isNew, err := h.findOrCreateUser(r, providerName, info)
 	if err != nil {
 		log.Error("find or create user failed", "provider", providerName, "email", info.Email, "err", err)
 		http.Error(w, "failed to save user", http.StatusInternalServerError)
@@ -159,7 +159,6 @@ user, isNew, err := h.findOrCreateUser(r, providerName, info)
 
 	h.createSessionAndRedirect(w, r, user.ID, state)
 }
-
 
 func (h *Handler) findOrCreateUser(r *http.Request, providerName string, info *auth.OAuthUserInfo) (*platform.User, bool, error) {
 	ctx := r.Context()
@@ -203,7 +202,6 @@ func (h *Handler) findOrCreateUser(r *http.Request, providerName string, info *a
 
 	return user, true, nil
 }
-
 
 func (h *Handler) handleOAuthLink(w http.ResponseWriter, r *http.Request, providerName string, info *auth.OAuthUserInfo) {
 	log := httplog.FromContext(r.Context())
@@ -287,7 +285,6 @@ func (h *Handler) createSessionAndRedirect(w http.ResponseWriter, r *http.Reques
 	http.Redirect(w, r, h.appURL(), http.StatusSeeOther)
 }
 
-
 func (h *Handler) MagicLinkRequest(w http.ResponseWriter, r *http.Request) {
 	email := strings.TrimSpace(r.FormValue("email"))
 
@@ -331,7 +328,6 @@ func (h *Handler) MagicLinkRequest(w http.ResponseWriter, r *http.Request) {
 		"Email": email,
 	})
 }
-
 
 func (h *Handler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
 	log := httplog.FromContext(r.Context())
