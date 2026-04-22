@@ -61,8 +61,9 @@ export default function Connect() {
     return <><h2>Connect</h2><p className="muted">Loading...</p></>
   }
 
-  const detected = clients.filter(c => c.detected)
-  const undetected = clients.filter(c => !c.detected)
+  const autoDetected = clients.filter(c => c.detected && !c.manual)
+  const manualClients = clients.filter(c => c.manual)
+  const undetected = clients.filter(c => !c.detected && !c.manual)
 
   return (
     <>
@@ -92,11 +93,11 @@ export default function Connect() {
       )}
 
       <h3 style={{ marginTop: '2rem' }}>Detected on this machine</h3>
-      {detected.length === 0 && (
+      {autoDetected.length === 0 && (
         <p className="muted" style={{ marginTop: '.5rem' }}>No MCP-compatible clients found. Install one of the options below to get started.</p>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginTop: '.75rem' }}>
-        {detected.map(c => (
+        {autoDetected.map(c => (
           <ClientRow
             key={c.id}
             client={c}
@@ -107,6 +108,18 @@ export default function Connect() {
           />
         ))}
       </div>
+
+      {manualClients.length > 0 && (
+        <>
+          <h3 style={{ marginTop: '2rem' }}>Manual setup</h3>
+          <p className="muted" style={{ marginTop: '.25rem', fontSize: '.82rem' }}>These clients don't expose a config file — paste the MCP URL using their in-app settings.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginTop: '.75rem' }}>
+            {manualClients.map(c => (
+              <ManualRow key={c.id} client={c} />
+            ))}
+          </div>
+        </>
+      )}
 
       {undetected.length > 0 && (
         <>
@@ -169,6 +182,22 @@ function ClientRow({
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function ManualRow({ client }: { client: ClientInfo }) {
+  return (
+    <div className="card" style={{ padding: '.85rem 1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+        <span style={{ fontWeight: 500 }}>{client.name}</span>
+        <StatusPill color="#a1a1aa">Manual</StatusPill>
+      </div>
+      {client.instructions && client.instructions.length > 0 && (
+        <ol style={{ margin: '.55rem 0 0', paddingLeft: '1.1rem', fontSize: '.82rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+          {client.instructions.map((step, i) => <li key={i}>{step}</li>)}
+        </ol>
+      )}
     </div>
   )
 }

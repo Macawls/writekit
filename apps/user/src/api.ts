@@ -58,6 +58,8 @@ export interface ClientInfo {
   config_path: string
   supports_http: boolean
   requires_npx: boolean
+  manual?: boolean
+  instructions?: string[]
 }
 
 export interface DesktopSettings {

@@ -23,13 +23,21 @@ type Client interface {
 }
 
 type Info struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Detected     bool   `json:"detected"`
-	Connected    bool   `json:"connected"`
-	ConfigPath   string `json:"config_path"`
-	SupportsHTTP bool   `json:"supports_http"`
-	RequiresNPX  bool   `json:"requires_npx"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Detected     bool     `json:"detected"`
+	Connected    bool     `json:"connected"`
+	ConfigPath   string   `json:"config_path"`
+	SupportsHTTP bool     `json:"supports_http"`
+	RequiresNPX  bool     `json:"requires_npx"`
+	Manual       bool     `json:"manual,omitempty"`
+	Instructions []string `json:"instructions,omitempty"`
+}
+
+type ManualClient struct {
+	ID           string
+	Name         string
+	Instructions []string
 }
 
 func All() []Client {
@@ -41,6 +49,24 @@ func All() []Client {
 		&opencode{},
 		&claudeDesktop{},
 		&zed{},
+		&cline{},
+		&rooCode{},
+		&junie{},
+	}
+}
+
+func Manuals() []ManualClient {
+	return []ManualClient{
+		{
+			ID:   "chatgpt",
+			Name: "ChatGPT (Desktop / Web)",
+			Instructions: []string{
+				"Requires ChatGPT Plus or Pro with Developer Mode enabled.",
+				"Open ChatGPT Settings → Apps & Connectors → Advanced → Developer mode (on).",
+				"Create a new connector, paste the MCP URL above, and name it \"writekit\".",
+				"Set Authentication to \"No authentication\" (loopback trust).",
+			},
+		},
 	}
 }
 
@@ -55,7 +81,7 @@ func ByID(id string) Client {
 
 func Snapshot(port int) []Info {
 	all := All()
-	out := make([]Info, 0, len(all))
+	out := make([]Info, 0, len(all)+1)
 	for _, c := range all {
 		out = append(out, Info{
 			ID:           c.ID(),
@@ -65,6 +91,15 @@ func Snapshot(port int) []Info {
 			ConfigPath:   c.ConfigPath(),
 			SupportsHTTP: c.SupportsHTTP(),
 			RequiresNPX:  c.RequiresNPX(),
+		})
+	}
+	for _, m := range Manuals() {
+		out = append(out, Info{
+			ID:           m.ID,
+			Name:         m.Name,
+			Detected:     true,
+			Manual:       true,
+			Instructions: m.Instructions,
 		})
 	}
 	return out
