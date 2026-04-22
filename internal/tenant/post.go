@@ -3,8 +3,10 @@ package tenant
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"html"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -37,6 +39,7 @@ type PageFilter struct {
 	Tag          string
 	Search       string
 	CollectionID *string
+	Sort         string
 	Limit        int
 	Offset       int
 }
@@ -218,7 +221,16 @@ func (db *DB) ListPages(ctx context.Context, f PageFilter) ([]Page, error) {
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
-	query += " ORDER BY COALESCE(published_at, created_at) DESC"
+	switch f.Sort {
+	case "title":
+		query += " ORDER BY LOWER(title) ASC"
+	case "published":
+		query += " ORDER BY published_at IS NULL, published_at DESC"
+	case "created":
+		query += " ORDER BY created_at DESC"
+	default:
+		query += " ORDER BY COALESCE(published_at, created_at) DESC"
+	}
 
 	limit := f.Limit
 	if limit <= 0 {
@@ -241,6 +253,39 @@ func (db *DB) ListPages(ctx context.Context, f PageFilter) ([]Page, error) {
 		pages = append(pages, *p)
 	}
 	return pages, nil
+}
+
+func (db *DB) ListAllTags(ctx context.Context) ([]string, error) {
+	rows, err := db.DB.QueryContext(ctx, `SELECT tags FROM pages WHERE tags != '[]' AND tags != ''`)
+	if err != nil {
+		return nil, fmt.Errorf("list tags: %w", err)
+	}
+	defer rows.Close()
+
+	seen := make(map[string]struct{})
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		var tags []string
+		if err := json.Unmarshal([]byte(raw), &tags); err != nil {
+			continue
+		}
+		for _, t := range tags {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				seen[t] = struct{}{}
+			}
+		}
+	}
+
+	out := make([]string, 0, len(seen))
+	for t := range seen {
+		out = append(out, t)
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i]) < strings.ToLower(out[j]) })
+	return out, nil
 }
 
 func (db *DB) ListCollectionPages(ctx context.Context, collectionID, sortOrder string, includeDrafts bool) ([]Page, error) {

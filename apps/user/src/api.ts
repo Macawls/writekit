@@ -127,13 +127,15 @@ export const api = {
   getDesktopSettings: () => request<DesktopSettings>('GET', '/api/local/settings'),
   updateDesktopSettings: (s: DesktopSettings) => request<DesktopSettings>('PUT', '/api/local/settings', s),
   pickDataFolder: () => request<PickFolderResult>('POST', '/api/local/pick-folder'),
-  listPages: (params: { limit?: number; offset?: number; status?: string; collection?: string; visibility?: string; q?: string } = {}) => {
+  listPages: (params: { limit?: number; offset?: number; status?: string; collection?: string; visibility?: string; tag?: string; sort?: string; q?: string } = {}) => {
     const qs = new URLSearchParams()
     if (params.limit) qs.set('limit', String(params.limit))
     if (params.offset) qs.set('offset', String(params.offset))
     if (params.status && params.status !== 'all') qs.set('status', params.status)
     if (params.collection && params.collection !== 'all') qs.set('collection', params.collection)
     if (params.visibility && params.visibility !== 'all') qs.set('visibility', params.visibility)
+    if (params.tag && params.tag !== 'all') qs.set('tag', params.tag)
+    if (params.sort && params.sort !== 'recent') qs.set('sort', params.sort)
     if (params.q && params.q.trim()) qs.set('q', params.q.trim())
     const q = qs.toString()
     return request<PageListResponse>('GET', q ? `/api/pages?${q}` : '/api/pages')
@@ -156,6 +158,7 @@ export interface PageListItem {
   status: string
   visibility: string
   collection_id?: string | null
+  tags: string[]
   updated_at: string
   published_at?: string | null
 }
@@ -169,6 +172,7 @@ export interface CollectionLight {
 export interface PageListResponse {
   pages: PageListItem[]
   collections: CollectionLight[]
+  tags: string[]
   total: number
   limit: number
   offset: number

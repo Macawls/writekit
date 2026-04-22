@@ -10,19 +10,21 @@ import (
 )
 
 type pageListItem struct {
-	ID           string  `json:"id"`
-	Title        string  `json:"title"`
-	Slug         string  `json:"slug"`
-	Status       string  `json:"status"`
-	Visibility   string  `json:"visibility"`
-	CollectionID *string `json:"collection_id,omitempty"`
-	UpdatedAt    string  `json:"updated_at"`
-	PublishedAt  *string `json:"published_at,omitempty"`
+	ID           string   `json:"id"`
+	Title        string   `json:"title"`
+	Slug         string   `json:"slug"`
+	Status       string   `json:"status"`
+	Visibility   string   `json:"visibility"`
+	CollectionID *string  `json:"collection_id,omitempty"`
+	Tags         []string `json:"tags"`
+	UpdatedAt    string   `json:"updated_at"`
+	PublishedAt  *string  `json:"published_at,omitempty"`
 }
 
 type pagesListResponse struct {
 	Pages       []pageListItem    `json:"pages"`
 	Collections []collectionLight `json:"collections"`
+	Tags        []string          `json:"tags"`
 	Total       int               `json:"total"`
 	Limit       int               `json:"limit"`
 	Offset      int               `json:"offset"`
@@ -59,14 +61,18 @@ func (h *Handler) ListPagesAPI(w http.ResponseWriter, r *http.Request) {
 	statusFilter := r.URL.Query().Get("status")
 	colFilter := r.URL.Query().Get("collection")
 	visFilter := r.URL.Query().Get("visibility")
+	tagFilter := r.URL.Query().Get("tag")
 	search := r.URL.Query().Get("q")
+	sortBy := r.URL.Query().Get("sort")
 
 	filter := tenant.PageFilter{
 		Limit:      limit,
 		Offset:     offset,
 		Status:     statusFilter,
 		Visibility: visFilter,
+		Tag:        tagFilter,
 		Search:     search,
+		Sort:       sortBy,
 	}
 	switch colFilter {
 	case "":
@@ -91,9 +97,15 @@ func (h *Handler) ListPagesAPI(w http.ResponseWriter, r *http.Request) {
 		cols = nil
 	}
 
+	allTags, err := db.ListAllTags(r.Context())
+	if err != nil {
+		allTags = nil
+	}
+
 	out := pagesListResponse{
 		Pages:       make([]pageListItem, 0, len(pages)),
 		Collections: make([]collectionLight, 0, len(cols)),
+		Tags:        allTags,
 		Total:       total,
 		Limit:       limit,
 		Offset:      offset,
@@ -106,6 +118,7 @@ func (h *Handler) ListPagesAPI(w http.ResponseWriter, r *http.Request) {
 			Status:       p.Status,
 			Visibility:   p.Visibility,
 			CollectionID: p.CollectionID,
+			Tags:         parseTags(p.Tags),
 			UpdatedAt:    p.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 		}
 		if p.PublishedAt != nil {
@@ -138,6 +151,10 @@ func countPagesFiltered(r *http.Request, db *tenant.DB, f tenant.PageFilter) int
 			where = append(where, "collection_id = ?")
 			args = append(args, *f.CollectionID)
 		}
+	}
+	if f.Tag != "" {
+		where = append(where, "tags LIKE ?")
+		args = append(args, "%\""+f.Tag+"\"%")
 	}
 	if s := strings.TrimSpace(f.Search); s != "" {
 		like := "%" + strings.ToLower(s) + "%"
