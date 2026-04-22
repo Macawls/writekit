@@ -46,6 +46,30 @@ docker compose up -d                  # postgres
 
 The Go binary embeds `templates/`, `static/`, `apps/user/dist/`, and `apps/admin/dist/` via `embed.go` — SPA dists must be built before `go build` in release workflows.
 
+## Dev loop: iterate on `apps/user` SPA + test MCP locally
+
+`apps/user` is the same SPA served at `app.writekit.dev` (hosted) and inside the Wails desktop window. `wails dev` does not run Vite — its AssetServer proxies to the embedded Go server, so you get no HMR. For fast UI iteration against a real MCP, run the desktop Go server and Vite side-by-side:
+
+```bash
+# Terminal A — desktop backend + loopback MCP at 127.0.0.1:8787
+cd desktop && wails dev
+# or, without the webview:
+LOCAL=true HOST=localhost PORT=8787 go run ./cmd/writekit
+
+# Terminal B — SPA with HMR, proxies /api to :8787 by default
+cd apps/user && bun run dev
+# override target if pointing at the hosted server instead:
+VITE_BACKEND_URL=http://localhost:8080 bun run dev
+```
+
+Then:
+
+- Open `http://localhost:5173` for the SPA with hot reload.
+- Point Claude (Desktop / Code) at `http://127.0.0.1:8787/mcp` — loopback trust, no OAuth. The tray menu's "Copy MCP URL" gives you this.
+- MCP tool calls mutate the SQLite store; refresh `:5173` to see changes reflected in the SPA.
+
+Hosted dev (`go run ./cmd/writekit` on `:8080` with Postgres, OAuth, and subdomain host matching for `app.localhost` / `mcp.localhost`) is heavier — only reach for it when debugging hosted-only paths.
+
 ## Architecture
 
 **Two build targets, one codebase.** `cmd/writekit` is the hosted multi-tenant server; `desktop/` is a Wails wrapper that imports the same `internal/app` package with `LOCAL=true`. Branching happens in `internal/app/app.go` (`buildLocalRouter` vs `buildRouter`). Local mode has no `platform` DB, no OAuth, no Stripe, no subdomains — identity is injected via context from loopback.
