@@ -155,45 +155,26 @@ func NewTokenVerifier(db *platform.DB) mcpauth.TokenVerifier {
 	}
 }
 
-// MCPBearerAuth returns middleware that protects the MCP endpoint using the SDK's
-// RequireBearerToken with proper WWW-Authenticate headers per RFC 9728.
 func MCPBearerAuth(db *platform.DB, mcpBaseURL string) func(http.Handler) http.Handler {
 	verifier := NewTokenVerifier(db)
 	sdkMiddleware := mcpauth.RequireBearerToken(verifier, &mcpauth.RequireBearerTokenOptions{
 		ResourceMetadataURL: mcpBaseURL + "/.well-known/oauth-protected-resource",
 	})
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// If a bearer token is present, verify it and populate context
-			if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-				// Wrap next to copy SDK TokenInfo into our context keys
-				wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					info := mcpauth.TokenInfoFromContext(r.Context())
-					if info != nil && info.Extra != nil {
-						ctx := r.Context()
-						if user, ok := info.Extra["user"].(*platform.User); ok {
-							ctx = context.WithValue(ctx, userContextKey, user)
-						}
-						if tenants, ok := info.Extra["tenants"].([]platform.Tenant); ok {
-							ctx = context.WithValue(ctx, tenantContextKey, tenants)
-						}
-						r = r.WithContext(ctx)
-					}
-					next.ServeHTTP(w, r)
-				})
-				sdkMiddleware(wrapped).ServeHTTP(w, r)
-				return
+		wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			info := mcpauth.TokenInfoFromContext(r.Context())
+			if info != nil && info.Extra != nil {
+				ctx := r.Context()
+				if user, ok := info.Extra["user"].(*platform.User); ok {
+					ctx = context.WithValue(ctx, userContextKey, user)
+				}
+				if tenants, ok := info.Extra["tenants"].([]platform.Tenant); ok {
+					ctx = context.WithValue(ctx, tenantContextKey, tenants)
+				}
+				r = r.WithContext(ctx)
 			}
-
-			// GET requests pass through without auth (SSE/connection setup)
-			if r.Method == http.MethodGet {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			// Unauthenticated POST: let the MCP server handle capabilities negotiation
-			// The SDK server will reject unauthorized tool calls itself
 			next.ServeHTTP(w, r)
 		})
+		return sdkMiddleware(wrapped)
 	}
 }
