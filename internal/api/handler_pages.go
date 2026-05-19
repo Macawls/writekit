@@ -3,7 +3,6 @@ package api
 import (
 	"net/http"
 	"strconv"
-	"strings"
 
 	"writekit/internal/httplog"
 	"writekit/internal/tenant"
@@ -58,30 +57,40 @@ func (h *Handler) ListPagesAPI(w http.ResponseWriter, r *http.Request) {
 	if offset < 0 {
 		offset = 0
 	}
-	statusFilter := r.URL.Query().Get("status")
-	colFilter := r.URL.Query().Get("collection")
-	visFilter := r.URL.Query().Get("visibility")
-	tagFilter := r.URL.Query().Get("tag")
-	search := r.URL.Query().Get("q")
-	sortBy := r.URL.Query().Get("sort")
+	q := r.URL.Query()
+	statusFilter := q.Get("status")
+	visFilter := q.Get("visibility")
+	search := q.Get("q")
+	sortBy := q.Get("sort")
+
+	var tags []string
+	for _, t := range q["tag"] {
+		if t != "" && t != "all" {
+			tags = append(tags, t)
+		}
+	}
+	var colIDs []string
+	includeNone := false
+	for _, c := range q["collection"] {
+		switch c {
+		case "", "all":
+		case "none":
+			includeNone = true
+		default:
+			colIDs = append(colIDs, c)
+		}
+	}
 
 	filter := tenant.PageFilter{
-		Limit:      limit,
-		Offset:     offset,
-		Status:     statusFilter,
-		Visibility: visFilter,
-		Tag:        tagFilter,
-		Search:     search,
-		Sort:       sortBy,
-	}
-	switch colFilter {
-	case "":
-	case "none":
-		empty := ""
-		filter.CollectionID = &empty
-	default:
-		v := colFilter
-		filter.CollectionID = &v
+		Limit:               limit,
+		Offset:              offset,
+		Status:              statusFilter,
+		Visibility:          visFilter,
+		Tags:                tags,
+		Search:              search,
+		Sort:                sortBy,
+		CollectionIDs:       colIDs,
+		IncludeNoCollection: includeNone,
 	}
 
 	pages, err := db.ListPages(r.Context(), filter)
@@ -90,9 +99,13 @@ func (h *Handler) ListPagesAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	total := countPagesFiltered(r, db, filter)
+	total, err := db.CountPagesFiltered(r.Context(), filter)
+	if err != nil {
+		log.Error("pages: count", "err", err)
+		total = 0
+	}
 
-	cols, err := db.ListCollections(r.Context())
+	cols, err := db.ListNonEmptyCollections(r.Context())
 	if err != nil {
 		cols = nil
 	}
@@ -133,39 +146,3 @@ func (h *Handler) ListPagesAPI(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-func countPagesFiltered(r *http.Request, db *tenant.DB, f tenant.PageFilter) int {
-	var where []string
-	var args []any
-	if f.Status != "" {
-		where = append(where, "status = ?")
-		args = append(args, f.Status)
-	}
-	if f.Visibility != "" {
-		where = append(where, "visibility = ?")
-		args = append(args, f.Visibility)
-	}
-	if f.CollectionID != nil {
-		if *f.CollectionID == "" {
-			where = append(where, "collection_id IS NULL")
-		} else {
-			where = append(where, "collection_id = ?")
-			args = append(args, *f.CollectionID)
-		}
-	}
-	if f.Tag != "" {
-		where = append(where, "tags LIKE ?")
-		args = append(args, "%\""+f.Tag+"\"%")
-	}
-	if s := strings.TrimSpace(f.Search); s != "" {
-		like := "%" + strings.ToLower(s) + "%"
-		where = append(where, "(LOWER(title) LIKE ? OR LOWER(slug) LIKE ? OR LOWER(search_text) LIKE ?)")
-		args = append(args, like, like, like)
-	}
-	q := "SELECT COUNT(*) FROM pages"
-	if len(where) > 0 {
-		q += " WHERE " + strings.Join(where, " AND ")
-	}
-	var n int
-	_ = db.DB.QueryRowContext(r.Context(), q, args...).Scan(&n)
-	return n
-}

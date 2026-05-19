@@ -127,14 +127,20 @@ export const api = {
   getDesktopSettings: () => request<DesktopSettings>('GET', '/api/local/settings'),
   updateDesktopSettings: (s: DesktopSettings) => request<DesktopSettings>('PUT', '/api/local/settings', s),
   pickDataFolder: () => request<PickFolderResult>('POST', '/api/local/pick-folder'),
-  listPages: (params: { limit?: number; offset?: number; status?: string; collection?: string; visibility?: string; tag?: string; sort?: string; q?: string } = {}) => {
+  listPages: (params: { limit?: number; offset?: number; status?: string; collection?: string | string[]; visibility?: string; tag?: string | string[]; sort?: string; q?: string } = {}) => {
     const qs = new URLSearchParams()
     if (params.limit) qs.set('limit', String(params.limit))
     if (params.offset) qs.set('offset', String(params.offset))
     if (params.status && params.status !== 'all') qs.set('status', params.status)
-    if (params.collection && params.collection !== 'all') qs.set('collection', params.collection)
     if (params.visibility && params.visibility !== 'all') qs.set('visibility', params.visibility)
-    if (params.tag && params.tag !== 'all') qs.set('tag', params.tag)
+    const cols = Array.isArray(params.collection)
+      ? params.collection.filter(v => v && v !== 'all')
+      : params.collection && params.collection !== 'all' ? [params.collection] : []
+    for (const c of cols) qs.append('collection', c)
+    const tags = Array.isArray(params.tag)
+      ? params.tag.filter(v => v && v !== 'all')
+      : params.tag && params.tag !== 'all' ? [params.tag] : []
+    for (const t of tags) qs.append('tag', t)
     if (params.sort && params.sort !== 'recent') qs.set('sort', params.sort)
     if (params.q && params.q.trim()) qs.set('q', params.q.trim())
     const q = qs.toString()

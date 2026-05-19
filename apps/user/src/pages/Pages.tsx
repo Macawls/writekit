@@ -1,89 +1,44 @@
-import { useEffect, useMemo, useState } from 'react'
-import { api, type PageListItem, type CollectionLight } from '../api'
+import { useEffect, useMemo } from 'react'
+import { useStore } from '@nanostores/react'
+import { type PageListItem } from '../api'
 import { navigate } from '../stores/router'
 import { Select } from '../components/Select'
+import { MultiSelect } from '../components/MultiSelect'
+import { atom } from 'nanostores'
+import {
+  $query, $result, $loading, $error,
+  setQuery, resetQuery, ensurePagesLoaded,
+  PAGE_SIZE_OPTIONS,
+  type StatusFilter, type VisibilityFilter, type SortKey,
+} from '../stores/pages'
 
-type StatusFilter = 'all' | 'published' | 'draft'
-type VisibilityFilter = 'all' | 'public' | 'unlisted' | 'private'
-type SortKey = 'recent' | 'title' | 'published' | 'created'
-
-const PAGE_SIZE_KEY = 'writekit:pages:pageSize'
-const PAGE_SIZE_OPTIONS = [10, 15, 25, 50]
-const DEFAULT_PAGE_SIZE = 15
-
-function loadPageSize(): number {
-  try {
-    const raw = localStorage.getItem(PAGE_SIZE_KEY)
-    if (!raw) return DEFAULT_PAGE_SIZE
-    const n = parseInt(raw, 10)
-    return PAGE_SIZE_OPTIONS.includes(n) ? n : DEFAULT_PAGE_SIZE
-  } catch {
-    return DEFAULT_PAGE_SIZE
-  }
-}
+const $filtersOpen = atom(false)
 
 export default function Pages() {
-  const [pages, setPages] = useState<PageListItem[] | null>(null)
-  const [collections, setCollections] = useState<CollectionLight[]>([])
-  const [allTags, setAllTags] = useState<string[]>([])
-  const [total, setTotal] = useState(0)
-  const [offset, setOffset] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [status, setStatus] = useState<StatusFilter>('all')
-  const [visibility, setVisibility] = useState<VisibilityFilter>('all')
-  const [collection, setCollection] = useState<string>('all')
-  const [tag, setTag] = useState<string>('all')
-  const [sort, setSort] = useState<SortKey>('recent')
-  const [filtersOpen, setFiltersOpen] = useState(false)
-  const [pageSize, setPageSize] = useState<number>(() => loadPageSize())
+  const q = useStore($query)
+  const result = useStore($result)
+  const loading = useStore($loading)
+  const error = useStore($error)
+  const filtersOpen = useStore($filtersOpen)
 
-  useEffect(() => {
-    try { localStorage.setItem(PAGE_SIZE_KEY, String(pageSize)) } catch {}
-  }, [pageSize])
+  useEffect(() => { ensurePagesLoaded() }, [])
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 200)
-    return () => clearTimeout(t)
-  }, [search])
-
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    api.listPages({ limit: pageSize, offset, status, collection, visibility, tag, sort, q: debouncedSearch })
-      .then(r => {
-        setPages(r.pages)
-        setCollections(r.collections)
-        setAllTags(r.tags ?? [])
-        setTotal(r.total)
-      })
-      .catch(e => setError(e instanceof Error ? e.message : 'failed'))
-      .finally(() => setLoading(false))
-  }, [offset, pageSize, status, collection, visibility, tag, sort, debouncedSearch])
-
-  useEffect(() => { setOffset(0) }, [status, collection, visibility, tag, debouncedSearch, pageSize])
+  const pages = result?.pages ?? null
+  const collections = result?.collections ?? []
+  const allTags = result?.tags ?? []
+  const total = result?.total ?? 0
 
   const colById = useMemo(() => new Map(collections.map(c => [c.id, c])), [collections])
 
   const activeFilterCount =
-    (status !== 'all' ? 1 : 0) +
-    (visibility !== 'all' ? 1 : 0) +
-    (collection !== 'all' ? 1 : 0) +
-    (tag !== 'all' ? 1 : 0)
-  const filtersActive = activeFilterCount > 0 || debouncedSearch.length > 0
-  const clearFilters = () => {
-    setSearch('')
-    setDebouncedSearch('')
-    setStatus('all')
-    setVisibility('all')
-    setCollection('all')
-    setTag('all')
-  }
+    (q.status !== 'all' ? 1 : 0) +
+    (q.visibility !== 'all' ? 1 : 0) +
+    q.collection.length +
+    q.tag.length
+  const filtersActive = activeFilterCount > 0 || q.search.length > 0
 
   const visible = pages ?? []
-  const end = pages ? Math.min(offset + pages.length, total) : 0
+  const end = pages ? Math.min(q.offset + pages.length, total) : 0
 
   const openPage = (p: PageListItem) => {
     const col = p.collection_id ? colById.get(p.collection_id) : null
@@ -95,7 +50,7 @@ export default function Pages() {
       <h2>Pages</h2>
       <p className="muted" style={{ marginTop: '.25rem' }}>
         {pages === null
-          ? 'Loading…'
+          ? (loading ? 'Loading…' : ' ')
           : total === 0
             ? 'No pages yet.'
             : `${total} page${total === 1 ? '' : 's'}${collections.length > 0 ? ` · ${collections.length} collection${collections.length === 1 ? '' : 's'}` : ''}${allTags.length > 0 ? ` · ${allTags.length} tag${allTags.length === 1 ? '' : 's'}` : ''}`}
@@ -109,92 +64,106 @@ export default function Pages() {
             type="search"
             className="pages-search"
             placeholder="Search pages…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+            value={q.search}
+            onChange={e => setQuery({ search: e.target.value })}
           />
           <button
             type="button"
             className={`pages-filters-btn ${filtersOpen || activeFilterCount > 0 ? 'active' : ''}`}
-            onClick={() => setFiltersOpen(v => !v)}
+            onClick={() => $filtersOpen.set(!filtersOpen)}
             aria-expanded={filtersOpen}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
             Filters
             {activeFilterCount > 0 && <span className="pages-filters-count">{activeFilterCount}</span>}
           </button>
-          <Select
-            className="pages-select pages-sort"
-            value={sort}
-            onChange={v => setSort(v as SortKey)}
-            ariaLabel="Sort"
-            leftIcon={
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 16 4 4 4-4" /><path d="M7 20V4" /><path d="m21 8-4-4-4 4" /><path d="M17 4v16" /></svg>
-            }
-            options={[
-              { value: 'recent', label: 'recent' },
-              { value: 'published', label: 'published' },
-              { value: 'created', label: 'created' },
-              { value: 'title', label: 'title' },
-            ]}
-          />
         </div>
 
         {filtersOpen && (
           <div className="pages-filters-panel">
             <Select
               className="pages-select"
-              value={status}
-              onChange={v => setStatus(v as StatusFilter)}
+              value={q.status}
+              onChange={v => setQuery({ status: v as StatusFilter })}
               ariaLabel="Status filter"
+              leftIcon={
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg>
+              }
               options={[
-                { value: 'all', label: 'any status' },
-                { value: 'published', label: 'published' },
-                { value: 'draft', label: 'draft' },
+                { value: 'all', label: 'any status', icon: <Icon path="M3 12h18M3 6h18M3 18h18" /> },
+                { value: 'published', label: 'published', icon: <Icon path="M20 6 9 17l-5-5" /> },
+                { value: 'draft', label: 'draft', icon: <Icon path="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /> },
               ]}
             />
             <Select
               className="pages-select"
-              value={visibility}
-              onChange={v => setVisibility(v as VisibilityFilter)}
+              value={q.visibility}
+              onChange={v => setQuery({ visibility: v as VisibilityFilter })}
               ariaLabel="Visibility filter"
+              leftIcon={
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+              }
               options={[
-                { value: 'all', label: 'any visibility' },
-                { value: 'public', label: 'public' },
-                { value: 'unlisted', label: 'unlisted' },
-                { value: 'private', label: 'private' },
+                { value: 'all', label: 'any visibility', icon: <Icon path="M3 12h18M3 6h18M3 18h18" /> },
+                { value: 'public', label: 'public', icon: <Icon path="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20" /> },
+                { value: 'unlisted', label: 'unlisted', icon: <Icon path="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22" /> },
+                { value: 'private', label: 'private', icon: <Icon path="M3 11h18v11H3zM7 11V7a5 5 0 0 1 10 0v4" /> },
               ]}
             />
             {collections.length > 0 && (
-              <Select
+              <MultiSelect
                 className="pages-select"
-                value={collection}
-                onChange={setCollection}
+                values={q.collection}
+                onChange={v => setQuery({ collection: v })}
                 ariaLabel="Collection filter"
-                searchable={collections.length > 6}
+                searchable
                 searchPlaceholder="Search collections…"
+                pluralLabel="collections"
+                leftIcon={
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+                }
                 options={[
                   { value: 'all', label: 'any collection' },
-                  { value: 'none', label: 'uncategorised' },
+                  { value: 'none', label: 'no collection' },
                   ...collections.map(c => ({ value: c.id, label: c.title })),
                 ]}
               />
             )}
             {allTags.length > 0 && (
-              <Select
+              <MultiSelect
                 className="pages-select"
-                value={tag}
-                onChange={setTag}
+                values={q.tag}
+                onChange={v => setQuery({ tag: v })}
                 ariaLabel="Tag filter"
-                searchable={allTags.length > 6}
+                searchable
                 searchPlaceholder="Search tags…"
+                pluralLabel="tags"
+                leftIcon={
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
+                }
                 options={[
                   { value: 'all', label: 'any tag' },
                   ...allTags.map(t => ({ value: t, label: t })),
                 ]}
               />
             )}
+            <Select
+              className="pages-select pages-sort"
+              value={q.sort}
+              onChange={v => setQuery({ sort: v as SortKey })}
+              ariaLabel="Sort"
+              leftIcon={
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 16 4 4 4-4" /><path d="M7 20V4" /><path d="m21 8-4-4-4 4" /><path d="M17 4v16" /></svg>
+              }
+              options={[
+                { value: 'recent', label: 'last updated', icon: <Icon path="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /> },
+                { value: 'published', label: 'last published', icon: <Icon path="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09zM12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2zM9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" /> },
+                { value: 'created', label: 'date created', icon: <Icon path="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8M16 2v4M8 2v4M3 10h18M18 16v6M15 19h6" /> },
+                { value: 'title', label: 'title (a–z)', icon: <Icon path="M4 6h12M4 12h8M4 18h4M14 16l4 4 4-4M18 12v8" /> },
+              ]}
+            />
             {filtersActive && (
-              <button type="button" className="pages-clear" onClick={clearFilters}>clear</button>
+              <button type="button" className="pages-clear" onClick={resetQuery}>clear</button>
             )}
           </div>
         )}
@@ -247,7 +216,7 @@ export default function Pages() {
                       type="button"
                       className="visibility-badge pages-col-badge"
                       title={`Filter by ${col.title}`}
-                      onClick={e => { e.stopPropagation(); setCollection(col.id) }}
+                      onClick={e => { e.stopPropagation(); setQuery({ collection: [col.id] }) }}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
@@ -265,36 +234,36 @@ export default function Pages() {
         {pages && visible.length > 0 && (
           <div className="pages-pagination">
             <div className="pages-pagination-left">
-              <span className="muted pages-range">{offset + 1}–{end} of {total}</span>
+              <span className="muted pages-range">{q.offset + 1}–{end} of {total}</span>
               <Select
                 className="pages-select pages-pagesize"
-                value={String(pageSize)}
-                onChange={v => setPageSize(parseInt(v, 10))}
+                value={String(q.pageSize)}
+                onChange={v => setQuery({ pageSize: parseInt(v, 10) })}
                 ariaLabel="Pages per page"
                 options={PAGE_SIZE_OPTIONS.map(n => ({ value: String(n), label: `${n} / page` }))}
               />
             </div>
-            {total > pageSize && (
+            {total > q.pageSize && (
               <div className="pages-pager">
                 <button
                   type="button"
                   className="pages-pager-btn"
-                  disabled={offset === 0 || loading}
-                  onClick={() => setOffset(Math.max(0, offset - pageSize))}
+                  disabled={q.offset === 0 || loading}
+                  onClick={() => setQuery({ offset: Math.max(0, q.offset - q.pageSize) })}
                   aria-label="Previous page"
                 >‹</button>
-                {pageNumbers(offset, total, pageSize).map((n, i) =>
+                {pageNumbers(q.offset, total, q.pageSize).map((n, i) =>
                   n === '…' ? (
                     <span key={`e${i}`} className="pages-pager-ellipsis">…</span>
                   ) : (
                     <button
                       key={n}
                       type="button"
-                      className={`pages-pager-btn pages-pager-num ${n === Math.floor(offset / pageSize) + 1 ? 'active' : ''}`}
+                      className={`pages-pager-btn pages-pager-num ${n === Math.floor(q.offset / q.pageSize) + 1 ? 'active' : ''}`}
                       disabled={loading}
-                      onClick={() => setOffset(((n as number) - 1) * pageSize)}
+                      onClick={() => setQuery({ offset: ((n as number) - 1) * q.pageSize })}
                       aria-label={`Page ${n}`}
-                      aria-current={n === Math.floor(offset / pageSize) + 1 ? 'page' : undefined}
+                      aria-current={n === Math.floor(q.offset / q.pageSize) + 1 ? 'page' : undefined}
                     >{n}</button>
                   )
                 )}
@@ -302,7 +271,7 @@ export default function Pages() {
                   type="button"
                   className="pages-pager-btn"
                   disabled={end >= total || loading}
-                  onClick={() => setOffset(offset + pageSize)}
+                  onClick={() => setQuery({ offset: q.offset + q.pageSize })}
                   aria-label="Next page"
                 >›</button>
               </div>
@@ -328,6 +297,14 @@ function pageNumbers(offset: number, total: number, size: number): (number | '�
   if (end < totalPages - 1) out.push('…')
   out.push(totalPages)
   return out
+}
+
+function Icon({ path }: { path: string }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d={path} />
+    </svg>
+  )
 }
 
 function formatDate(iso: string): string {

@@ -88,6 +88,29 @@ func (db *DB) ListCollections(ctx context.Context) ([]Collection, error) {
 	return collections, nil
 }
 
+func (db *DB) ListNonEmptyCollections(ctx context.Context) ([]Collection, error) {
+	rows, err := db.DB.QueryContext(ctx, `
+		SELECT c.id, c.title, c.slug, c.description, c.visibility, c.sort_order, c.created_at, c.updated_at
+		FROM collections c
+		WHERE EXISTS (SELECT 1 FROM pages p WHERE p.collection_id = c.id)
+		ORDER BY c.title
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list non-empty collections: %w", err)
+	}
+	defer rows.Close()
+
+	var collections []Collection
+	for rows.Next() {
+		var c Collection
+		if err := rows.Scan(&c.ID, &c.Title, &c.Slug, &c.Description, &c.Visibility, &c.SortOrder, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, err
+		}
+		collections = append(collections, c)
+	}
+	return collections, nil
+}
+
 func (db *DB) CountCollectionPages(ctx context.Context, collectionID string) (int, error) {
 	var count int
 	if err := db.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pages WHERE collection_id = ?`, collectionID).Scan(&count); err != nil {

@@ -34,14 +34,17 @@ type Page struct {
 }
 
 type PageFilter struct {
-	Status       string
-	Visibility   string
-	Tag          string
-	Search       string
-	CollectionID *string
-	Sort         string
-	Limit        int
-	Offset       int
+	Status              string
+	Visibility          string
+	Tag                 string
+	Tags                []string
+	Search              string
+	CollectionID        *string
+	CollectionIDs       []string
+	IncludeNoCollection bool
+	Sort                string
+	Limit               int
+	Offset              int
 }
 
 func (db *DB) CreatePage(ctx context.Context, p *Page) error {
@@ -187,7 +190,7 @@ func (db *DB) GetStandalonePageBySlug(ctx context.Context, slug string) (*Page, 
 		pageSelect+" WHERE slug = ? AND collection_id IS NULL", slug))
 }
 
-func (db *DB) ListPages(ctx context.Context, f PageFilter) ([]Page, error) {
+func buildPageWhere(f PageFilter) (string, []any) {
 	var where []string
 	var args []any
 
@@ -199,28 +202,63 @@ func (db *DB) ListPages(ctx context.Context, f PageFilter) ([]Page, error) {
 		where = append(where, "visibility = ?")
 		args = append(args, f.Visibility)
 	}
-	if f.Tag != "" {
-		where = append(where, "tags LIKE ?")
-		args = append(args, "%\""+f.Tag+"\"%")
+	tags := f.Tags
+	if len(tags) == 0 && f.Tag != "" {
+		tags = []string{f.Tag}
 	}
-	if f.CollectionID != nil {
-		if *f.CollectionID == "" {
-			where = append(where, "collection_id IS NULL")
-		} else {
-			where = append(where, "collection_id = ?")
-			args = append(args, *f.CollectionID)
+	if len(tags) > 0 {
+		parts := make([]string, 0, len(tags))
+		for _, t := range tags {
+			parts = append(parts, "tags LIKE ?")
+			args = append(args, "%\""+t+"\"%")
 		}
+		where = append(where, "("+strings.Join(parts, " OR ")+")")
+	}
+	colIDs := f.CollectionIDs
+	includeNone := f.IncludeNoCollection
+	if len(colIDs) == 0 && f.CollectionID != nil {
+		if *f.CollectionID == "" {
+			includeNone = true
+		} else {
+			colIDs = []string{*f.CollectionID}
+		}
+	}
+	if len(colIDs) > 0 || includeNone {
+		var parts []string
+		if includeNone {
+			parts = append(parts, "collection_id IS NULL")
+		}
+		if len(colIDs) > 0 {
+			placeholders := strings.Repeat("?,", len(colIDs))
+			placeholders = placeholders[:len(placeholders)-1]
+			parts = append(parts, "collection_id IN ("+placeholders+")")
+			for _, id := range colIDs {
+				args = append(args, id)
+			}
+		}
+		where = append(where, "("+strings.Join(parts, " OR ")+")")
 	}
 	if s := strings.TrimSpace(f.Search); s != "" {
 		like := "%" + strings.ToLower(s) + "%"
 		where = append(where, "(LOWER(title) LIKE ? OR LOWER(slug) LIKE ? OR LOWER(search_text) LIKE ?)")
 		args = append(args, like, like, like)
 	}
-
-	query := pageSelect
-	if len(where) > 0 {
-		query += " WHERE " + strings.Join(where, " AND ")
+	if len(where) == 0 {
+		return "", nil
 	}
+	return " WHERE " + strings.Join(where, " AND "), args
+}
+
+func (db *DB) CountPagesFiltered(ctx context.Context, f PageFilter) (int, error) {
+	whereSQL, args := buildPageWhere(f)
+	var n int
+	err := db.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM pages"+whereSQL, args...).Scan(&n)
+	return n, err
+}
+
+func (db *DB) ListPages(ctx context.Context, f PageFilter) ([]Page, error) {
+	whereSQL, args := buildPageWhere(f)
+	query := pageSelect + whereSQL
 	switch f.Sort {
 	case "title":
 		query += " ORDER BY LOWER(title) ASC"
