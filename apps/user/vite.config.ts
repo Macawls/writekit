@@ -1,19 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-import { execSync } from 'node:child_process'
 
-const version = process.env.APP_VERSION || (() => {
-  try {
-    return execSync('git rev-parse --short HEAD').toString().trim()
-  } catch {
-    return 'dev'
-  }
-})()
+const version = process.env.APP_VERSION || 'dev'
+const repo = process.env.APP_REPO || 'Macawls/writekit'
 
 export default defineConfig({
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(version),
+    __APP_REPO__: JSON.stringify(repo),
   },
   base: '/',
   build: {

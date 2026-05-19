@@ -58,6 +58,8 @@ jobs:
         run: cd apps/user && bun install --frozen-lockfile
 
       - name: Build user SPA
+        env:
+          APP_VERSION: ${{ github.event.inputs.tag || github.ref_name }}
         run: cd apps/user && bun run build
 
       - name: Build

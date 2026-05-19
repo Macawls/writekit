@@ -20,6 +20,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: docker/setup-buildx-action@v3
 
@@ -31,7 +33,11 @@ jobs:
 
       - name: Compute version
         id: ver
-        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "$sha")
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "ver=$tag" >> "$GITHUB_OUTPUT"
 
       - uses: docker/build-push-action@v6
         with:
@@ -41,7 +47,7 @@ jobs:
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:sha-${{ steps.ver.outputs.sha }}
           build-args: |
-            APP_VERSION=${{ steps.ver.outputs.sha }}
+            APP_VERSION=${{ steps.ver.outputs.ver }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
