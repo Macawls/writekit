@@ -1,25 +1,24 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '@nanostores/react'
-import type { GraphNode, Visibility } from '../graph/types'
+import type { GraphNode } from '../graph/types'
 import { GraphRenderer } from '../graph/renderer'
-import type { GraphInsights } from '../graph/insights'
 import {
   $graphData, $loading, $error, $focused, $hoverId,
-  $excludedVis, $excludedCols, $view3D,
-  $visibleData, $hiddenNodeIds, $neighborIndex, $insights,
-  loadGraph, toggleVis, toggleCol,
+  $excludedCols, $view3D,
+  $visibleData, $hiddenNodeIds, $neighborIndex,
+  loadGraph, toggleCol, clearFilters,
   focusNode, setHover, toggleView3D,
   STANDALONE_KEY,
   type RelatedEntry,
 } from '../stores/graph'
 import { $site } from '../stores/auth'
 import { $embeddingPrefs, setEmbeddingPrefs } from '../embedding/settings'
-import { $embeddingStatus, embeddingController } from '../embedding/controller'
+import { embeddingController } from '../embedding/controller'
 import { MODELS, findModel } from '../embedding/models'
 import { fetchEmbeddingSource } from '../api/graph'
 import { Select } from '../components/Select'
+import { collectionColor, STANDALONE_COLOR } from '../graph/colors'
 
-const ALL_VISIBILITIES: Visibility[] = ['public', 'unlisted', 'private']
 const ZOOM_IN = 1.3
 const ZOOM_OUT = 1 / 1.3
 const RELATED_LIMIT = 8
@@ -33,16 +32,12 @@ export default function Graph() {
   const error = useStore($error)
   const focused = useStore($focused)
   const hoverId = useStore($hoverId)
-  const excludedVis = useStore($excludedVis)
   const excludedCols = useStore($excludedCols)
   const view3D = useStore($view3D)
   const visibleData = useStore($visibleData)
   const hiddenNodeIds = useStore($hiddenNodeIds)
   const neighborIndex = useStore($neighborIndex)
-  const insights = useStore($insights)
   const site = useStore($site)
-  const prefs = useStore($embeddingPrefs)
-  const embedStatus = useStore($embeddingStatus)
 
   useEffect(() => {
     if (site?.ID) loadGraph(site.ID)
@@ -114,7 +109,7 @@ export default function Graph() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  if (loading) {
+  if (loading && !data) {
     return <div className="centered"><p className="muted">Loading graph…</p></div>
   }
   if (error) {
@@ -142,38 +137,12 @@ export default function Graph() {
     <div className="graph-page">
       <div className="graph-canvas" ref={hostRef} />
 
-      <FilterBar
+      <GraphControls
         collections={data.collections}
         nodes={data.nodes}
-        excludedVis={excludedVis}
         excludedCols={excludedCols}
       />
 
-      <div className="graph-stats">
-        <div className="graph-stats-pill">
-          {visibleData?.nodes.length ?? data.nodes.length} pages · {visibleData?.edges.length ?? 0} connections
-          {prefs.enabled && ` · ${prefs.modelId.split('/').pop()}`}
-        </div>
-        {prefs.enabled && embedStatus.state === 'loading' && (
-          <div className="graph-notice">
-            Loading model… {embedStatus.loaded && embedStatus.total
-              ? `${Math.round((embedStatus.loaded / embedStatus.total) * 100)}%`
-              : ''}
-          </div>
-        )}
-        {prefs.enabled && embedStatus.state === 'ready' && embedStatus.pending > 0 && (
-          <div className="graph-notice">
-            Embedding {embedStatus.pending} page{embedStatus.pending === 1 ? '' : 's'}…
-          </div>
-        )}
-        {prefs.enabled && embedStatus.state === 'error' && (
-          <div className="graph-notice graph-notice-error">
-            Embedding error: {embedStatus.message || 'see console for details'}
-          </div>
-        )}
-      </div>
-
-      <SemanticGraphControls />
 
       <div className="graph-toolbar">
         <button
@@ -199,18 +168,16 @@ export default function Graph() {
         </button>
       </div>
 
-      <div className={`graph-panel ${focused ? 'is-focused' : 'is-insights'}`}>
-        {focused ? (
+      {focused && (
+        <div className="graph-panel is-focused">
           <NodeDetail
             node={focused}
             related={neighborIndex.get(focused.id) ?? []}
             onClose={() => focusNode(null)}
             onOpen={openFocused}
           />
-        ) : insights ? (
-          <InsightsView insights={insights} />
-        ) : null}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -230,11 +197,6 @@ function NodeDetail({ node, related, onClose, onOpen }: {
       <button className="graph-panel-close" onClick={onClose} aria-label="Close">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
       </button>
-      <div className="graph-panel-eyebrow">
-        <span className={`graph-panel-visibility graph-panel-visibility--${node.visibility}`}>
-          {node.visibility}
-        </span>
-      </div>
       <h3 className="graph-panel-title">{node.title || node.slug}</h3>
       {node.url && <div className="graph-panel-meta">{host}{path}</div>}
       {node.tags.length > 0 && (
@@ -256,7 +218,6 @@ function NodeDetail({ node, related, onClose, onOpen }: {
                   title={`Cosine similarity ${r.weight.toFixed(3)}`}
                 >
                   <span className="graph-panel-bar" style={{ width: `${Math.round(r.weight * 100)}%` }} />
-                  <VisibilityDot node={r.node} />
                   <span className="graph-panel-item-title">{r.node.title || r.node.slug}</span>
                   <span className="graph-panel-item-value">{Math.round(r.weight * 100)}%</span>
                 </button>
@@ -277,187 +238,33 @@ function NodeDetail({ node, related, onClose, onOpen }: {
   )
 }
 
-function InsightsView({ insights }: { insights: GraphInsights }) {
-  const hasContent = insights.anchors.length > 0 || insights.orphans.length > 0
-  return (
-    <div className="graph-panel-inner">
-      <h3 className="graph-panel-title">{insights.headline}</h3>
-      <div className="graph-panel-subtitle">Click a page to explore its relationships.</div>
 
-      {insights.anchors.length > 0 && (
-        <div className="graph-panel-section">
-          <div className="graph-panel-section-label">Anchors</div>
-          <ul className="graph-panel-list">
-            {insights.anchors.map(a => (
-              <li key={a.node.id}>
-                <button
-                  className="graph-panel-item"
-                  onClick={() => focusNode(a.node)}
-                  onMouseEnter={() => setHover(a.node.id)}
-                  onMouseLeave={() => setHover(null)}
-                >
-                  <VisibilityDot node={a.node} />
-                  <span className="graph-panel-item-title">{a.node.title || a.node.slug}</span>
-                  <span className="graph-panel-item-value">{a.degree}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {insights.orphans.length > 0 && (
-        <div className="graph-panel-section">
-          <div className="graph-panel-section-label">Not yet connected</div>
-          <ul className="graph-panel-list">
-            {insights.orphans.map(n => (
-              <li key={n.id}>
-                <button
-                  className="graph-panel-item"
-                  onClick={() => focusNode(n)}
-                  onMouseEnter={() => setHover(n.id)}
-                  onMouseLeave={() => setHover(null)}
-                >
-                  <VisibilityDot node={n} />
-                  <span className="graph-panel-item-title">{n.title || n.slug}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {insights.orphanOverflow > 0 && (
-            <div className="graph-panel-more">+{insights.orphanOverflow} more</div>
-          )}
-        </div>
-      )}
-
-      {!hasContent && (
-        <div className="graph-panel-subtitle" style={{ marginTop: '.5rem' }}>
-          Publish a few more pages to see relationships emerge.
-        </div>
-      )}
-    </div>
-  )
-}
-
-function FilterBar({ collections, nodes, excludedVis, excludedCols }: {
+function GraphControls({ collections, nodes, excludedCols }: {
   collections: { id: string; title: string }[]
   nodes: GraphNode[]
-  excludedVis: Set<Visibility>
   excludedCols: Set<string>
 }) {
-  const visCounts: Record<Visibility, number> = { public: 0, unlisted: 0, private: 0 }
-  for (const n of nodes) visCounts[n.visibility]++
+  const [open, setOpen] = useState(false)
+  const prefs = useStore($embeddingPrefs)
+  const site = useStore($site)
+  const [embedError, setEmbedError] = useState<string | null>(null)
+  const current = findModel(prefs.modelId)
 
   const colCounts = new Map<string, number>()
   for (const n of nodes) {
     const key = n.collection_id ?? STANDALONE_KEY
     colCounts.set(key, (colCounts.get(key) ?? 0) + 1)
   }
-
-  const visibleVisibilities = ALL_VISIBILITIES.filter(v => visCounts[v] > 0)
   const standaloneCount = colCounts.get(STANDALONE_KEY) ?? 0
   const showStandalone = standaloneCount > 0
   const colsWithCounts = collections
     .map(c => ({ ...c, count: colCounts.get(c.id) ?? 0 }))
     .filter(c => c.count > 0)
-
-  if (visibleVisibilities.length <= 1 && colsWithCounts.length === 0 && !showStandalone) return null
-
-  return (
-    <div className="graph-filters">
-      {visibleVisibilities.length > 1 && (
-        <div className="graph-filters-row">
-          <span className="graph-filters-label">Visibility</span>
-          <TokenRow>
-            {visibleVisibilities.map(v => (
-              <FilterToken
-                key={v}
-                active={!excludedVis.has(v)}
-                onClick={() => toggleVis(v)}
-                label={v}
-                count={visCounts[v]}
-                dot={v}
-              />
-            ))}
-          </TokenRow>
-        </div>
-      )}
-
-      {(colsWithCounts.length > 0 || showStandalone) && (
-        <div className="graph-filters-row">
-          <span className="graph-filters-label">Collections</span>
-          <TokenRow>
-            {showStandalone && (
-              <FilterToken
-                active={!excludedCols.has(STANDALONE_KEY)}
-                onClick={() => toggleCol(STANDALONE_KEY)}
-                label="Standalone"
-                count={standaloneCount}
-              />
-            )}
-            {colsWithCounts.map(c => (
-              <FilterToken
-                key={c.id}
-                active={!excludedCols.has(c.id)}
-                onClick={() => toggleCol(c.id)}
-                label={c.title}
-                count={c.count}
-              />
-            ))}
-          </TokenRow>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function TokenRow({ children }: { children: ReactNode }) {
-  return <span className="graph-filters-tokens">{children}</span>
-}
-
-function FilterToken({ active, onClick, label, count, dot }: {
-  active: boolean
-  onClick: () => void
-  label: string
-  count: number
-  dot?: Visibility
-}) {
-  return (
-    <button
-      className={`graph-filter-token ${active ? 'is-active' : 'is-muted'}`}
-      onClick={onClick}
-      aria-pressed={active}
-      title={`${active ? 'Hide' : 'Show'} ${label}`}
-    >
-      {dot && <span className={`graph-filter-token-dot graph-filter-token-dot--${dot}`} aria-hidden="true" />}
-      <span>{label}</span>
-      <span className="graph-filter-token-count">{count}</span>
-    </button>
-  )
-}
-
-function VisibilityDot({ node }: { node: GraphNode }) {
-  if (node.visibility === 'public') return null
-  const label = node.visibility === 'private' ? 'Private' : 'Unlisted'
-  return (
-    <span
-      className={`graph-panel-visibility-dot graph-panel-visibility-dot--${node.visibility}`}
-      title={label}
-      aria-label={label}
-    />
-  )
-}
-
-function SemanticGraphControls() {
-  const prefs = useStore($embeddingPrefs)
-  const status = useStore($embeddingStatus)
-  const site = useStore($site)
-  const [open, setOpen] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const current = findModel(prefs.modelId)
+  const showColsSection = colsWithCounts.length > 0 || showStandalone
+  const hasActiveFilters = excludedCols.size > 0
 
   const toggleEnabled = async () => {
-    setError(null)
+    setEmbedError(null)
     if (prefs.enabled) {
       setEmbeddingPrefs({ ...prefs, enabled: false })
       await embeddingController.stop()
@@ -470,13 +277,13 @@ function SemanticGraphControls() {
       const sources = await fetchEmbeddingSource()
       embeddingController.syncPages(sources)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to enable')
+      setEmbedError(e instanceof Error ? e.message : 'failed to enable')
     }
   }
 
   const switchModel = async (modelId: string) => {
     if (!site?.ID) return
-    setError(null)
+    setEmbedError(null)
     setEmbeddingPrefs({ ...prefs, modelId })
     if (!prefs.enabled) return
     try {
@@ -484,7 +291,7 @@ function SemanticGraphControls() {
       const sources = await fetchEmbeddingSource()
       embeddingController.syncPages(sources)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to switch model')
+      setEmbedError(e instanceof Error ? e.message : 'failed to switch model')
     }
   }
 
@@ -493,60 +300,125 @@ function SemanticGraphControls() {
   }
 
   return (
-    <div className="graph-settings">
+    <div className="graph-controls">
       <button
-        className={`graph-settings-trigger${open ? ' is-open' : ''}`}
+        className={`graph-controls-trigger${open ? ' is-open' : ''}`}
         onClick={() => setOpen(v => !v)}
-        aria-label="Semantic graph settings"
+        aria-label="Graph controls"
         aria-expanded={open}
-        title="Semantic graph settings"
+        title="Graph controls"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+          <line x1="21" y1="4" x2="14" y2="4" />
+          <line x1="10" y1="4" x2="3" y2="4" />
+          <line x1="21" y1="12" x2="12" y2="12" />
+          <line x1="8" y1="12" x2="3" y2="12" />
+          <line x1="21" y1="20" x2="16" y2="20" />
+          <line x1="12" y1="20" x2="3" y2="20" />
+          <line x1="14" y1="2" x2="14" y2="6" />
+          <line x1="8" y1="10" x2="8" y2="14" />
+          <line x1="16" y1="18" x2="16" y2="22" />
         </svg>
+        {hasActiveFilters && <span className="graph-controls-trigger-dot" aria-hidden="true" />}
       </button>
       {open && (
-        <div className="graph-settings-popover" role="dialog" aria-label="Semantic graph settings">
+        <div className="graph-controls-popover" role="dialog" aria-label="Graph controls">
           <div className="graph-settings-header">
-            <div className="graph-settings-title">Semantic graph</div>
+            <div className="graph-settings-title">Graph</div>
             <button className="graph-settings-close" onClick={() => setOpen(false)} aria-label="Close">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
           </div>
-          <p className="graph-settings-desc">
-            Embeddings are generated locally in your browser to power semantic connections. Content never leaves your machine.
-          </p>
-          <label className="graph-settings-label">Model</label>
-          <Select
-            value={prefs.modelId}
-            onChange={switchModel}
-            ariaLabel="Embedding model"
-            options={MODELS.map(m => ({
-              value: m.id,
-              label: m.label,
-              hint: `${m.dims}d · ~${m.approxSizeMB}MB`,
-            }))}
-            className="graph-settings-select"
-          />
-          {current && <div className="graph-settings-hint">{current.description}</div>}
-          {error && <div className="graph-settings-error">{error}</div>}
-          <div className="graph-settings-actions">
-            <button type="button" onClick={toggleEnabled}>
-              {prefs.enabled ? 'Disable' : 'Enable'}
-            </button>
-            <button type="button" onClick={clearCache} disabled={!prefs.enabled}>
-              Clear cache
-            </button>
-          </div>
-          {prefs.enabled && status.state === 'ready' && (
-            <div className="graph-settings-status">
-              {status.embedded} of {status.total_pages} pages embedded
-              {status.pending > 0 && ` · ${status.pending} in queue`}
+
+          {showColsSection && (
+            <div className="graph-controls-section">
+              <div className="graph-controls-section-head">
+                <label className="graph-settings-label">Collections</label>
+                {hasActiveFilters && (
+                  <button type="button" className="graph-controls-linkbtn" onClick={clearFilters}>
+                    Clear
+                  </button>
+                )}
+              </div>
+              <span className="graph-filters-tokens">
+                {showStandalone && (
+                  <FilterToken
+                    active={!excludedCols.has(STANDALONE_KEY)}
+                    onClick={() => toggleCol(STANDALONE_KEY)}
+                    label="Standalone"
+                    count={standaloneCount}
+                    color={STANDALONE_COLOR}
+                  />
+                )}
+                {colsWithCounts.map(c => (
+                  <FilterToken
+                    key={c.id}
+                    active={!excludedCols.has(c.id)}
+                    onClick={() => toggleCol(c.id)}
+                    label={c.title}
+                    count={c.count}
+                    color={collectionColor(c.id)}
+                  />
+                ))}
+              </span>
             </div>
           )}
+
+          <div className="graph-controls-section">
+            <label className="graph-settings-label">Semantic graph</label>
+            <p className="graph-settings-desc">
+              Embeddings are generated locally in your browser to power semantic connections. Content never leaves your machine.
+            </p>
+            <Select
+              value={prefs.modelId}
+              onChange={switchModel}
+              ariaLabel="Embedding model"
+              options={MODELS.map(m => ({
+                value: m.id,
+                label: m.label,
+                hint: `${m.dims}d · ~${m.approxSizeMB}MB`,
+              }))}
+              className="graph-settings-select"
+            />
+            {current && <div className="graph-settings-hint">{current.description}</div>}
+            {embedError && <div className="graph-settings-error">{embedError}</div>}
+            <div className="graph-settings-actions">
+              <button
+                type="button"
+                className={prefs.enabled ? '' : 'is-primary'}
+                onClick={toggleEnabled}
+              >
+                {prefs.enabled ? 'Disable' : 'Enable'}
+              </button>
+              <button type="button" onClick={clearCache} disabled={!prefs.enabled}>
+                Clear cache
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   )
 }
+
+function FilterToken({ active, onClick, label, count, color }: {
+  active: boolean
+  onClick: () => void
+  label: string
+  count: number
+  color?: string
+}) {
+  return (
+    <button
+      className={`graph-filter-token ${active ? 'is-active' : 'is-muted'}`}
+      onClick={onClick}
+      aria-pressed={active}
+      title={`${active ? 'Hide' : 'Show'} ${label}`}
+    >
+      {color && <span className="graph-filter-token-dot" style={{ background: color }} aria-hidden="true" />}
+      <span>{label}</span>
+      <span className="graph-filter-token-count">{count}</span>
+    </button>
+  )
+}
+

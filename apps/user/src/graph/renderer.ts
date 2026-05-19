@@ -24,6 +24,7 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
 import { forceLink } from 'd3-force-3d'
 import { buildSimulation, type SimLink, type SimNode } from './layout'
 import type { GraphEdge, GraphNode } from './types'
+import { collectionHsl } from './colors'
 
 const NODE_BASE_SCALE = 6
 const NODE_MAX_DEGREE_BONUS = 9
@@ -33,19 +34,18 @@ const NODE_HOVER_MULTIPLIER = 1.25
 const NODE_SEGMENTS = 48
 
 const BG_COLOR = 0xfafafa
-const NODE_COLOR = 0x18181b
 const NODE_DIM_COLOR = 0xd4d4d8
 
-const EDGE_STRONG_THRESHOLD = 0.45
-const EDGE_WEAK_COLOR = 0xd4d4d8
-const EDGE_STRONG_COLOR = 0x71717a
+const EDGE_STRONG_THRESHOLD = 0.55
+const EDGE_WEAK_COLOR = 0xcbd5e1
+const EDGE_STRONG_COLOR = 0x94a3b8
 const EDGE_FOCUS_COLOR = 0x18181b
-const EDGE_WEAK_WIDTH = 1.4
-const EDGE_STRONG_WIDTH = 2.4
-const EDGE_FOCUS_WIDTH = 3.0
-const EDGE_WEAK_OPACITY = 0.55
-const EDGE_STRONG_OPACITY = 0.75
-const EDGE_DIM_OPACITY = 0.08
+const EDGE_WEAK_WIDTH = 1.0
+const EDGE_STRONG_WIDTH = 1.3
+const EDGE_FOCUS_WIDTH = 1.8
+const EDGE_WEAK_OPACITY = 0.30
+const EDGE_STRONG_OPACITY = 0.52
+const EDGE_DIM_OPACITY = 0.10
 
 const ZOOM_MIN = 0.15
 const ZOOM_MAX = 8
@@ -262,15 +262,7 @@ export class GraphRenderer {
 
     const div = document.createElement('div')
     div.className = 'graph-label'
-    if (n.data.visibility && n.data.visibility !== 'public') {
-      const dot = document.createElement('span')
-      dot.className = `graph-label-dot graph-label-dot--${n.data.visibility}`
-      dot.title = n.data.visibility
-      div.appendChild(dot)
-    }
-    const text = document.createElement('span')
-    text.textContent = n.data.title || n.data.slug
-    div.appendChild(text)
+    div.textContent = n.data.title || n.data.slug
     const label = new CSS2DObject(div)
     label.position.set(0, -NODE_BASE_SCALE - 7, 0)
     anchor.add(label)
@@ -483,8 +475,12 @@ export class GraphRenderer {
 
   private paintNodes() {
     for (let i = 0; i < this.simNodes.length; i++) {
-      const hex = this.isHighlighted(i) ? NODE_COLOR : NODE_DIM_COLOR
-      this.tmpColor.setHex(hex)
+      if (this.isHighlighted(i)) {
+        const { h, s, l } = collectionHsl(this.simNodes[i].data.collection_id)
+        this.tmpColor.setHSL(h, s, l)
+      } else {
+        this.tmpColor.setHex(NODE_DIM_COLOR)
+      }
       this.nodeMesh.setColorAt(i, this.tmpColor)
     }
     if (this.nodeMesh.instanceColor) this.nodeMesh.instanceColor.needsUpdate = true

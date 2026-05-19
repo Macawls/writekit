@@ -1,7 +1,6 @@
 import { atom, computed } from 'nanostores'
 import { fetchGraph, fetchEmbeddingSource } from '../api/graph'
-import type { GraphEdge, GraphNode, GraphResponse, Visibility } from '../graph/types'
-import { computeInsights } from '../graph/insights'
+import type { GraphEdge, GraphNode, GraphResponse } from '../graph/types'
 import { computeEdges } from '../graph/edges'
 import { embeddingController, $vectorsTick } from '../embedding/controller'
 import { $embeddingPrefs } from '../embedding/settings'
@@ -16,9 +15,9 @@ export interface RelatedEntry {
 export const $graphData = atom<GraphResponse | null>(null)
 export const $loading = atom<boolean>(true)
 export const $error = atom<string | null>(null)
+let lastLoadedTenant: string | null = null
 export const $focused = atom<GraphNode | null>(null)
 export const $hoverId = atom<string | null>(null)
-export const $excludedVis = atom<Set<Visibility>>(new Set())
 export const $excludedCols = atom<Set<string>>(new Set())
 export const $view3D = atom<boolean>(false)
 
@@ -32,12 +31,10 @@ async function recomputeEdges() {
 $vectorsTick.subscribe(() => { recomputeEdges() })
 
 export const $visibleData = computed(
-  [$graphData, $edges, $excludedVis, $excludedCols],
-  (data, edges, exVis, exCols) => {
+  [$graphData, $edges, $excludedCols],
+  (data, edges, exCols) => {
     if (!data) return null
-    const nodes = data.nodes.filter(n =>
-      !exVis.has(n.visibility) &&
-      !exCols.has(n.collection_id ?? STANDALONE_KEY))
+    const nodes = data.nodes.filter(n => !exCols.has(n.collection_id ?? STANDALONE_KEY))
     const ids = new Set(nodes.map(n => n.id))
     const filteredEdges = edges.filter(e => ids.has(e.source) && ids.has(e.target))
     return { nodes, edges: filteredEdges, collections: data.collections }
@@ -75,13 +72,14 @@ export const $neighborIndex = computed($visibleData, vis => {
   return index
 })
 
-export const $insights = computed($visibleData, vis => vis ? computeInsights(vis) : null)
 
-export async function loadGraph(tenantId: string) {
+export async function loadGraph(tenantId: string, opts?: { force?: boolean }) {
+  if (!opts?.force && lastLoadedTenant === tenantId && $graphData.get()) return
   $error.set(null)
   try {
     const d = await fetchGraph()
     $graphData.set(d)
+    lastLoadedTenant = tenantId
     $loading.set(false)
     await recomputeEdges()
 
@@ -101,16 +99,14 @@ export function stopGraphPolling() {
   // retained for backward compat; no-op now that backfill polling is gone
 }
 
-export function toggleVis(v: Visibility) {
-  const next = new Set($excludedVis.get())
-  if (next.has(v)) next.delete(v); else next.add(v)
-  $excludedVis.set(next)
-}
-
 export function toggleCol(id: string) {
   const next = new Set($excludedCols.get())
   if (next.has(id)) next.delete(id); else next.add(id)
   $excludedCols.set(next)
+}
+
+export function clearFilters() {
+  $excludedCols.set(new Set())
 }
 
 export function focusNode(n: GraphNode | null) {
