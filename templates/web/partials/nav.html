@@ -42,7 +42,7 @@
         padding:.4rem .85rem;
     }
     .wk-nav .nav-r .signin:hover{opacity:.85;background:var(--surface,#18181b);color:var(--white,#fff)}
-    .wk-nav .profile{position:relative;display:none}
+    .wk-nav .profile{position:relative;display:none;align-items:center}
     .wk-nav .avatar{
         width:28px;height:28px;border-radius:50%;object-fit:cover;cursor:pointer;
         border:1px solid var(--border,#e4e4e7);
@@ -133,7 +133,7 @@
         document.getElementById('wk-dash-link').href=proto+'//'+appHost;
         document.getElementById('wk-signin').style.display='none';
         var profile=document.getElementById('wk-profile');
-        profile.style.display='block';
+        profile.style.display='flex';
         var dd=document.getElementById('wk-dropdown');
         wrap.addEventListener('click',function(e){
             e.stopPropagation();dd.classList.toggle('open');
