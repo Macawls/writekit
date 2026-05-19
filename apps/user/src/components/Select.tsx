@@ -4,6 +4,7 @@ export interface SelectOption<T extends string = string> {
   value: T
   label: string
   hint?: string
+  icon?: ReactNode
 }
 
 interface Props<T extends string> {
@@ -128,7 +129,10 @@ export function Select<T extends string>({ value, options, onChange, className, 
                   setOpen(false)
                 }}
               >
-                <span className="wk-select-option-label">{o.label}</span>
+                <span className="wk-select-option-row">
+                  {o.icon && <span className="wk-select-option-icon" aria-hidden="true">{o.icon}</span>}
+                  <span className="wk-select-option-label">{o.label}</span>
+                </span>
                 {o.hint && <span className="wk-select-option-hint">{o.hint}</span>}
               </li>
             ))}
