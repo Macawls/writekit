@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '@nanostores/react'
 import { $route, navigate, type Route } from '../stores/router'
 import { $user, $site, $isDesktop, logout } from '../stores/auth'
@@ -17,6 +17,28 @@ const navItems: NavItem[] = [
   { route: 'database', label: 'Database', icon: 'M4 7v10c0 2 3 3 8 3s8-1 8-3V7M4 7c0-2 3-3 8-3s8 1 8 3M4 7c0 2 3 3 8 3s8-1 8-3m-16 5c0 2 3 3 8 3s8-1 8-3' },
 ]
 
+function VersionPill() {
+  const v = __APP_VERSION__
+  if (v === 'dev') return <div className="sidebar-version">v{v}</div>
+  const url = `https://github.com/${__APP_REPO__}/releases/tag/${v}`
+  const handle = (e: React.MouseEvent) => {
+    const r = (window as any).runtime
+    if (r?.BrowserOpenURL) { e.preventDefault(); r.BrowserOpenURL(url) }
+  }
+  return (
+    <a
+      className="sidebar-version sidebar-version-link"
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={handle}
+      title={`View ${v} release on GitHub`}
+    >
+      {v}
+    </a>
+  )
+}
+
 function NavIcon({ path }: { path: string }) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -31,6 +53,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const site = useStore($site)
   const isDesktop = useStore($isDesktop)
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => {
+    if (!mobileOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileOpen(false) }
+    window.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [mobileOpen])
 
   const host = window.location.hostname.replace(/^app\./, '')
   const siteUrl = isDesktop
@@ -101,7 +135,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
           </button>
         </div>
-        <div className="sidebar-version">v{__APP_VERSION__}</div>
+        <VersionPill />
+
       </div>
     </>
   )

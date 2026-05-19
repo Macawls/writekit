@@ -1,20 +1,31 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useStore } from '@nanostores/react'
+import { atom } from 'nanostores'
 import { api, type DBTable, type DBTableRows, type DBSchema, type DBColumnInfo } from '../api'
 
 type SortDir = 'asc' | 'desc'
 type Drawer = { kind: 'row'; rowIdx: number; colName: string | null } | { kind: 'schema' } | null
 
+const $tables = atom<DBTable[] | null>(null)
+const $selected = atom<string | null>(null)
+let tablesLoaded = false
+
+async function loadTables() {
+  if (tablesLoaded) return
+  const ts = await api.dbTables()
+  $tables.set(ts)
+  tablesLoaded = true
+  if (ts.length && !$selected.get()) $selected.set(ts[0].name)
+}
+
 export default function Database() {
-  const [tables, setTables] = useState<DBTable[] | null>(null)
+  const tables = useStore($tables)
+  const selected = useStore($selected)
   const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
 
   useEffect(() => {
-    api.dbTables().then(ts => {
-      setTables(ts)
-      if (ts.length && !selected) setSelected(ts[0].name)
-    }).catch(e => setError(e instanceof Error ? e.message : 'failed'))
+    loadTables().catch(e => setError(e instanceof Error ? e.message : 'failed'))
   }, [])
 
   const filtered = useMemo(() => {
@@ -55,7 +66,7 @@ export default function Database() {
               <button
                 key={t.name}
                 type="button"
-                onClick={() => setSelected(t.name)}
+                onClick={() => $selected.set(t.name)}
                 className={`db-table-item ${selected === t.name ? 'active' : ''}`}
               >
                 <span className="db-table-name">

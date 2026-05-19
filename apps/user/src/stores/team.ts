@@ -4,8 +4,10 @@ import { api, type TeamInvitation, type TeamMember } from '../api'
 export const $members = atom<TeamMember[]>([])
 export const $invitations = atom<TeamInvitation[]>([])
 export const $membersLoading = atom(false)
+let loaded = false
 
-export async function loadMembers() {
+export async function loadMembers(opts?: { force?: boolean }) {
+  if (!opts?.force && loaded) return
   $membersLoading.set(true)
   try {
     const [members, invitations] = await Promise.all([
@@ -14,6 +16,7 @@ export async function loadMembers() {
     ])
     $members.set(members)
     $invitations.set(invitations)
+    loaded = true
   } catch {
     $members.set([])
     $invitations.set([])
@@ -24,25 +27,25 @@ export async function loadMembers() {
 
 export async function inviteMember(email: string, role: string) {
   await api.inviteTeamMember(email, role)
-  await loadMembers()
+  await loadMembers({ force: true })
 }
 
 export async function removeMember(userId: string) {
   await api.removeTeamMember(userId)
-  await loadMembers()
+  await loadMembers({ force: true })
 }
 
 export async function updateRole(userId: string, role: string) {
   await api.updateTeamMemberRole(userId, role)
-  await loadMembers()
+  await loadMembers({ force: true })
 }
 
 export async function revokeInvitation(id: string) {
   await api.revokeInvitation(id)
-  await loadMembers()
+  await loadMembers({ force: true })
 }
 
 export async function resendInvitation(id: string) {
   await api.resendInvitation(id)
-  await loadMembers()
+  await loadMembers({ force: true })
 }

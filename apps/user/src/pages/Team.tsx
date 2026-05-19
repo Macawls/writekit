@@ -164,7 +164,7 @@ export default function Team() {
 
       <div className="card" style={{ marginTop: '1rem' }}>
         <h3>Members</h3>
-        {loading ? (
+        {loading && members.length === 0 ? (
           <p className="muted" style={{ marginTop: '.5rem' }}>Loading...</p>
         ) : members.length === 0 ? (
           <p className="muted" style={{ marginTop: '.5rem' }}>No team members yet.</p>
