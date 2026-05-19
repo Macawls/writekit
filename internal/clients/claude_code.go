@@ -29,7 +29,21 @@ func (c claudeCode) IsConnected(port int) bool {
 	if err != nil {
 		return false
 	}
-	servers, _ := m["mcpServers"].(map[string]any)
+	if writekitURLMatches(m["mcpServers"], port) {
+		return true
+	}
+	projects, _ := m["projects"].(map[string]any)
+	for _, p := range projects {
+		proj, _ := p.(map[string]any)
+		if writekitURLMatches(proj["mcpServers"], port) {
+			return true
+		}
+	}
+	return false
+}
+
+func writekitURLMatches(v any, port int) bool {
+	servers, _ := v.(map[string]any)
 	entry, _ := servers[ServerKey].(map[string]any)
 	url, _ := entry["url"].(string)
 	return url == mcpURL(port)
