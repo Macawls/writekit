@@ -23,7 +23,7 @@ Content guidelines:
 - Use bullet and numbered lists for structured information
 - Use tables for comparative data
 - Use links with descriptive text: [text](url)
-- Use images where relevant: ![alt](url)
+- Use images where relevant: ![alt](url) — for new images, call upload_image first to get a /img/{id}.webp URL; do not inline base64 data: URIs in markdown
 
 Advanced features:
 - Callout blocks: Start a blockquote with [!NOTE], [!TIP], [!WARNING], or [!DANGER] for styled alert boxes
@@ -74,6 +74,7 @@ func New(platformDB *platform.DB, pool *tenant.Pool, cfg *config.Config, bus *ev
 	s.registerPageTools(mcpServer)
 	s.registerCollectionTools(mcpServer)
 	s.registerSettingsTools(mcpServer)
+	s.registerImageTools(mcpServer)
 	if !cfg.Local {
 		s.registerTeamTools(mcpServer)
 	}

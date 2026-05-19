@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -13,6 +14,8 @@ import (
 
 	"writekit/internal/markdown"
 )
+
+const orphanImageGrace = 24 * time.Hour
 
 type Page struct {
 	ID           string
@@ -61,6 +64,10 @@ func (db *DB) CreatePage(ctx context.Context, p *Page) error {
 	if err != nil {
 		return fmt.Errorf("create page: %w", err)
 	}
+	if err := db.SyncImageRefs(ctx, p.ID, p.Content); err != nil {
+		slog.Warn("sync image refs after create page", "page", p.ID, "err", err)
+	}
+	db.pruneOrphanImages(ctx)
 	return nil
 }
 
@@ -75,7 +82,17 @@ func (db *DB) UpdatePage(ctx context.Context, p *Page) error {
 	if err != nil {
 		return fmt.Errorf("update page: %w", err)
 	}
+	if err := db.SyncImageRefs(ctx, p.ID, p.Content); err != nil {
+		slog.Warn("sync image refs after update page", "tenant", db.TenantID, "page", p.ID, "err", err)
+	}
+	db.pruneOrphanImages(ctx)
 	return nil
+}
+
+func (db *DB) pruneOrphanImages(ctx context.Context) {
+	if _, err := db.DeleteUnreferencedImages(ctx, orphanImageGrace); err != nil {
+		slog.Warn("prune orphan images", "tenant", db.TenantID, "err", err)
+	}
 }
 
 func (db *DB) UpdatePageContentHTML(ctx context.Context, id string, html string) error {
@@ -90,6 +107,7 @@ func (db *DB) DeletePage(ctx context.Context, id string) error {
 	if _, err := db.DB.ExecContext(ctx, `DELETE FROM pages WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("delete page %s: %w", id, err)
 	}
+	db.pruneOrphanImages(ctx)
 	return nil
 }
 
