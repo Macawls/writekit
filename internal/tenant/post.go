@@ -534,6 +534,11 @@ type PageVersion struct {
 	CreatedAt   time.Time
 }
 
+type PageVersionSummary struct {
+	Version   int       `json:"version"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 const maxVersions = 20
 
 func (db *DB) SavePageVersion(ctx context.Context, p *Page) error {
@@ -550,6 +555,29 @@ func (db *DB) SavePageVersion(ctx context.Context, p *Page) error {
 	`, p.ID, p.Version, maxVersions)
 
 	return nil
+}
+
+func (db *DB) ListPageVersions(ctx context.Context, pageID string) ([]PageVersionSummary, error) {
+	rows, err := db.DB.QueryContext(ctx, `
+		SELECT version, created_at
+		FROM page_versions WHERE page_id = ?
+		ORDER BY version DESC
+		LIMIT ?
+	`, pageID, maxVersions)
+	if err != nil {
+		return nil, fmt.Errorf("list page versions: %w", err)
+	}
+	defer rows.Close()
+
+	var out []PageVersionSummary
+	for rows.Next() {
+		var s PageVersionSummary
+		if err := rows.Scan(&s.Version, &s.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan page version: %w", err)
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
 }
 
 func (db *DB) GetPageVersion(ctx context.Context, pageID string, version int) (*PageVersion, error) {

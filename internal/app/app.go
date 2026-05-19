@@ -55,6 +55,7 @@ func New(cfg *config.Config, platformDB *platform.DB, pool *tenant.Pool, templat
 		Bus:        bus,
 		Cache:      cache,
 		PlatformDB: platformDB,
+		Presence:   mcpPresenceAdapter{srv: mcpSrv},
 	}
 
 	apiHandler := &api.Handler{
@@ -360,4 +361,14 @@ func (a *App) Run() error {
 		return err
 	}
 	return nil
+}
+
+type mcpPresenceAdapter struct{ srv *mcpserver.Server }
+
+func (a mcpPresenceAdapter) Presence(tenantID string) (site.ClientPresence, bool) {
+	p, ok := a.srv.Presence(tenantID)
+	if !ok {
+		return site.ClientPresence{}, false
+	}
+	return site.ClientPresence{Name: p.Name, Version: p.Version, LastSeen: p.LastSeen}, true
 }

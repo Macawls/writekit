@@ -1,6 +1,7 @@
 package site
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"writekit/internal/auth"
 	"writekit/internal/events"
 	"writekit/internal/httplog"
+	"writekit/internal/markdown"
 	"writekit/internal/tenant"
 )
 
@@ -599,8 +601,9 @@ func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	latestVersion := page.Version
 	if vStr := r.URL.Query().Get("v"); vStr != "" {
-		if v, err := strconv.Atoi(vStr); err == nil {
+		if v, err := strconv.Atoi(vStr); err == nil && v >= 1 {
 			pv, err := db.GetPageVersion(r.Context(), page.ID, v)
 			if err == nil {
 				page.Title = pv.Title
@@ -610,8 +613,6 @@ func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 			} else {
 				log.Warn("preview: get page version", "tenant", tenantID, "page_id", page.ID, "version", v, "err", err)
 			}
-		} else {
-			log.Debug("preview: invalid version param", "raw", vStr, "err", err)
 		}
 	}
 
@@ -620,13 +621,89 @@ func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 		log.Warn("preview: get settings", "tenant", tenantID, "err", err)
 	}
 
+	showDiff := previewShowDiff(r)
+	if showDiff {
+		page.ContentHTML = renderPreviewBody(r.Context(), db, page)
+	} else {
+		page.ContentHTML = markdown.RenderBlocksHTML(page.Content)
+	}
+
+	clientName := ""
+	if h.Presence != nil {
+		if p, ok := h.Presence.Presence(tenantID); ok {
+			clientName = p.Name
+		}
+	}
+
 	h.Engine.Render(w, "page.html", map[string]any{
-		"Page":         page,
-		"Settings":     settings,
-		"TenantID":     tenantID,
-		"Host":         h.Config.Host,
-		"Preview":      true,
-		"PreviewToken": token,
+		"Page":           page,
+		"Settings":       settings,
+		"TenantID":       tenantID,
+		"Host":           h.Config.Host,
+		"Preview":        true,
+		"PreviewToken":   token,
+		"PreviewVersion": page.Version,
+		"LatestVersion":  latestVersion,
+		"ShowDiff":       showDiff,
+		"ClientName":     clientName,
+	})
+}
+
+func previewShowDiff(r *http.Request) bool {
+	c, err := r.Cookie("wk_preview_diff")
+	if err != nil {
+		return true
+	}
+	return c.Value != "off"
+}
+
+func renderPreviewBody(ctx context.Context, db *tenant.DB, page *tenant.Page) string {
+	if page.Version < 1 {
+		return markdown.RenderBlocksHTML(page.Content)
+	}
+	pv, err := db.GetPageVersion(ctx, page.ID, page.Version-1)
+	if err != nil {
+		return markdown.RenderBlocksHTML(page.Content)
+	}
+	oldBlocks := markdown.ExtractBlocks(pv.Content)
+	newBlocks := markdown.ExtractBlocks(page.Content)
+	hunks := markdown.DiffBlocks(oldBlocks, newBlocks)
+	return markdown.RenderHunksHTML(hunks)
+}
+
+func (h *Handler) PreviewVersions(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
+	db, tenantID, err := h.getTenantDB(r)
+	if err != nil {
+		log.Info("preview versions: tenant not found", "host", r.Host, "err", err)
+		http.Error(w, "site not found", http.StatusNotFound)
+		return
+	}
+
+	token := chi.URLParam(r, "token")
+	pt, err := db.GetPreviewToken(r.Context(), token)
+	if err != nil {
+		log.Info("preview versions: invalid or expired token", "tenant", tenantID, "err", err)
+		http.Error(w, "preview not found or expired", http.StatusNotFound)
+		return
+	}
+
+	page, err := db.GetPage(r.Context(), pt.PageID)
+	if err != nil {
+		http.Error(w, "page not found", http.StatusNotFound)
+		return
+	}
+
+	versions, err := db.ListPageVersions(r.Context(), page.ID)
+	if err != nil {
+		log.Warn("preview versions: list", "tenant", tenantID, "page_id", page.ID, "err", err)
+		versions = nil
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"latest":   page.Version,
+		"versions": versions,
 	})
 }
 
@@ -657,12 +734,16 @@ func (h *Handler) PreviewSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, ": connected\n\n")
+	flusher.Flush()
 
 	pageID := pt.PageID
 	type sseEvent struct {
-		kind string // "saving" or "rendered"
+		kind string
 	}
-	ch := make(chan sseEvent, 2)
+	ch := make(chan sseEvent, 4)
 
 	contentSubID := h.Bus.On(events.PageContentSaved, func(e events.Event) {
 		if e.PageID == pageID {
@@ -675,11 +756,16 @@ func (h *Handler) PreviewSSE(w http.ResponseWriter, r *http.Request) {
 	defer h.Bus.Off(events.PageContentSaved, contentSubID)
 
 	updatedSubID := h.Bus.On(events.PageUpdated, func(e events.Event) {
-		if e.PageID == pageID {
-			select {
-			case ch <- sseEvent{kind: "rendered"}:
-			default:
-			}
+		if e.PageID != pageID {
+			return
+		}
+		kind := "rendered"
+		if p, err := db.GetPage(r.Context(), pageID); err == nil {
+			kind = fmt.Sprintf("rendered:%d", p.Version)
+		}
+		select {
+		case ch <- sseEvent{kind: kind}:
+		default:
 		}
 	})
 	defer h.Bus.Off(events.PageUpdated, updatedSubID)
@@ -693,5 +779,99 @@ func (h *Handler) PreviewSSE(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "data: %s\n\n", evt.kind)
 			flusher.Flush()
 		}
+	}
+}
+
+func (h *Handler) PreviewDiff(w http.ResponseWriter, r *http.Request) {
+	log := httplog.FromContext(r.Context())
+	db, tenantID, err := h.getTenantDB(r)
+	if err != nil {
+		log.Info("preview diff: tenant not found", "host", r.Host, "err", err)
+		http.Error(w, "site not found", http.StatusNotFound)
+		return
+	}
+
+	token := chi.URLParam(r, "token")
+	pt, err := db.GetPreviewToken(r.Context(), token)
+	if err != nil {
+		log.Info("preview diff: invalid or expired token", "tenant", tenantID, "err", err)
+		http.Error(w, "preview not found or expired", http.StatusNotFound)
+		return
+	}
+
+	page, err := db.GetPage(r.Context(), pt.PageID)
+	if err != nil {
+		log.Warn("preview diff: page lookup failed", "tenant", tenantID, "page_id", pt.PageID, "err", err)
+		http.Error(w, "page not found", http.StatusNotFound)
+		return
+	}
+
+	toStr := r.URL.Query().Get("to")
+	to := page.Version
+	if toStr != "" {
+		v, err := strconv.Atoi(toStr)
+		if err != nil || v < 1 {
+			http.Error(w, "invalid version", http.StatusBadRequest)
+			return
+		}
+		to = v
+	}
+
+	from := to - 1
+	if fromStr := r.URL.Query().Get("from"); fromStr != "" {
+		v, err := strconv.Atoi(fromStr)
+		if err != nil {
+			http.Error(w, "invalid version", http.StatusBadRequest)
+			return
+		}
+		from = v
+	}
+
+	newContent := page.Content
+	if to != page.Version {
+		pv, err := db.GetPageVersion(r.Context(), page.ID, to)
+		if err != nil {
+			http.Error(w, "version not found", http.StatusNotFound)
+			return
+		}
+		newContent = pv.Content
+	}
+	newBlocks := markdown.ExtractBlocks(newContent)
+
+	var hunks []markdown.Hunk
+	if from < 1 {
+		hunks = make([]markdown.Hunk, 0, len(newBlocks))
+		for _, b := range newBlocks {
+			hunks = append(hunks, markdown.Hunk{Op: markdown.OpKeep, Anchor: b.Anchor, HTML: b.HTML})
+		}
+	} else {
+		pv, err := db.GetPageVersion(r.Context(), page.ID, from)
+		if err != nil {
+			hunks = make([]markdown.Hunk, 0, len(newBlocks))
+			for _, b := range newBlocks {
+				hunks = append(hunks, markdown.Hunk{Op: markdown.OpAdd, Anchor: b.Anchor, HTML: b.HTML})
+			}
+		} else {
+			oldBlocks := markdown.ExtractBlocks(pv.Content)
+			hunks = markdown.DiffBlocks(oldBlocks, newBlocks)
+		}
+	}
+
+	resp := map[string]any{
+		"from":  from,
+		"to":    to,
+		"hunks": hunks,
+	}
+	if len(hunks) > 30 {
+		var sb strings.Builder
+		for _, b := range newBlocks {
+			fmt.Fprintf(&sb, `<div class="diff-block" data-block-anchor="%s">%s</div>`, b.Anchor, b.HTML)
+		}
+		resp["fullHTML"] = sb.String()
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Warn("preview diff: encode json", "tenant", tenantID, "err", err)
 	}
 }

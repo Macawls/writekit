@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"writekit/internal/config"
@@ -14,6 +16,8 @@ import (
 )
 
 const writeKitInstructions = `You are helping the user manage their site on WriteKit. Pages can be standalone or organized into collections. Always write rich, well-structured Markdown content.
+
+Publishing is a user-initiated action: never call publish_page unless the user has explicitly asked to publish. Visibility, tags, and other metadata can be set freely without publishing — they only take effect when the user later publishes the page.
 
 Content guidelines:
 - Use headings (##, ###) to organize sections
@@ -31,7 +35,7 @@ Advanced features:
 - D2 diagrams: Use ` + "```d2" + ` code blocks for architecture diagrams
 - Footnotes: Use [^1] syntax for references
 
-Workflow: Create pages as drafts first, share the preview URL, then publish when ready. Use collections to group related pages (docs, tutorials, series, etc.).
+Use collections to group related pages (docs, tutorials, series, etc.).
 
 Visibility: Pages and collections can be public (default, visible to everyone), unlisted (accessible via URL but hidden from index/sitemap), or private (only visible to authenticated team members). Always ask the user whether content should be public, unlisted, or private before creating or publishing — never assume a visibility level.
 
@@ -46,6 +50,49 @@ type Server struct {
 	Bus        *events.Bus
 	Resolver   TenantResolver
 	mcpServer  *mcp.Server
+
+	presenceMu       sync.RWMutex
+	presenceByTenant map[string]ClientPresence
+}
+
+type ClientPresence struct {
+	Name     string
+	Version  string
+	LastSeen time.Time
+}
+
+func (s *Server) recordPresence(tenantID string, info *mcp.Implementation) {
+	if info == nil || tenantID == "" {
+		return
+	}
+	s.presenceMu.Lock()
+	if s.presenceByTenant == nil {
+		s.presenceByTenant = make(map[string]ClientPresence)
+	}
+	s.presenceByTenant[tenantID] = ClientPresence{
+		Name:     info.Name,
+		Version:  info.Version,
+		LastSeen: time.Now(),
+	}
+	s.presenceMu.Unlock()
+}
+
+func (s *Server) Presence(tenantID string) (ClientPresence, bool) {
+	s.presenceMu.RLock()
+	defer s.presenceMu.RUnlock()
+	p, ok := s.presenceByTenant[tenantID]
+	return p, ok
+}
+
+func (s *Server) trackPresence(req *mcp.CallToolRequest, tenantID string) {
+	if req == nil || req.Session == nil {
+		return
+	}
+	init := req.Session.InitializeParams()
+	if init == nil {
+		return
+	}
+	s.recordPresence(tenantID, init.ClientInfo)
 }
 
 func New(platformDB *platform.DB, pool *tenant.Pool, cfg *config.Config, bus *events.Bus) *Server {
@@ -162,6 +209,16 @@ func (s *Server) getCollectionSlug(tenantID, collectionID string) (string, error
 
 func (s *Server) buildPreviewURL(tenantID, token string) string {
 	return s.tenantBaseURL(tenantID) + "/preview/" + token
+}
+
+func (s *Server) ensurePreviewToken(ctx context.Context, db *tenant.DB, pageID string) (*tenant.PreviewToken, error) {
+	const previewTokenLifetime = 24 * time.Hour
+	if pt, err := db.GetActivePreviewTokenForPage(ctx, pageID); err == nil && pt != nil {
+		_ = db.RefreshPreviewToken(ctx, pt.Token, previewTokenLifetime)
+		pt.ExpiresAt = time.Now().Add(previewTokenLifetime)
+		return pt, nil
+	}
+	return db.CreatePreviewToken(ctx, pageID, previewTokenLifetime)
 }
 
 // toolError returns an MCP tool-level error with the given user-facing message.

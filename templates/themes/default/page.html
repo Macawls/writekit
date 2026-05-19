@@ -2,31 +2,36 @@
 
 {{if .Preview}}
 <div class="preview-banner">
-    This is a preview. This page is not yet published.
+    <div class="pb-left" title="Live session — {{if .ClientName}}{{.ClientName}} is connected{{else}}waiting for AI client{{end}}">
+        <span class="preview-live" aria-hidden="true"></span>
+        <span class="preview-client{{if not .ClientName}} empty{{end}}">{{if .ClientName}}{{.ClientName}}{{else}}awaiting client{{end}}</span>
+    </div>
+    <div class="pb-mid" role="group" aria-label="Version navigation">
+        <a id="preview-prev" class="preview-arrow" title="Previous version" aria-label="Previous version"{{if le .PreviewVersion 1}} aria-disabled="true" data-disabled="true"{{end}} href="?v={{if le .PreviewVersion 1}}1{{else}}{{sub .PreviewVersion 1}}{{end}}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </a>
+        <span id="preview-version-label" class="preview-vlabel">{{.PreviewVersion}}<span class="slash">/</span><span class="denom">{{.LatestVersion}}</span></span>
+        <a id="preview-next" class="preview-arrow{{if lt .PreviewVersion .LatestVersion}} has-new{{end}}" title="Next version" aria-label="Next version"{{if ge .PreviewVersion .LatestVersion}} aria-disabled="true" data-disabled="true"{{end}} href="?v={{if ge .PreviewVersion .LatestVersion}}{{.LatestVersion}}{{else}}{{add .PreviewVersion 1}}{{end}}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+    </div>
+    <div class="pb-right">
+        <label class="preview-toggle" title="Show diff markers (+ − ~) for blocks that changed since the previous version">
+            <input type="checkbox" id="preview-show-diff"{{if .ShowDiff}} checked{{end}}>
+            <span>Show diff</span>
+        </label>
+    </div>
 </div>
 <div id="preview-loader" class="preview-loader"></div>
-<div id="preview-toast" class="preview-toast">Page updated</div>
 <script>
-(function(){
-    var token = "{{.PreviewToken}}";
-    if (!token) return;
-    var toast = document.getElementById("preview-toast");
-    var loader = document.getElementById("preview-loader");
-    var content = document.querySelector(".post-content");
-    var es = new EventSource("/preview/" + token + "/events");
-    es.onmessage = function(e) {
-        var msg = e.data;
-        if (msg === "saving") {
-            loader.classList.add("active");
-            if (content) content.style.opacity = "0.6";
-        } else if (msg === "rendered") {
-            toast.classList.add("show");
-            setTimeout(function(){ location.reload(); }, 600);
-        }
-    };
-    es.onerror = function() { setTimeout(function(){ es.close(); }, 30000); };
-})();
+document.body.classList.add('has-preview-banner');
+window.__previewToken = "{{.PreviewToken}}";
+window.__previewVersion = {{.PreviewVersion}};
+window.__previewLatest = {{.LatestVersion}};
+window.__previewShowDiff = {{if .ShowDiff}}true{{else}}false{{end}};
+window.__previewClient = {{if .ClientName}}"{{.ClientName}}"{{else}}""{{end}};
 </script>
+<script src="/static/preview-diff.js" defer></script>
 {{end}}
 
 {{if .Collection}}

@@ -1,6 +1,8 @@
 package site
 
 import (
+	"time"
+
 	"github.com/go-chi/chi/v5"
 	"writekit/internal/auth"
 	"writekit/internal/config"
@@ -11,6 +13,16 @@ import (
 	"writekit/internal/tenant"
 )
 
+type ClientPresence struct {
+	Name     string
+	Version  string
+	LastSeen time.Time
+}
+
+type PresenceProvider interface {
+	Presence(tenantID string) (ClientPresence, bool)
+}
+
 type Handler struct {
 	Pool       *tenant.Pool
 	Config     *config.Config
@@ -19,6 +31,7 @@ type Handler struct {
 	Cache      *Cache
 	PlatformDB *platform.DB
 	OG         *og.Renderer
+	Presence   PresenceProvider
 }
 
 func (h *Handler) Routes(r chi.Router) {
@@ -36,6 +49,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/search.json", h.SearchJSON)
 	r.Get("/preview/{token}", h.Preview)
 	r.Get("/preview/{token}/events", h.PreviewSSE)
+	r.Get("/preview/{token}/diff", h.PreviewDiff)
+	r.Get("/preview/{token}/versions", h.PreviewVersions)
 	r.Get("/og/{slug}.png", h.PageOG)
 	r.Get("/og/{collection}/{page}.png", h.CollectionPageOG)
 	r.Get("/img/{id}.webp", h.Image)

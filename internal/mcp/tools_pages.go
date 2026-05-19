@@ -21,19 +21,18 @@ import (
 func (s *Server) registerPageTools(mcpServer *mcp.Server) {
 	mcpServer.AddTool(&mcp.Tool{
 		Name: "create_page",
-		Description: `Create a new page. The page starts as a draft — use publish_page to make it live.
+		Description: `Create a new page as an empty draft. Use ` + "`append_to_page`" + ` to add body content section by section, or ` + "`update_page`" + ` to set/replace the full content.
 
-**Content format:** Write the body in rich Markdown. Supported syntax:
-- Headings (# through ######), **bold**, *italic*, ~~strikethrough~~
-- Links: [text](url), images: ![alt](url)
-- Code blocks with language tags (` + "```go, ```python" + `) — renders with syntax highlighting, language icon, and copy button
-- Callout blocks: > [!NOTE], > [!TIP], > [!WARNING], > [!DANGER] for styled alert boxes
-- Media embeds: <embed src="url" /> for YouTube, Spotify, SoundCloud, Twitter/X, GitHub Gists
-- D2 diagrams: ` + "```d2" + ` code blocks (see D2 reference below)
-- Tables (GFM), ordered/unordered lists, task lists, horizontal rules, footnotes ([^1])
-- Raw HTML for advanced layouts
+**Content format (for the content you'll write via append_to_page / update_page):** Rich Markdown — headings, **bold**, *italic*, ~~strikethrough~~, links, images, GFM tables, lists, task lists, footnotes ([^1]), and raw HTML.
 
-**D2 diagram reference** — rendered server-side to SVG with NeutralGrey theme, dagre auto-layout, and interactive zoom/pan/fullscreen. Compilation errors are returned as warnings so you can fix them.
+**Beautiful by default — use these freely:**
+- Code blocks with language tags (` + "```go, ```python" + `) render with syntax highlighting, a language icon, and a copy button.
+- Callout blocks: ` + "`> [!NOTE]`" + `, ` + "`> [!TIP]`" + `, ` + "`> [!WARNING]`" + `, ` + "`> [!DANGER]`" + ` produce styled alert boxes.
+- Media embeds: ` + "`<embed src=\"url\" />`" + ` works for YouTube, Spotify, SoundCloud, Twitter/X, GitHub Gists.
+- Images: ` + "`![alt](url)`" + ` — for new images, call ` + "`upload_image`" + ` first to get a ` + "`/img/{id}.webp`" + ` URL; never inline base64.
+- D2 diagrams in ` + "```d2" + ` code blocks (see reference below) — rendered server-side to SVG with NeutralGrey theme, dagre auto-layout, and zoom/pan/fullscreen.
+
+**D2 diagram reference**
 
 Key syntax:
 - Containers (nesting): server: { api: API; db: Database }
@@ -55,44 +54,62 @@ Best practices for professional diagrams:
 - Use appropriate shapes: cylinder for databases, cloud for external services, package for modules
 - Keep it focused — one diagram per concept, don't try to show everything
 
-Returns: The created page with a preview URL you can share.`,
+Returns: the page id, slug, and a preview URL.`,
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"title":         map[string]any{"type": "string", "description": "Page title"},
-				"content":       map[string]any{"type": "string", "description": "Page body in rich Markdown."},
-				"excerpt":       map[string]any{"type": "string", "description": "Short excerpt for listings (auto-generated if omitted)"},
 				"tags":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Tags for categorization"},
 				"slug":          map[string]any{"type": "string", "description": "URL slug (auto-generated from title if omitted)"},
 				"collection_id": map[string]any{"type": "string", "description": "Collection ID to add this page to (optional)"},
 				"position":      map[string]any{"type": "integer", "description": "Position within collection (for manual ordering)"},
-				"visibility":    map[string]any{"type": "string", "enum": []string{"public", "unlisted", "private"}, "description": "Page visibility: public (default, shown everywhere), unlisted (accessible via URL only), private (team members only)"},
+				"visibility":    map[string]any{"type": "string", "enum": []string{"public", "unlisted", "private"}, "description": "Visibility *when published*: public (listed in index/sitemap/search), unlisted (accessible by URL only), private (team members only). This does NOT publish the page — pages remain drafts until publish_page is called explicitly by the user."},
 				"tenant_id":     map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
-			"required": []string{"title", "content"},
+			"required": []string{"title"},
+		},
+		OutputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id":          map[string]any{"type": "string"},
+				"slug":        map[string]any{"type": "string"},
+				"title":       map[string]any{"type": "string"},
+				"preview_url": map[string]any{"type": "string"},
+				"version":     map[string]any{"type": "integer"},
+			},
+			"required": []string{"id", "slug", "title", "preview_url", "version"},
 		},
 	}, s.createPage)
 
 	mcpServer.AddTool(&mcp.Tool{
-		Name: "update_page",
-		Description: `Update an existing page. Partial updates — only send the fields you want to change. To move a page to a collection or change title/tags/slug, you don't need to include content.
-
-After updating, a new preview URL is generated so you can verify changes.`,
+		Name:        "update_page",
+		Description: "Update an existing page. Partial updates — only send the fields you want to change. Sending `content` REPLACES the page body atomically — the preview updates in a single hop. Ideal for revisions and edits; for fresh long-form drafts where you want the user to see the page build up section by section, use `append_to_page` repeatedly instead.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"id":            map[string]any{"type": "string", "description": "Page ID"},
 				"title":         map[string]any{"type": "string", "description": "New title"},
-				"content":       map[string]any{"type": "string", "description": "New content in rich Markdown."},
+				"content":       map[string]any{"type": "string", "description": "New content in rich Markdown (replaces existing body)."},
 				"excerpt":       map[string]any{"type": "string", "description": "New excerpt"},
 				"tags":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "New tags"},
 				"slug":          map[string]any{"type": "string", "description": "New URL slug"},
 				"collection_id": map[string]any{"type": "string", "description": "Move to a collection (use empty string to make standalone)"},
 				"position":      map[string]any{"type": "integer", "description": "New position within collection"},
-				"visibility":    map[string]any{"type": "string", "enum": []string{"public", "unlisted", "private"}, "description": "Page visibility: public, unlisted, or private"},
+				"visibility":    map[string]any{"type": "string", "enum": []string{"public", "unlisted", "private"}, "description": "Visibility *when published*: public (listed in index/sitemap/search), unlisted (accessible by URL only), private (team members only). This does NOT publish the page — pages remain drafts until publish_page is called explicitly by the user."},
 				"tenant_id":     map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"id"},
+		},
+		OutputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id":          map[string]any{"type": "string"},
+				"version":     map[string]any{"type": "integer"},
+				"status":      map[string]any{"type": "string"},
+				"preview_url": map[string]any{"type": "string"},
+				"live_url":    map[string]any{"type": "string"},
+			},
+			"required": []string{"id", "version", "status", "preview_url"},
 		},
 	}, s.updatePage)
 
@@ -111,7 +128,7 @@ After updating, a new preview URL is generated so you can verify changes.`,
 
 	mcpServer.AddTool(&mcp.Tool{
 		Name:        "publish_page",
-		Description: "Publish a draft page, making it live on your site. Returns the live URL.",
+		Description: "Publish a draft page, making it live on the site's public index, sitemap, and (where configured) search. **Call this only when the user has explicitly asked to publish.** Setting `visibility: \"public\"` on `create_page` or `update_page` does *not* mean the page should be published — it only controls whether the page would be listed if/when published. Pages remain in draft state until publish_page is called.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -137,7 +154,7 @@ After updating, a new preview URL is generated so you can verify changes.`,
 
 	mcpServer.AddTool(&mcp.Tool{
 		Name:        "append_to_page",
-		Description: "Append content to the end of an existing page. Use this instead of update_page when adding new sections — avoids re-sending the entire page content.",
+		Description: "Append markdown to the end of an existing page. Strictly additive — existing content is unchanged. Calling this repeatedly streams content into the page in real time, so the user can watch sections appear in the preview tab as you compose them.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -146,6 +163,15 @@ After updating, a new preview URL is generated so you can verify changes.`,
 				"tenant_id": map[string]any{"type": "string", "description": "Site ID (only needed if you have multiple sites)"},
 			},
 			"required": []string{"id", "content"},
+		},
+		OutputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id":          map[string]any{"type": "string"},
+				"version":     map[string]any{"type": "integer"},
+				"preview_url": map[string]any{"type": "string"},
+			},
+			"required": []string{"id", "version", "preview_url"},
 		},
 	}, s.appendToPage)
 
@@ -200,8 +226,6 @@ func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 
 	var args struct {
 		Title        string   `json:"title"`
-		Content      string   `json:"content"`
-		Excerpt      string   `json:"excerpt"`
 		Tags         []string `json:"tags"`
 		Slug         string   `json:"slug"`
 		CollectionID string   `json:"collection_id"`
@@ -216,15 +240,11 @@ func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
+	s.trackPresence(req, tenantID)
 
 	slug := args.Slug
 	if slug == "" {
 		slug = slugify(args.Title)
-	}
-
-	excerpt := args.Excerpt
-	if excerpt == "" {
-		excerpt = generateExcerpt(args.Content)
 	}
 
 	tagsJSON, _ := json.Marshal(args.Tags)
@@ -237,8 +257,6 @@ func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		collectionID = &args.CollectionID
 	}
 
-	contentHTML, renderWarnings := renderContentWithErrors(args.Content)
-
 	visibility := args.Visibility
 	if visibility == "" {
 		visibility = "public"
@@ -248,42 +266,43 @@ func (s *Server) createPage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		ID:           ulid.Make().String(),
 		Title:        args.Title,
 		Slug:         slug,
-		Content:      args.Content,
-		ContentHTML:  contentHTML,
-		Excerpt:      excerpt,
+		Content:      "",
+		ContentHTML:  "",
+		Excerpt:      "",
 		Status:       "draft",
 		Visibility:   visibility,
 		Tags:         string(tagsJSON),
 		CollectionID: collectionID,
 		Position:     args.Position,
+		Version:      0,
 	}
-
-	page.Version = 1
 
 	if err := db.CreatePage(ctx, page); err != nil {
 		return toolError(fmt.Sprintf("failed to create page: %v", err)), nil
 	}
 
-	db.SavePageVersion(ctx, page)
-
-	pt, err := db.CreatePreviewToken(ctx, page.ID, 24*time.Hour)
+	pt, err := s.ensurePreviewToken(ctx, db, page.ID)
 	if err != nil {
 		return toolError("page created but failed to generate preview URL"), nil
 	}
 
 	s.Bus.Emit(events.Event{Type: events.PageCreated, TenantID: tenantID, PageID: page.ID})
 
-	result := fmt.Sprintf("Page created as draft.\n\n**Title:** %s\n**ID:** %s\n**Slug:** %s\n**Preview:** %s\n\nUse publish_page to make it live.",
-		page.Title, page.ID, page.Slug, s.buildPreviewURL(tenantID, pt.Token))
+	previewURL := s.buildPreviewURL(tenantID, pt.Token)
 
-	if len(renderWarnings) > 0 {
-		result += "\n\n**Warnings:**\n"
-		for _, w := range renderWarnings {
-			result += "- " + w + "\n"
-		}
-	}
+	result := fmt.Sprintf("Page created as draft.\n\n**Title:** %s\n**ID:** %s\n**Slug:** %s\n**Preview:** %s\n\nAdd content with append_to_page or update_page, then publish_page to make it live.",
+		page.Title, page.ID, page.Slug, previewURL)
 
-	return toolResult(result), nil
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: result}},
+		StructuredContent: map[string]any{
+			"id":          page.ID,
+			"slug":        page.Slug,
+			"title":       page.Title,
+			"preview_url": previewURL,
+			"version":     page.Version,
+		},
+	}, nil
 }
 
 func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -311,6 +330,7 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
+	s.trackPresence(req, tenantID)
 
 	page, err := db.GetPage(ctx, args.ID)
 	if err != nil {
@@ -381,21 +401,36 @@ func (s *Server) updatePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: page.ID})
 	}()
 
-	pt, _ := db.CreatePreviewToken(ctx, page.ID, 24*time.Hour)
+	pt, _ := s.ensurePreviewToken(ctx, db, page.ID)
 	previewURL := ""
 	if pt != nil {
 		previewURL = fmt.Sprintf("%s?v=%d", s.buildPreviewURL(tenantID, pt.Token), page.Version)
 	}
 
+	liveURL := ""
 	result := fmt.Sprintf("Page updated (v%d).\n\n**Title:** %s\n**Status:** %s", page.Version, page.Title, page.Status)
 	if page.Status == "published" {
-		result += fmt.Sprintf("\n**Live URL:** %s", s.buildPageURL(tenantID, page.CollectionID, page.Slug))
+		liveURL = s.buildPageURL(tenantID, page.CollectionID, page.Slug)
+		result += fmt.Sprintf("\n**Live URL:** %s", liveURL)
 	}
 	if previewURL != "" {
 		result += fmt.Sprintf("\n**Preview URL:** %s", previewURL)
 	}
 
-	return toolResult(result), nil
+	structured := map[string]any{
+		"id":          page.ID,
+		"version":     page.Version,
+		"status":      page.Status,
+		"preview_url": previewURL,
+	}
+	if liveURL != "" {
+		structured["live_url"] = liveURL
+	}
+
+	return &mcp.CallToolResult{
+		Content:           []mcp.Content{&mcp.TextContent{Text: result}},
+		StructuredContent: structured,
+	}, nil
 }
 
 func (s *Server) deletePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -415,6 +450,7 @@ func (s *Server) deletePage(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
+	s.trackPresence(req, tenantID)
 
 	if err := db.DeletePage(ctx, args.ID); err != nil {
 		return toolError(fmt.Sprintf("failed to delete: %v", err)), nil
@@ -441,6 +477,7 @@ func (s *Server) publishPage(ctx context.Context, req *mcp.CallToolRequest) (*mc
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
+	s.trackPresence(req, tenantID)
 
 	page, err := db.GetPage(ctx, args.ID)
 	if err != nil {
@@ -477,6 +514,7 @@ func (s *Server) unpublishPage(ctx context.Context, req *mcp.CallToolRequest) (*
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
+	s.trackPresence(req, tenantID)
 
 	page, err := db.GetPage(ctx, args.ID)
 	if err != nil {
@@ -512,13 +550,18 @@ func (s *Server) appendToPage(ctx context.Context, req *mcp.CallToolRequest) (*m
 	if err != nil {
 		return toolError(err.Error()), nil
 	}
+	s.trackPresence(req, tenantID)
 
 	page, err := db.GetPage(ctx, args.ID)
 	if err != nil {
 		return toolError("page not found"), nil
 	}
 
-	page.Content = page.Content + "\n\n" + args.Content
+	if page.Version == 0 || page.Content == "" {
+		page.Content = args.Content
+	} else {
+		page.Content = page.Content + "\n\n" + args.Content
+	}
 	page.Version++
 
 	if err := db.UpdatePage(ctx, page); err != nil {
@@ -543,10 +586,10 @@ func (s *Server) appendToPage(ctx context.Context, req *mcp.CallToolRequest) (*m
 		s.Bus.Emit(events.Event{Type: events.PageUpdated, TenantID: tenantID, PageID: page.ID})
 	}()
 
-	pt, _ := db.CreatePreviewToken(ctx, page.ID, 24*time.Hour)
+	pt, _ := s.ensurePreviewToken(ctx, db, page.ID)
 	previewURL := ""
 	if pt != nil {
-		previewURL = s.buildPreviewURL(tenantID, pt.Token)
+		previewURL = fmt.Sprintf("%s?v=%d", s.buildPreviewURL(tenantID, pt.Token), page.Version)
 	}
 
 	result := fmt.Sprintf("Content appended (v%d).\n\n**Title:** %s\n**Status:** %s", page.Version, page.Title, page.Status)
@@ -554,7 +597,14 @@ func (s *Server) appendToPage(ctx context.Context, req *mcp.CallToolRequest) (*m
 		result += fmt.Sprintf("\n**Preview URL:** %s", previewURL)
 	}
 
-	return toolResult(result), nil
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: result}},
+		StructuredContent: map[string]any{
+			"id":          page.ID,
+			"version":     page.Version,
+			"preview_url": previewURL,
+		},
+	}, nil
 }
 
 func (s *Server) listPages(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {

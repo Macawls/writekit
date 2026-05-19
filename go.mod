@@ -3,6 +3,7 @@ module writekit
 go 1.25.0
 
 require (
+	github.com/HugoSmits86/nativewebp v1.3.0
 	github.com/alecthomas/chroma/v2 v2.23.1
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
@@ -18,6 +19,7 @@ require (
 	github.com/stripe/stripe-go/v82 v82.5.1
 	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/yuin/goldmark v1.7.16
+	golang.org/x/image v0.40.0
 	golang.org/x/oauth2 v0.36.0
 	modernc.org/sqlite v1.47.0
 	oss.terrastruct.com/d2 v0.7.1
@@ -26,7 +28,6 @@ require (
 require (
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
-	github.com/HugoSmits86/nativewebp v1.3.0 // indirect
 	github.com/PuerkitoBio/goquery v1.10.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/andybalholm/cascadia v1.3.2 // indirect
@@ -86,7 +87,6 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
-	golang.org/x/image v0.40.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect

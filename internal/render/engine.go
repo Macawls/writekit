@@ -29,6 +29,8 @@ func New(fsys fs.FS, dev bool) *Engine {
 		templates: make(map[string]*template.Template),
 		funcMap: template.FuncMap{
 			"safe": func(s string) template.HTML { return template.HTML(s) },
+			"add":  func(a, b int) int { return a + b },
+			"sub":  func(a, b int) int { return a - b },
 			"chromaCSS": func(theme string) template.CSS {
 				if theme == "" {
 					theme = markdown.DefaultCodeTheme
