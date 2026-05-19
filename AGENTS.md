@@ -48,25 +48,23 @@ The Go binary embeds `templates/`, `static/`, `apps/user/dist/`, and `apps/admin
 
 ## Dev loop: iterate on `apps/user` SPA + test MCP locally
 
-`apps/user` is the same SPA served at `app.writekit.dev` (hosted) and inside the Wails desktop window. `wails dev` does not run Vite — its AssetServer proxies to the embedded Go server, so you get no HMR. For fast UI iteration against a real MCP, run the desktop Go server and Vite side-by-side:
+`apps/user` is the same SPA served at `app.writekit.dev` (hosted) and inside the Wails desktop window. `wails dev` is the only supported way to run the local backend — `LOCAL=true go run ./cmd/writekit` boots an HTTP server but skips the workspace bootstrap in `desktop/main.go` (`auth.SetLocalWorkspaces`), so `/api/me` returns `site: null` forever and the SPA spins on "Setting up your site...".
+
+`desktop/wails.json` is configured with `frontend:dev:watcher` and `frontend:dev:serverUrl: http://localhost:5173`, so `wails dev` spawns Vite itself and the AssetServer proxies the webview through it — CSS and React edits hot-reload inside the desktop window. The same Vite process also serves `http://localhost:5173` for browser-based iteration, with `/api` proxied to `:8787`.
 
 ```bash
-# Terminal A — desktop backend + loopback MCP at 127.0.0.1:8787
+# One terminal — backend, MCP, Vite, and the webview all start from here
 cd desktop && wails dev
-# or, without the webview:
-LOCAL=true HOST=localhost PORT=8787 go run ./cmd/writekit
-
-# Terminal B — SPA with HMR, proxies /api to :8787 by default
-cd apps/user && bun run dev
-# override target if pointing at the hosted server instead:
-VITE_BACKEND_URL=http://localhost:8080 bun run dev
 ```
 
 Then:
 
-- Open `http://localhost:5173` for the SPA with hot reload.
+- The Wails window has live HMR (CSS + React) — edit `apps/user/src/**` and changes appear without restart.
+- Open `http://localhost:5173` for the same SPA in a regular browser, also with HMR.
 - Point Claude (Desktop / Code) at `http://127.0.0.1:8787/mcp` — loopback trust, no OAuth. The tray menu's "Copy MCP URL" gives you this.
-- MCP tool calls mutate the SQLite store; refresh `:5173` to see changes reflected in the SPA.
+- MCP tool calls mutate the SQLite store; HMR updates the SPA code, but data still requires a refetch/refresh to show.
+
+If you only want the SPA against the hosted server (no local MCP), run Vite alone: `cd apps/user && VITE_BACKEND_URL=http://localhost:8080 bun run dev`.
 
 Hosted dev (`go run ./cmd/writekit` on `:8080` with Postgres, OAuth, and subdomain host matching for `app.localhost` / `mcp.localhost`) is heavier — only reach for it when debugging hosted-only paths.
 
