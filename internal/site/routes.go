@@ -38,6 +38,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/preview/{token}/events", h.PreviewSSE)
 	r.Get("/og/{slug}.png", h.PageOG)
 	r.Get("/og/{collection}/{page}.png", h.CollectionPageOG)
+	r.Get("/img/{id}.webp", h.Image)
 	r.Get("/{slug}.md", h.RawMarkdown)
 	r.Get("/{slug}", h.PageOrCollection)
 	r.Get("/{collection}/{page}.md", h.RawCollectionMarkdown)
