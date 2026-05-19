@@ -4,7 +4,7 @@
 
 **Publish by conversation.**
 
-Pages, collections, and docs — managed entirely through your AI assistant.
+A markdown publishing platform you operate through your AI assistant. Pages, collections, drafts, and previews — all driven by MCP tool calls instead of a dashboard.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=flat-square)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-1.25-00ADD8?style=flat-square&logo=go)](go.mod)
@@ -16,70 +16,133 @@ Pages, collections, and docs — managed entirely through your AI assistant.
 
 ---
 
-WriteKit is a publishing platform with an [MCP](https://modelcontextprotocol.io) server built in. Point Claude, Cursor, Windsurf, Cline, Zed, OpenCode, or Goose at it and write, organise, and publish pages from the chat.
+WriteKit is built around the [Model Context Protocol](https://modelcontextprotocol.io). Point any MCP-capable client — Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, Zed, OpenCode, Cline, Roo Code, Junie, or ChatGPT — at the server and your AI gets typed tools for creating pages, ordering collections, publishing, inviting team members, and configuring your site. No dashboard required.
+
+It ships as two things from one codebase: a hosted multi-tenant service at [writekit.dev](https://writekit.dev), and a Wails desktop app that runs entirely on your machine.
 
 ## Get started
 
-**Hosted — zero setup.**
+**Hosted — zero setup, $5/month.**
 
 ```bash
 claude mcp add --transport http writekit https://mcp.writekit.dev
 ```
 
-Sign in at [writekit.dev](https://writekit.dev) with Google, GitHub, or Discord, pick a subdomain, and start telling your assistant what to write.
+Sign in at [writekit.dev](https://writekit.dev) with Google, GitHub, or Discord, pick a subdomain, and tell your assistant what to write. OAuth 2.0 + PKCE handles MCP auth — no API keys to copy around.
 
 **Desktop — local-first, no account.**
 
-Download WriteKit for your OS from [Releases](https://github.com/Macawls/writekit/releases/latest). It runs entirely on your machine — data lives in `%APPDATA%\WriteKit` (or `~/Library/Application Support/WriteKit`, `~/.local/share/WriteKit`). A local MCP server is exposed on `127.0.0.1` so Claude Desktop (or any MCP client) can read and write to it in the background.
+Grab a build for your OS from [Releases](https://github.com/Macawls/writekit/releases/latest). Everything stays on your machine: pages live in a single SQLite file under your user data directory, and the desktop app exposes a loopback MCP server (`127.0.0.1`) so Claude Desktop or any MCP client can read and write to it. The tray menu has a "Copy MCP URL" item to wire up a client in one paste.
 
-## What you get
+## What's in the box
 
-- **Pages**: any markdown content — a doc, guide, tutorial. Start as drafts, publish when ready.
-- **Collections**: group related pages (docs, a tutorial series, a changelog). Ordered manually or by date.
-- **Visibility**: `public`, `unlisted` (URL-only), or `private` (team members only) — per page and per collection.
-- **Teams**: `owner` / `editor` / `viewer` roles on the hosted service; invite members by email.
-- **Semantic graph**: embedding-powered similarity graph of your pages, visualised in 2D or 3D. Embeddings run entirely in your browser via [transformers.js](https://huggingface.co/docs/transformers.js) — pick a model in Settings, it downloads once and caches locally.
-- **MCP tools**: `create_page`, `update_page`, `publish_page`, `list_pages`, `search_pages`, `create_collection`, `update_settings`, and more. See [writekit.dev/docs](https://writekit.dev/docs) for the full list.
+- **Pages** — markdown documents with a title, slug, optional excerpt, tags, visibility, and draft/published status. Drafts never appear on the live site; share them via 24-hour preview links.
+- **Collections** — ordered groups of pages, sorted manually or by date. Use one for docs, one for a changelog, one for a tutorial series.
+- **Tags** — free-form labels per page; filter the page list, surface related work, group by topic.
+- **Visibility** — `public`, `unlisted` (URL-only), or `private` (team members only), per page and per collection.
+- **Versions** — every edit is stored as `v1, v2, v3…`. Rewind by asking your AI to "go back to v3."
+- **Live preview** — preview tab auto-reloads via SSE every time the page is saved. Side-panel it next to your chat.
+- **Teams** — `owner` / `editor` / `viewer` roles on the hosted service; invite by email.
+- **Custom domains** — point a CNAME at `cname.writekit.dev` and certs are issued automatically. The original subdomain keeps working.
+- **Semantic graph** — embedding-powered similarity graph of your pages in 2D or 3D. Embeddings run client-side in the browser via [transformers.js](https://huggingface.co/docs/transformers.js); no server-side embedding worker required.
+
+## The MCP surface
+
+**Tools** (`internal/mcp/`):
+
+| Pages | Collections | Settings | Team |
+|---|---|---|---|
+| `create_page` | `create_collection` | `get_settings` | `list_members` |
+| `update_page` | `update_collection` | `update_settings` | `invite_member` |
+| `append_to_page` | `delete_collection` | `rename_subdomain` | `update_member_role` |
+| `delete_page` | `list_collections` | | `remove_member` |
+| `publish_page` | `get_collection` | | `list_invitations` |
+| `unpublish_page` | `reorder_pages` | | `revoke_invitation` |
+| `list_pages` | | | `resend_invitation` |
+| `get_page` | | | |
+| `search_pages` | | | |
+
+**Resources** (read-only context the AI can pull on demand):
+
+- `writekit://site/stats` — published / draft / collection counts
+- `writekit://site/settings` — current site settings
+- `writekit://site/recent-pages` — last 10 published
+- `writekit://site/drafts` — every draft
+- `writekit://site/collections` — collections with page counts
+
+**Prompts**: `write_page` scaffolds a new page from a topic, optional audience, and optional style.
+
+Full reference at [writekit.dev/docs](https://writekit.dev/docs).
 
 ## Markdown, plus
 
 Standard CommonMark + GFM, with a few extensions that matter:
 
-- **Syntax-highlighted code blocks** with language tags and a copy button
-- **Callouts**: `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, `> [!DANGER]`
-- **Media embeds**: `<embed src="https://...">` for YouTube, Spotify, SoundCloud, Twitter/X, GitHub Gists
-- **D2 diagrams**: write architecture diagrams in ```` ```d2 ```` fenced blocks, rendered server-side to interactive SVG
-- **Footnotes**, task lists, tables, raw HTML
+- **Syntax-highlighted code blocks** (chroma) with language tags and a copy button
+- **Callouts** — `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, `> [!DANGER]`
+- **Media embeds** — `<embed src="https://...">` for YouTube, Spotify, SoundCloud, Twitter/X, GitHub Gists
+- **D2 diagrams** — ```` ```d2 ```` fenced blocks rendered server-side to interactive SVG
+- **Footnotes**, task lists, tables, image lightbox, raw HTML
 
 ## The two builds
-
-One codebase, two artifacts:
 
 | | Hosted | Desktop |
 |---|---|---|
 | URL | `writekit.dev` | `http://127.0.0.1:<port>` |
 | Storage | Postgres (platform) + per-tenant SQLite | SQLite only |
-| Accounts | Google / GitHub / Discord OAuth | None — single user, loopback trust |
+| Accounts | Google / GitHub / Discord OAuth + magic link | None — single user, loopback trust |
 | MCP auth | OAuth 2.0 + PKCE | Unauthenticated (loopback only) |
-| Multi-tenant | Yes — subdomain per site | No — single site |
+| Multi-tenant | Yes — subdomain or custom domain per site | No — single site |
+| Teams | Yes | No |
 | Entry | `cmd/writekit` | `desktop/` (Wails v2 wrapper) |
 
-## Self-hosting
+Both share `internal/`. The mode switch lives in [`internal/app/app.go`](internal/app/app.go) (`buildLocalRouter` vs `buildRouter`); local mode skips OAuth, Stripe, subdomains, and the platform DB entirely, injecting identity from loopback context.
+
+## Architecture
+
+- **`internal/platform/`** — Postgres. Users, tenants, sessions, OAuth linked accounts, team members, magic links, Stripe. Hosted only.
+- **`internal/tenant/`** — per-tenant SQLite (WAL + LRU pool). Pages, collections, `page_versions`, `page_embeddings`, settings. The only DB in desktop mode.
+- **`internal/mcp/`** — MCP server, tools, resources, prompts; uses [`github.com/modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk). `resolver.go` maps each request to `(tenant, user, role)`.
+- **`internal/render` / `internal/markdown`** — goldmark + chroma + D2 + embed/callout extensions, fronted by a cache that invalidates on `events.Bus` mutations.
+- **`internal/site` / `internal/api`** — public site rendering and the JSON API the SPAs talk to.
+- **`apps/user`** — React/Vite SPA served at `app.writekit.dev` (hosted) and inside the desktop window. `wails dev` proxies its webview through Vite, so React + CSS HMR work live.
+- **`apps/admin`** — platform admin SPA.
+- **`templates/web/`** — server-rendered marketing, auth, billing, docs.
+
+Embedded into the Go binary via [`embed.go`](embed.go): `templates/`, `static/`, `apps/user/dist/`, `apps/admin/dist/`. Release builds run `bun run build` for both SPAs before `go build`.
+
+## Local development
 
 ```bash
-git clone https://github.com/Macawls/writekit
-cd writekit
-docker compose up -d            # starts postgres
+# Desktop loop — backend, MCP, Vite, and the webview start from one command
+cd desktop && wails dev
+```
+
+That gives you:
+
+- Live HMR for `apps/user/src/**` inside the Wails window
+- The same SPA at `http://localhost:5173` in a regular browser (`/api` is proxied to `:8787`)
+- A loopback MCP endpoint at `http://127.0.0.1:8787/mcp` — point Claude Code at it and start mutating SQLite
+
+> `LOCAL=true go run ./cmd/writekit` will boot, but it skips the desktop workspace bootstrap and `/api/me` returns `site: null` forever. Use `wails dev`.
+
+For hosted dev (Postgres, OAuth, subdomain matching on `app.localhost` / `mcp.localhost`):
+
+```bash
+docker compose up -d
 export DATABASE_URL=postgres://writekit:writekit@localhost/writekit
 export SESSION_SECRET=$(openssl rand -hex 32)
 go run ./cmd/writekit
 ```
 
-Point DNS at your box with a wildcard `*.yourdomain.tld` record and you've got a multi-tenant publishing service. OAuth providers (Google/GitHub/Discord) and AWS SES for magic-link email are optional — the server boots with any subset configured. Embeddings are computed client-side in the user's browser, so the server never needs an embedding model installed.
+Before pushing: `go test ./...`, `go vet ./...`, `gofmt -s -w .`. See [`AGENTS.md`](AGENTS.md) for the rest of the conventions.
+
+## Self-hosting
+
+Same command as hosted dev, plus a wildcard `*.yourdomain.tld` DNS record pointed at your box. OAuth providers and AWS SES for magic-link mail are optional — the server boots with any subset configured. Embeddings run in the user's browser, so no embedding model needs to live on the server.
 
 All env vars are declared in [`internal/config/config.go`](internal/config/config.go).
 
 ## License
 
-[AGPL-3.0-or-later](LICENSE). The entire codebase is open source. AGPL §13 (network-use) means: if you modify WriteKit and run your fork as a service, you must publish your changes under the same license. Self-hosting, personal use, and modification are unrestricted.
-
+[AGPL-3.0-or-later](LICENSE). The whole codebase is open source. AGPL §13 (network-use) means: if you modify WriteKit and run your fork as a service, you publish your changes under the same license. Self-hosting, personal use, and modification are unrestricted.
